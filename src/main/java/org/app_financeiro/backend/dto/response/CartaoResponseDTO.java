@@ -1,0 +1,23 @@
+package org.app_financeiro.backend.dto.response;
+
+import lombok.Data;
+import org.app_financeiro.backend.entity.CartaoEntity;
+
+import java.math.BigDecimal;
+
+@Data
+public class CartaoResponseDTO {
+    private Long id;
+    private String nome;
+    private BigDecimal limite;
+    private Integer diaFechamento;
+    private Integer diaVencimento;
+
+    public CartaoResponseDTO(CartaoEntity entity) {
+        this.id = entity.getId();
+        this.nome = entity.getNome();
+        this.limite = entity.getLimite();
+        this.diaFechamento = entity.getDiaFechamento();
+        this.diaVencimento = entity.getDiaVencimento();
+    }
+}
