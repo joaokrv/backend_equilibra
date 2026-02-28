@@ -48,11 +48,13 @@ public class CartaoService {
      * - Buscar por ID no repository
      * - Validar que o cartão pertence ao usuário E está ativo
      * - Se não encontrar: lançar RecursoNaoEncontradoException("Cartão não encontrado")
-     * - Retornar CartaoResponseDTO
+     * - Chamar calcularLimiteDisponivel(cartaoId, usuarioId) para obter o limite atualizado.
+     * - Retornar CartaoResponseDTO passando a entidade e o limite calculado.
      */
     public CartaoResponseDTO buscarPorId(Long cartaoId, Long usuarioId) {
         CartaoEntity cartao = buscarCartaoValidado(cartaoId, usuarioId);
-        return new CartaoResponseDTO(cartao);
+        // TODO: MUDANÇA - Chamar calcularLimiteDisponivel e passar no construtor abaixo
+        return new CartaoResponseDTO(cartao, BigDecimal.ZERO);
     }
 
     /**
@@ -79,7 +81,8 @@ public class CartaoService {
      *
      * REGRAS que você deve implementar:
      * - Usar cartaoRepository.findByUsuarioIdAndAtivoTrue(usuarioId)
-     * - Converter cada CartaoEntity para CartaoResponseDTO
+     * - Para cada CartaoEntity, você deve chamar o calcularLimiteDisponivel
+     * - Converter cada CartaoEntity para CartaoResponseDTO (passando a entidade e o limite)
      * - Retornar a lista (pode ser vazia)
      *
      */
@@ -87,8 +90,9 @@ public class CartaoService {
         List<CartaoEntity> cartoes =
                 cartaoRepository.findByUsuarioIdAndAtivoTrue(usuarioId);
 
+        // TODO: MUDANÇA - Mapear chamando o calcularLimiteDisponivel para cada cartão
         return cartoes.stream()
-                .map(CartaoResponseDTO::new)
+                .map(cartao -> new CartaoResponseDTO(cartao, BigDecimal.ZERO))
                 .toList();
     }
 

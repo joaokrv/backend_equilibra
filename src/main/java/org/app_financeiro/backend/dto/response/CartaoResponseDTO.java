@@ -10,13 +10,15 @@ public class CartaoResponseDTO {
     private Long id;
     private String nome;
     private BigDecimal limite;
+    private BigDecimal limiteDisponivel;
     private Integer diaFechamento;
     private Integer diaVencimento;
 
-    public CartaoResponseDTO(CartaoEntity entity) {
+    public CartaoResponseDTO(CartaoEntity entity, BigDecimal limiteDisponivel) {
         this.id = entity.getId();
         this.nome = entity.getNome();
         this.limite = entity.getLimite();
+        this.limiteDisponivel = limiteDisponivel;
         this.diaFechamento = entity.getDiaFechamento();
         this.diaVencimento = entity.getDiaVencimento();
     }
