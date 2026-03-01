@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Optional;
 
 @Repository
 public interface FaturaRepository extends JpaRepository<FaturaEntity, Long> {
@@ -13,4 +14,8 @@ public interface FaturaRepository extends JpaRepository<FaturaEntity, Long> {
     List<FaturaEntity> findByCartaoIdAndStatusNot(Long cartaoId, StatusFatura status);
 
     boolean existsByCartaoIdAndStatusNot(Long cartaoId, StatusFatura status);
+
+    List<FaturaEntity> findByCartaoId(Long cartaoId);
+    
+    Optional<FaturaEntity> findByCartaoIdAndMesAndAno(Long cartaoId, Integer mes, Integer ano);
 }

@@ -5,6 +5,7 @@ import org.app_financeiro.backend.dto.response.ContaResponseDTO;
 import org.app_financeiro.backend.entity.ContaEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
+import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.app_financeiro.backend.exception.SaldoInsuficienteException;
 import org.app_financeiro.backend.repository.ContaRepository;
 import org.springframework.stereotype.Service;
@@ -161,7 +162,7 @@ public class ContaService {
         ContaEntity conta = buscarContaValidada(contaId, usuarioId);
 
         if (conta.getSaldo().compareTo(BigDecimal.ZERO) > 0) {
-            throw new SaldoInsuficienteException("Ainda com saldo na conta");
+            throw new RegraDeNegocioException("Não é possível inativar uma conta que ainda possui saldo.");
         }
 
         conta.setAtivo(false);
