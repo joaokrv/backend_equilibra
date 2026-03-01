@@ -8,6 +8,17 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 
+/**
+ * Configuração de segurança da aplicação.
+ *
+ * Estado atual (temporário): CSRF desabilitado e todas as requisições liberadas (permitAll).
+ * Isso permite desenvolvimento e testes locais sem autenticação.
+ *
+ * Fase 10 do roadmap substituirá esta configuração por:
+ * - Filtro JWT para validar tokens em cada requisição
+ * - Rotas publicas (/api/auth/**) liberadas sem token
+ * - Demais rotas exigindo autenticacao via Bearer token
+ */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {

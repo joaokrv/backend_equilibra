@@ -5,6 +5,9 @@ import org.app_financeiro.backend.entity.CartaoEntity;
 
 import java.math.BigDecimal;
 
+/**
+ * DTO de resposta com os dados de um cartão de crédito do usuário.
+ */
 @Data
 public class CartaoResponseDTO {
     private Long id;

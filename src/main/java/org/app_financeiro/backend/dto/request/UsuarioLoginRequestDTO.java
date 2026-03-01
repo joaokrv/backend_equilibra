@@ -4,6 +4,9 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
+/**
+ * DTO para requisição de autenticação de um usuário existente.
+ */
 @Data
 public class UsuarioLoginRequestDTO {
 

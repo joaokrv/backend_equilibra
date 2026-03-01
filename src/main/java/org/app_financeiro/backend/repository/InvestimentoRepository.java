@@ -6,7 +6,17 @@ import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
+/**
+ * Repositório JPA para operações de persistência de InvestimentoEntity.
+ */
 @Repository
 public interface InvestimentoRepository extends JpaRepository<InvestimentoEntity, Long> {
+
+    /**
+     * Retorna todos os investimentos ativos de um usuário.
+     *
+     * @param usuarioId ID do usuário
+     * @return Lista de investimentos ativos
+     */
     List<InvestimentoEntity> findByUsuarioIdAndAtivoTrue(Long usuarioId);
 }

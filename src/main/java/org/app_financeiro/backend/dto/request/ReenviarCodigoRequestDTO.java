@@ -4,6 +4,9 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import lombok.Data;
 
+/**
+ * DTO para requisição de reenvio do código de verificação de e-mail.
+ */
 @Data
 public class ReenviarCodigoRequestDTO {
 

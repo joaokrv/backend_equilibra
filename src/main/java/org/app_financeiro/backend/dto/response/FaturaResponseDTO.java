@@ -7,6 +7,9 @@ import org.app_financeiro.backend.enums.StatusFatura;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+/**
+ * DTO de resposta com os dados de uma fatura de cartão de crédito.
+ */
 @Data
 public class FaturaResponseDTO {
     private Long id;

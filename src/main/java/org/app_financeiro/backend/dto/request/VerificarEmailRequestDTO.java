@@ -5,6 +5,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Size;
 import lombok.Data;
 
+/**
+ * DTO para requisição de verificação de e-mail via código de 6 dígitos.
+ */
 @Data
 public class VerificarEmailRequestDTO {
 

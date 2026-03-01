@@ -78,13 +78,12 @@ public class ContaService {
     }
 
     /**
-     * Busca uma conta específica por ID.
+     * Busca uma conta específica por ID, validando que pertence ao usuário e está ativa.
      *
-     * REGRAS:
-     * - Buscar por ID no repository
-     * - Validar que a conta pertence ao usuário E está ativa
-     * - Se não encontrar: lançar RecursoNaoEncontradoException("Conta não encontrada")
-     * - Retornar ContaResponseDTO
+     * @param contaId   ID da conta
+     * @param usuarioId ID do dono da conta
+     * @return ContaResponseDTO com os dados da conta
+     * @throws RecursoNaoEncontradoException se a conta não for encontrada ou não pertencer ao usuário
      */
     public ContaResponseDTO buscarPorId(Long contaId, Long usuarioId) {
         ContaEntity conta = buscarContaValidada(contaId, usuarioId);
@@ -94,11 +93,8 @@ public class ContaService {
     /**
      * Lista todas as contas ativas do usuário.
      *
-     * REGRAS:
-     * - Usar contaRepository.findByUsuarioIdAndAtivoTrue(usuarioId)
-     * - Converter cada ContaEntity para ContaResponseDTO
-     * - Retornar a lista (pode ser vazia)
-     *
+     * @param usuarioId ID do dono das contas
+     * @return Lista de ContaResponseDTO (pode ser vazia)
      */
     public List<ContaResponseDTO> buscarTodasDoUsuario(Long usuarioId) {
         List<ContaEntity> contasDoBanco = contaRepository.findByUsuarioIdAndAtivoTrue(usuarioId);
@@ -111,19 +107,13 @@ public class ContaService {
     /**
      * Debita um valor do saldo da conta.
      * Usado por TransacaoService ao criar DESPESA e por InvestimentoService ao depositar.
-     *
-     * REGRAS:
-     * - Buscar conta por ID e validar que pertence ao usuário + ativa
-     * - Se não encontrar: lançar RecursoNaoEncontradoException("Conta não encontrada")
-     * - Calcular novoSaldo = saldoAtual - valor
-     * - Se novoSaldo < 0: lançar SaldoInsuficienteException()
-     * - Setar novo saldo e salvar
-     *
-     * IMPORTANTE: Saldo negativo é BLOQUEADO — lança exceção, não apenas alerta.
+     * Saldo negativo é bloqueado — lança SaldoInsuficienteException antes de persistir.
      *
      * @param contaId   ID da conta
-     * @param valor     valor a debitar (positivo)
+     * @param valor     valor a debitar (deve ser positivo)
      * @param usuarioId ID do dono da conta
+     * @throws RecursoNaoEncontradoException se a conta não for encontrada ou não pertencer ao usuário
+     * @throws SaldoInsuficienteException    se o saldo atual for menor que o valor a debitar
      */
     @Transactional
     public void debitarSaldo(Long contaId, BigDecimal valor, Long usuarioId) {
@@ -139,17 +129,12 @@ public class ContaService {
 
     /**
      * Credita um valor ao saldo da conta.
-     * Usado por TransacaoService ao criar RECEITA.
-     *
-     * REGRAS:
-     * - Buscar conta por ID e validar que pertence ao usuário + ativa
-     * - Se não encontrar: lançar RecursoNaoEncontradoException("Conta não encontrada")
-     * - Calcular novoSaldo = saldoAtual + valor
-     * - Setar novo saldo e salvar
+     * Usado por TransacaoService ao criar RECEITA e ao reverter uma DESPESA deletada.
      *
      * @param contaId   ID da conta
-     * @param valor     valor a creditar (positivo)
+     * @param valor     valor a creditar (deve ser positivo)
      * @param usuarioId ID do dono da conta
+     * @throws RecursoNaoEncontradoException se a conta não for encontrada ou não pertencer ao usuário
      */
     @Transactional
     public void creditarSaldo(Long contaId, BigDecimal valor, Long usuarioId) {
@@ -161,11 +146,12 @@ public class ContaService {
 
     /**
      * Desativa (soft delete) uma conta.
-     * REGRAS:
-     * - Buscar conta por ID e validar que pertence ao usuário + ativa
-     * - Se não encontrar: lançar RecursoNaoEncontradoException("Conta não encontrada")
-     * - Setar ativo = false
-     * - Salvar
+     * Bloqueia a operação se a conta ainda possuir saldo positivo.
+     *
+     * @param contaId   ID da conta
+     * @param usuarioId ID do dono da conta
+     * @throws RecursoNaoEncontradoException se a conta não for encontrada ou não pertencer ao usuário
+     * @throws RegraDeNegocioException       se a conta ainda possuir saldo maior que zero
      */
     @Transactional
     public void deletarConta(Long contaId, Long usuarioId) {

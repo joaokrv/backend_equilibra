@@ -5,6 +5,9 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 
+/**
+ * DTO para requisição de registro de uma nova conta bancária.
+ */
 @Data
 public class ContaRegistroRequestDTO {
 

@@ -11,6 +11,10 @@ import org.app_financeiro.backend.enums.TipoTransacao;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+/**
+ * DTO para requisição de registro de uma nova transação financeira.
+ * Suporta transações via conta bancária ou cartão de crédito, com categoria opcional.
+ */
 @Data
 public class TransacaoRegistroRequestDTO {
 

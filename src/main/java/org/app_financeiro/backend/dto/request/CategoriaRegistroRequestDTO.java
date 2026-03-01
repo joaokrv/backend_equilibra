@@ -5,6 +5,9 @@ import jakarta.validation.constraints.NotNull;
 import lombok.Data;
 import org.app_financeiro.backend.enums.TipoTransacao;
 
+/**
+ * DTO para requisição de registro de uma nova categoria de transação.
+ */
 @Data
 public class CategoriaRegistroRequestDTO {
 

@@ -7,6 +7,9 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 
+/**
+ * DTO para requisição de registro de um novo investimento ou meta de poupança.
+ */
 @Data
 public class InvestimentoRegistroRequestDTO {
 

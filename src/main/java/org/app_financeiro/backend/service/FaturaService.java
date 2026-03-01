@@ -163,8 +163,15 @@ public class FaturaService {
         return faturas.stream().map(FaturaResponseDTO::new).toList();
     }
 
-    // --- MÉTODOS PRIVADOS PARA MATEMÁTICA E CALENDÁRIO ---
-
+    /**
+     * Busca uma fatura por ID validando que pertence ao usuário.
+     * Método de uso interno, chamado por pagarFatura e pelo TransacaoService.
+     *
+     * @param faturaId  ID da fatura
+     * @param usuarioId ID do usuário autenticado
+     * @return FaturaEntity correspondente
+     * @throws RecursoNaoEncontradoException se a fatura não existir ou não pertencer ao usuário
+     */
     public FaturaEntity buscarPorId(Long faturaId, Long usuarioId) {
         FaturaEntity fatura = faturaRepository.findById(faturaId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Fatura não encontrada"));

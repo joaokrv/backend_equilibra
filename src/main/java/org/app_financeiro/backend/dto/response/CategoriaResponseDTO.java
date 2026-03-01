@@ -4,6 +4,9 @@ import lombok.Data;
 import org.app_financeiro.backend.entity.CategoriaEntity;
 import org.app_financeiro.backend.enums.TipoTransacao;
 
+/**
+ * DTO de resposta com os dados de uma categoria de transação.
+ */
 @Data
 public class CategoriaResponseDTO {
     private Long id;

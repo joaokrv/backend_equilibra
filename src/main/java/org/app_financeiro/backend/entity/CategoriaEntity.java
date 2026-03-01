@@ -10,6 +10,17 @@ import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
+/**
+ * Entidade que representa uma Categoria de transação do usuário.
+ *
+ * Categorias são usadas para classificar transações (ex: Alimentação, Lazer, Salário).
+ * Cada categoria pertence a um único usuário e tem um tipo fixo (RECEITA ou DESPESA),
+ * impedindo que uma categoria de despesa seja usada em uma receita e vice-versa.
+ *
+ * O campo "ativo" controla o Soft Delete: ao desativar uma categoria, transações já
+ * vinculadas mantêm a referência histórica. Apenas novas transações são impedidas
+ * de selecionar uma categoria inativa.
+ */
 @Getter
 @Setter
 @NoArgsConstructor

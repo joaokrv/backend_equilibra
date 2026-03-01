@@ -9,6 +9,9 @@ import lombok.Data;
 
 import java.math.BigDecimal;
 
+/**
+ * DTO para requisição de registro de um novo cartão de crédito.
+ */
 @Data
 public class CartaoRegistroRequestDTO {
 

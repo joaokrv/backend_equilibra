@@ -9,6 +9,10 @@ import org.app_financeiro.backend.enums.TipoTransacao;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
+/**
+ * DTO de resposta com os dados de uma transação financeira.
+ * Retorna nomes descritivos no lugar dos IDs de categoria, conta e cartão.
+ */
 @Data
 public class TransacaoResponseDTO {
     private Long id;

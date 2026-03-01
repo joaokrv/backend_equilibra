@@ -10,6 +10,10 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 
+/**
+ * Serviço responsável pelo gerenciamento de investimentos e metas de poupança.
+ * Permite criar investimentos, realizar depósitos (debitando de uma conta) e listar investimentos ativos.
+ */
 @Service
 public class InvestimentoService {
 

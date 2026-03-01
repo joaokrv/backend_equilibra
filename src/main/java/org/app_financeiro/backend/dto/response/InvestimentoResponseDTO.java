@@ -5,6 +5,9 @@ import org.app_financeiro.backend.entity.InvestimentoEntity;
 
 import java.math.BigDecimal;
 
+/**
+ * DTO de resposta com os dados de um investimento ou meta de poupança.
+ */
 @Data
 public class InvestimentoResponseDTO {
 
