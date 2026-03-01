@@ -31,3 +31,23 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Seguranca - Credenciais e Secrets ###
+.env
+.env.*
+application-*.properties
+application-*.yml
+application-*.yaml
+!application.properties
+
+### Artefatos ###
+*.jar
+*.war
+
+### Logs ###
+*.log
+logs/
+
+### OS ###
+.DS_Store
+Thumbs.db
