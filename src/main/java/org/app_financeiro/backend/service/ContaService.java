@@ -14,6 +14,16 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 
+/**
+ * Serviço responsável pelo gerenciamento de Contas Bancárias.
+ *
+ * Controla o CRUD de contas e as operações de débito/crédito de saldo.
+ * Saldo negativo é bloqueado por padrão (Fail-Fast): qualquer tentativa de
+ * debitar mais do que o saldo disponível resulta em SaldoInsuficienteException.
+ *
+ * Este serviço é consumido pelo TransacaoService (ao registrar RECEITAS e DESPESAS)
+ * e pelo FaturaService (ao processar o pagamento de uma fatura).
+ */
 @Service
 public class ContaService {
 

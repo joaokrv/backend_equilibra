@@ -16,6 +16,11 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.util.List;
 
+/**
+ * Serviço responsável por toda a engenharia financeira do sistema de Faturas.
+ * Lida com a criação automática de faturas, cálculos de meses com base nos
+ * dias de vencimento/fechamento dos cartões e pagamentos integrados com o ContaService.
+ */
 @Service
 public class FaturaService {
 
@@ -97,12 +102,7 @@ public class FaturaService {
      */
     @Transactional
     public FaturaResponseDTO pagarFatura(Long faturaId, Long usuarioId, PagarFaturaRequestDTO dto) {
-        FaturaEntity fatura = faturaRepository.findById(faturaId)
-            .orElseThrow(() -> new RecursoNaoEncontradoException("Fatura não encontrada"));
-            
-        if (!fatura.getUsuario().getId().equals(usuarioId)) {
-             throw new RecursoNaoEncontradoException("Acesso negado à fatura.");
-        }
+        FaturaEntity fatura = buscarPorId(faturaId, usuarioId);
 
         if (fatura.getStatus() == StatusFatura.PAGA) {
             throw new RegraDeNegocioException("Esta fatura já está totalmente paga.");
@@ -164,6 +164,17 @@ public class FaturaService {
     }
 
     // --- MÉTODOS PRIVADOS PARA MATEMÁTICA E CALENDÁRIO ---
+
+    public FaturaEntity buscarPorId(Long faturaId, Long usuarioId) {
+        FaturaEntity fatura = faturaRepository.findById(faturaId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Fatura não encontrada"));
+
+        if (!fatura.getUsuario().getId().equals(usuarioId)) {
+            throw new RecursoNaoEncontradoException("Acesso negado à fatura.");
+        }
+
+        return fatura;
+    }
 
     /**
      * Calcula o mês de referência de uma transação com base no fechamento do cartão.

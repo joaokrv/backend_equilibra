@@ -1,19 +1,36 @@
 package org.app_financeiro.backend.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+import lombok.EqualsAndHashCode;
 import java.math.BigDecimal;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
-@Data
+/**
+ * Entidade que representa um Cartão de Crédito do usuário.
+ *
+ * O campo "limite" armazena o limite total contratado do cartão.
+ * O limite disponível NÃO é armazenado aqui — ele é calculado dinamicamente
+ * pelo CartaoService com base nas faturas pendentes (não PAGAS).
+ *
+ * Os dias de fechamento e vencimento são usados pelo FaturaService
+ * para determinar a qual fatura uma transação pertence e calcular as datas corretas.
+ */
+@Getter
+@Setter
+@NoArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Entity
 @Table(name = "cartoes")
 public class CartaoEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
 
     @Column(nullable = false)

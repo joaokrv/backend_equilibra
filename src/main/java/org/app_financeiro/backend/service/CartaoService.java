@@ -16,6 +16,15 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 
+/**
+ * Serviço responsável pelo gerenciamento de Cartões de Crédito.
+ *
+ * Controla o ciclo de vida dos cartões (criação, consulta, soft delete) e
+ * calcula o limite disponível em tempo real com base nas faturas pendentes.
+ *
+ * Regra de cálculo do limite disponível:
+ *   Limite Disponível = Limite Total - soma(valorTotal - valorPago) das faturas NÃO PAGAS
+ */
 @Service
 public class CartaoService {
 

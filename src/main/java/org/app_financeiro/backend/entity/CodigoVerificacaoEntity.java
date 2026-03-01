@@ -1,7 +1,10 @@
 package org.app_financeiro.backend.entity;
 
 import jakarta.persistence.*;
-import lombok.Data;
+import lombok.Getter;
+import lombok.Setter;
+import lombok.NoArgsConstructor;
+import lombok.EqualsAndHashCode;
 import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
@@ -10,13 +13,17 @@ import java.time.LocalDateTime;
  * Armazena os códigos de verificação de e-mail.
  * Cada código tem validade de 15 minutos e só pode ser usado uma vez.
  */
-@Data
+@Getter
+@Setter
+@NoArgsConstructor
+@EqualsAndHashCode(onlyExplicitlyIncluded = true)
 @Entity
 @Table(name = "codigos_verificacao")
 public class CodigoVerificacaoEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
+    @EqualsAndHashCode.Include
     private Long id;
 
     @Column(nullable = false)

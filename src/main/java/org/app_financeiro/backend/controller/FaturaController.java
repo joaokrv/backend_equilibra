@@ -47,14 +47,7 @@ public class FaturaController {
             @PathVariable Long cartaoId,
             @RequestHeader("UsuarioId") Long usuarioId) {
 
-        // O serviço atualmente retorna List<Object>. Convertendo conforme esperado quando implementado.
-        // Será necessário adaptar o serviço para retornar FaturaEntity ou FaturaResponseDTO.
-        List<?> faturas = faturaService.listarFaturasPorCartao(cartaoId, usuarioId);
-        
-        List<FaturaResponseDTO> response = faturas.stream()
-                .filter(obj -> obj instanceof FaturaEntity)
-                .map(obj -> new FaturaResponseDTO((FaturaEntity) obj))
-                .collect(Collectors.toList());
+        List<FaturaResponseDTO> response = faturaService.listarFaturasPorCartao(cartaoId, usuarioId);
 
         return ResponseEntity.ok(response);
     }
@@ -70,16 +63,11 @@ public class FaturaController {
     @PostMapping("/{id}/pagar")
     public ResponseEntity<FaturaResponseDTO> pagarFatura(
             @PathVariable Long id,
-            @RequestBody(required = false) PagarFaturaRequestDTO dto,
+            @RequestBody PagarFaturaRequestDTO dto,
             @RequestHeader("UsuarioId") Long usuarioId) {
 
-        Object fatura = faturaService.pagarFatura(id, usuarioId);
+        FaturaResponseDTO fatura = faturaService.pagarFatura(id, usuarioId, dto);
         
-        if (fatura instanceof FaturaEntity) {
-            return ResponseEntity.ok(new FaturaResponseDTO((FaturaEntity) fatura));
-        }
-        
-        // Retorno temporário para caso o serviço retorne nulo antes de ser implementado
-        return ResponseEntity.ok().build();
+        return ResponseEntity.ok(fatura);
     }
 }

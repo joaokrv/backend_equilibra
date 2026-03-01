@@ -11,7 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.List;
 
 @Service
-public class    CategoriaService {
+public class CategoriaService {
 
     private final CategoriaRepository categoriaRepository;
     private final UsuarioService usuarioService;
@@ -25,17 +25,14 @@ public class    CategoriaService {
      * Cria uma nova categoria para o usuário.
      *
      * REGRAS:
-     * - Validar que o usuário existe (usar usuarioService.buscarPorIdOuFalhar)
-     * - VALIDAR DUPLICIDADE: não deve existir outra categoria ativa com mesmo nome E
+     * - Validar que o usuário existe (usuarioService.buscarPorIdOuFalhar)
+     * - Validar duplicidade: não deve existir outra categoria ativa com mesmo nome E
      *   mesmo tipo para o mesmo usuário. Se existir, lançar
      *   OperacaoNaoPermitidaException("Já existe uma categoria com este nome para o tipo " + tipo)
+     *   Use categoriaRepository.findByUsuarioIdAndTipoAndNomeContainingIgnoreCaseAndAtivoTrue()
+     *   ou compare com equalsIgnoreCase() após buscar por usuário e tipo.
      * - Criar CategoriaEntity, setar nome, tipo, usuario, ativo=true
      * - Salvar e retornar CategoriaResponseDTO
-     *
-     * validar duplicidade:
-     * usar categoriaRepository.findByUsuarioIdAndTipoAndAtivoTrue() e comparar
-     * os nomes com equalsIgnoreCase(), ou criar um novo método no repository como
-     * findByUsuarioIdAndTipoAndNomeIgnoreCaseAndAtivoTrue(Long, TipoTransacao, String)
      */
     public CategoriaResponseDTO criarCategoria(CategoriaRegistroRequestDTO dto, Long usuarioId) {
         // TODO: Implementar - validar usuário, validar duplicidade, criar, salvar, retornar DTO
@@ -47,10 +44,8 @@ public class    CategoriaService {
      *
      * REGRAS:
      * - Usar categoriaRepository.findByUsuarioIdAndAtivoTrue(usuarioId)
-     * - Converter cada CategoriaEntity para CategoriaResponseDTO
+     * - Converter cada CategoriaEntity para CategoriaResponseDTO com .stream().map(CategoriaResponseDTO::new).toList()
      * - Retornar a lista (pode ser vazia)
-     *
-     * DICA: Use .stream().map(CategoriaResponseDTO::new).toList()
      */
     public List<CategoriaResponseDTO> buscarTodasDoUsuario(Long usuarioId) {
         // TODO: Implementar - buscar por usuário, converter para DTOs
@@ -60,10 +55,9 @@ public class    CategoriaService {
     /**
      * Lista categorias do usuário filtradas por tipo (RECEITA ou DESPESA).
      *
-     * REGRAS que você deve implementar:
+     * REGRAS:
      * - Usar categoriaRepository.findByUsuarioIdAndTipoAndAtivoTrue(usuarioId, tipo)
-     * - Converter para CategoriaResponseDTO
-     * - Retornar a lista
+     * - Converter para CategoriaResponseDTO e retornar a lista
      */
     public List<CategoriaResponseDTO> buscarPorTipo(Long usuarioId, TipoTransacao tipo) {
         // TODO: Implementar - buscar por tipo, converter para DTOs
@@ -73,14 +67,13 @@ public class    CategoriaService {
     /**
      * Desativa (soft delete) uma categoria.
      *
-     * REGRAS que você deve implementar:
+     * REGRAS:
      * - Buscar categoria por ID no repository
-     * - Validar que a categoria pertence ao usuário E está ativa
+     * - Validar que pertence ao usuário E está ativa
      * - Se não encontrar: lançar RecursoNaoEncontradoException("Categoria não encontrada")
-     * - Setar ativo = false
-     * - Salvar
+     * - Setar ativo = false e salvar
      *
-     * NOTA: Transações já vinculadas a esta categoria mantêm a referência.
+     * Transações já vinculadas a esta categoria mantêm a referência.
      * Apenas novas transações não poderão selecionar esta categoria.
      */
     @Transactional
@@ -90,9 +83,9 @@ public class    CategoriaService {
 
     /**
      * Busca uma categoria ativa por ID validando que pertence ao usuário.
-     * Método de uso interno (chamado por TransacaoService).
+     * Método de uso interno (chamado pelo TransacaoService).
      *
-     * REGRAS que você deve implementar:
+     * REGRAS:
      * - Buscar por ID no repository
      * - Validar que pertence ao usuário E está ativa
      * - Se não encontrar: lançar RecursoNaoEncontradoException("Categoria não encontrada")

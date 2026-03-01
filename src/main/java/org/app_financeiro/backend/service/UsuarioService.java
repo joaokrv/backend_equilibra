@@ -11,6 +11,10 @@ import org.app_financeiro.backend.repository.UsuarioRepository;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+/**
+ * Serviço responsável por gerenciar a lógica de negócios relacionada aos Usuários.
+ * Lida com registro, autenticação e validações de estado do usuário no sistema.
+ */
 @Service
 public class UsuarioService {
 
@@ -25,9 +29,13 @@ public class UsuarioService {
     /**
      * Registra um novo usuário no sistema.
      * Regras:
-     * - Email deve ser único
-     * - Senha é hasheada com BCrypt antes de salvar
-     * - emailVerificado começa como false (precisa verificar por código)
+     * - Email deve ser único.
+     * - Senha é submetida a hash via BCrypt antes de salvar no banco.
+     * - emailVerificado começa como false (precisa ser verificado via código de e-mail).
+     *
+     * @param dto DTO contendo dados de registro do usuário
+     * @return DTO com os dados do usuário recém-criado
+     * @throws EmailJaCadastradoException se o e-mail já existir no banco
      */
     public UsuarioResponseDTO registrarUsuario(UsuarioRegistroRequestDTO dto) {
 
@@ -48,12 +56,18 @@ public class UsuarioService {
     }
 
     /**
-     * Autentica o usuário por email e senha.
+     * Autentica o usuário por e-mail e senha.
      * Regras:
-     * - Email deve existir no banco
-     * - Senha deve conferir com o hash
-     * - Email deve estar verificado (emailVerificado == true)
-     * - Usuário deve estar ativo
+     * - Email deve existir no banco de dados.
+     * - Senha fornecida deve corresponder ao hash salvo.
+     * - E-mail do usuário deve estar verificado (emailVerificado == true).
+     * - A conta do usuário não pode estar desativada.
+     *
+     * @param email E-mail de login
+     * @param senha Senha em texto plano a ser validada
+     * @return DTO com os dados do usuário logado
+     * @throws CredenciaisInvalidasException se o e-mail não existir, senha estiver errada ou usuário inativo
+     * @throws EmailNaoVerificadoException se o e-mail ainda não tiver sido verificado com o código OTP
      */
     public UsuarioResponseDTO loginUsuario(String email, String senha) {
         UsuarioEntity usuario = usuarioRepository.findByEmailAndAtivoTrue(email)
@@ -71,20 +85,25 @@ public class UsuarioService {
     }
 
     /**
-     * Busca um usuário ativo por e-mail.
-     * Retorna a Entity (uso interno entre Services).
+     * Busca um usuário ativo no banco de dados pelo e-mail.
+     * Método utilitário para uso interno entre os Services.
+     *
+     * @param email E-mail exato do usuário
+     * @return A Entidade do Usuário
+     * @throws RecursoNaoEncontradoException se não encontrar o e-mail
      */
     public UsuarioEntity buscarPorEmail(String email) {
         return usuarioRepository.findByEmailAndAtivoTrue(email).orElseThrow(() -> new RecursoNaoEncontradoException("Email não encontrado"));
     }
 
     /**
-     * Busca um usuário ativo por ID ou lança exceção.
-     * Uso: chamado pelos outros Services para validar que o usuarioId existe.
+     * Busca um usuário ativo por ID e garante sua existência antes de prosseguir.
+     * Muito utilizado pelos outros Services (Conta, Cartão, Transação) para garantir que
+     * a operação está sendo feita por um usuário válido e com sessão ativa.
      *
-     * @param usuarioId ID do usuário a ser buscado.
-     * @return O usuário ativo encontrado.
-     * @throws RecursoNaoEncontradoException se o usuário não for encontrado ou estiver inativo.
+     * @param usuarioId ID do usuário a ser buscado no banco de dados
+     * @return A Entidade do Usuário
+     * @throws RecursoNaoEncontradoException se o usuário não existir ou se a conta estiver inativa
      */
     public UsuarioEntity buscarPorIdOuFalhar(Long usuarioId) {
         UsuarioEntity usuario =
@@ -98,7 +117,8 @@ public class UsuarioService {
     }
 
     /**
-     * Desativa (soft delete) a conta do usuário.
+     * Desativa a conta do usuário através do processo de Soft Delete.
+     * O registro continua no banco de dados, mas o campo 'ativo' é setado para false.
      *
      * @param usuarioId ID do usuário cuja conta será desativada.
      */

@@ -32,13 +32,11 @@ public class EmailVerificacaoService {
      * Gera um código de 6 dígitos aleatório e salva no banco vinculado ao e-mail.
      * O código expira em 15 minutos.
      *
-     * REGRAS que você deve implementar:
-     * - Gerar código numérico aleatório de 6 dígitos (ex: "482917")
-     * - Criar CodigoVerificacaoEntity com dataExpiracao = agora + 15 minutos
-     * - Salvar no repository
-     * - Retornar o código gerado (para uso futuro com envio de e-mail)
-     *
-     * DICA: Use java.util.Random ou SecureRandom para gerar. String.format("%06d", numero)
+     * REGRAS:
+     * - Gerar código numérico aleatório de 6 dígitos usando SecureRandom
+     *   e formatar com String.format("%06d", numero)
+     * - Criar CodigoVerificacaoEntity com dataExpiracao = LocalDateTime.now().plusMinutes(15)
+     * - Salvar no repository e retornar o código gerado
      */
     @Transactional
     public String gerarCodigo(String email) {
@@ -49,13 +47,12 @@ public class EmailVerificacaoService {
     /**
      * Valida o código de verificação enviado pelo usuário.
      *
-     * REGRAS que você deve implementar:
-     * - Buscar código no repository por email + codigo + não utilizado
+     * REGRAS:
+     * - Buscar código no repository por email + codigo + utilizado=false
      * - Se não encontrar: lançar CodigoVerificacaoInvalidoException("Código inválido ou já utilizado")
-     * - Se expirado (dataExpiracao < agora): lançar CodigoVerificacaoInvalidoException("Código expirado...")
+     * - Se expirado (dataExpiracao < agora): lançar CodigoVerificacaoInvalidoException("Código expirado")
      * - Marcar código como utilizado = true
-     * - Buscar o UsuarioEntity pelo e-mail
-     * - Setar emailVerificado = true no usuário
+     * - Buscar o UsuarioEntity pelo e-mail, setar emailVerificado = true
      * - Salvar ambos (código e usuário)
      */
     @Transactional
@@ -66,12 +63,12 @@ public class EmailVerificacaoService {
     /**
      * Reenvia um novo código de verificação para o e-mail informado.
      *
-     * REGRAS que você deve implementar:
+     * REGRAS:
      * - Verificar se o e-mail existe no sistema (lançar RecursoNaoEncontradoException se não)
      * - Verificar se o e-mail já está verificado (lançar RegraDeNegocioException se já está)
-     * - Invalidar códigos anteriores (marcar como utilizado = true) - OPCIONAL
-     * - Gerar novo código (chamar gerarCodigo)
-     * - Futuramente: enviar por e-mail
+     * - Invalidar códigos anteriores (marcar como utilizado = true) — opcional
+     * - Gerar e salvar novo código chamando gerarCodigo(email)
+     * - Futuramente: enviar o código por e-mail via JavaMailSender
      */
     @Transactional
     public void reenviarCodigo(ReenviarCodigoRequestDTO dto) {
