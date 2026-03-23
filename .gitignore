@@ -35,6 +35,7 @@ build/
 ### Seguranca - Credenciais e Secrets ###
 .env
 .env.*
+!.env.example
 application-*.properties
 application-*.yml
 application-*.yaml

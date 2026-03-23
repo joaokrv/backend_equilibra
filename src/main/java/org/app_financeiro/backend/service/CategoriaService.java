@@ -2,12 +2,15 @@ package org.app_financeiro.backend.service;
 
 import org.app_financeiro.backend.dto.request.CategoriaRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.CategoriaResponseDTO;
+import org.app_financeiro.backend.mapper.CategoriaMapper;
 import org.app_financeiro.backend.entity.CategoriaEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.enums.TipoTransacao;
 import org.app_financeiro.backend.exception.OperacaoNaoPermitidaException;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.repository.CategoriaRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -20,23 +23,27 @@ import java.util.List;
 @Service
 public class CategoriaService {
 
+    private static final Logger log = LoggerFactory.getLogger(CategoriaService.class);
+
     private final CategoriaRepository categoriaRepository;
     private final UsuarioService usuarioService;
+    private final CategoriaMapper categoriaMapper;
 
-    public CategoriaService(CategoriaRepository categoriaRepository, UsuarioService usuarioService) {
+    public CategoriaService(CategoriaRepository categoriaRepository, UsuarioService usuarioService, CategoriaMapper categoriaMapper) {
         this.categoriaRepository = categoriaRepository;
         this.usuarioService = usuarioService;
+        this.categoriaMapper = categoriaMapper;
     }
 
-/**
- * Cria uma nova categoria para o usuário.
- * Valida duplicidade de nome (case-insensitive) para o mesmo tipo antes de salvar.
- *
- * @param dto       Dados da nova categoria
- * @param usuarioId ID do usuário autenticado
- * @return CategoriaResponseDTO com os dados da categoria criada
- * @throws OperacaoNaoPermitidaException se já existir categoria com mesmo nome e tipo
- */
+    /**
+     * Cria uma nova categoria para o usuário.
+     * Valida duplicidade de nome (case-insensitive) para o mesmo tipo antes de salvar.
+     *
+     * @param dto       Dados da nova categoria
+     * @param usuarioId ID do usuário autenticado
+     * @return CategoriaResponseDTO com os dados da categoria criada
+     * @throws OperacaoNaoPermitidaException se já existir categoria com mesmo nome e tipo
+     */
     @Transactional
     public CategoriaResponseDTO criarCategoria(CategoriaRegistroRequestDTO dto, Long usuarioId) {
         UsuarioEntity usuario =
@@ -44,25 +51,27 @@ public class CategoriaService {
 
          // Validar duplicidade de nome para o mesmo tipo
         List<CategoriaEntity> categoriasExistentes =
-                categoriaRepository.findByUsuarioIdAndTipoAndAtivoTrue(usuarioId, dto.getTipo());
+                categoriaRepository.findByUsuarioIdAndTipo(usuarioId, dto.tipo());
 
         boolean nomeDuplicado = categoriasExistentes.stream()
-                .anyMatch(c -> c.getNome().equalsIgnoreCase(dto.getNome()));
+                .anyMatch(c -> c.getNome().equalsIgnoreCase(dto.nome()));
 
         if (nomeDuplicado) {
+            log.warn("Tentativa de criar categoria duplicada '{}' do tipo {} para usuário {}", dto.nome(), dto.tipo(), usuarioId);
             throw new OperacaoNaoPermitidaException("Já existe uma categoria com este nome para o " +
-                    "tipo " + dto.getTipo());
+                    "tipo " + dto.tipo());
         }
 
         CategoriaEntity categoria = new CategoriaEntity();
-        categoria.setNome(dto.getNome());
-        categoria.setTipo(dto.getTipo());
+        categoria.setNome(dto.nome());
+        categoria.setTipo(dto.tipo());
         categoria.setUsuario(usuario);
         categoria.setAtivo(true);
 
         categoriaRepository.save(categoria);
+        log.info("Categoria '{}' do tipo {} criada para usuário {}", categoria.getNome(), categoria.getTipo(), usuarioId);
 
-        return new CategoriaResponseDTO(categoria);
+        return categoriaMapper.toResponse(categoria);
     }
 
     /**
@@ -73,10 +82,10 @@ public class CategoriaService {
      */
     public List<CategoriaResponseDTO> buscarTodasDoUsuario(Long usuarioId) {
         usuarioService.buscarPorIdOuFalhar(usuarioId);
-        List<CategoriaEntity> categorias = categoriaRepository.findByUsuarioIdAndAtivoTrue(usuarioId);
+        List<CategoriaEntity> categorias = categoriaRepository.findByUsuarioId(usuarioId);
 
         return categorias.stream()
-                    .map(CategoriaResponseDTO::new)
+                    .map(categoriaMapper::toResponse)
                     .toList();
     }
 
@@ -89,9 +98,9 @@ public class CategoriaService {
      */
     public List<CategoriaResponseDTO> buscarPorTipo(Long usuarioId, TipoTransacao tipo) {
         usuarioService.buscarPorIdOuFalhar(usuarioId);
-        List<CategoriaEntity> categorias = categoriaRepository.findByUsuarioIdAndTipoAndAtivoTrue(usuarioId, tipo);
+        List<CategoriaEntity> categorias = categoriaRepository.findByUsuarioIdAndTipo(usuarioId, tipo);
         return categorias.stream()
-                .map(CategoriaResponseDTO::new)
+                .map(categoriaMapper::toResponse)
                 .toList();
     }
 
@@ -109,6 +118,7 @@ public class CategoriaService {
         CategoriaEntity categoria = buscarPorIdOuFalhar(categoriaId, usuarioId);
         categoria.setAtivo(false);
         categoriaRepository.save(categoria);
+        log.info("Categoria {} '{}' desativada para usuário {}", categoriaId, categoria.getNome(), usuarioId);
     }
 
     /**
@@ -124,8 +134,8 @@ public class CategoriaService {
         CategoriaEntity categoria = categoriaRepository.findById(categoriaId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Categoria não encontrada"));
 
-        if (!categoria.getUsuario().getId().equals(usuarioId) || !categoria.isAtivo()) {
-            throw new RecursoNaoEncontradoException("Categoria não encontrada");
+        if (!categoria.getUsuario().getId().equals(usuarioId)) {
+            throw new RecursoNaoEncontradoException("Categoria não pertence ao usuário");
         }
 
         return categoria;

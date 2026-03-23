@@ -2,19 +2,18 @@ package org.app_financeiro.backend.controller;
 
 import org.app_financeiro.backend.dto.request.PagarFaturaRequestDTO;
 import org.app_financeiro.backend.dto.response.FaturaResponseDTO;
-import org.app_financeiro.backend.entity.FaturaEntity;
 import org.app_financeiro.backend.service.FaturaService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Controller responsável pelas operações relacionadas a faturas.
@@ -45,9 +44,9 @@ public class FaturaController {
     @GetMapping("/cartao/{cartaoId}")
     public ResponseEntity<List<FaturaResponseDTO>> listarFaturasPorCartao(
             @PathVariable Long cartaoId,
-            @RequestHeader("UsuarioId") Long usuarioId) {
+            @AuthenticationPrincipal UsuarioEntity usuario) {
 
-        List<FaturaResponseDTO> response = faturaService.listarFaturasPorCartao(cartaoId, usuarioId);
+        List<FaturaResponseDTO> response = faturaService.listarFaturasPorCartao(cartaoId, usuario.getId());
 
         return ResponseEntity.ok(response);
     }
@@ -64,9 +63,9 @@ public class FaturaController {
     public ResponseEntity<FaturaResponseDTO> pagarFatura(
             @PathVariable Long id,
             @RequestBody PagarFaturaRequestDTO dto,
-            @RequestHeader("UsuarioId") Long usuarioId) {
+            @AuthenticationPrincipal UsuarioEntity usuario) {
 
-        FaturaResponseDTO fatura = faturaService.pagarFatura(id, usuarioId, dto);
+        FaturaResponseDTO fatura = faturaService.pagarFatura(id, usuario.getId(), dto);
         
         return ResponseEntity.ok(fatura);
     }

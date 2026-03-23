@@ -2,12 +2,15 @@ package org.app_financeiro.backend.service;
 
 import org.app_financeiro.backend.dto.request.PagarFaturaRequestDTO;
 import org.app_financeiro.backend.dto.response.FaturaResponseDTO;
+import org.app_financeiro.backend.mapper.FaturaMapper;
 import org.app_financeiro.backend.entity.CartaoEntity;
 import org.app_financeiro.backend.entity.FaturaEntity;
 import org.app_financeiro.backend.enums.StatusFatura;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.app_financeiro.backend.repository.FaturaRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,16 +27,20 @@ import java.util.List;
 @Service
 public class FaturaService {
 
+    private static final Logger log = LoggerFactory.getLogger(FaturaService.class);
+
     private final UsuarioService usuarioService;
     private final CartaoService cartaoService;
     private final ContaService contaService;
     private final FaturaRepository faturaRepository;
+    private final FaturaMapper faturaMapper;
 
-    public FaturaService(UsuarioService usuarioService, CartaoService cartaoService, ContaService contaService, FaturaRepository faturaRepository) {
+    public FaturaService(UsuarioService usuarioService, CartaoService cartaoService, ContaService contaService, FaturaRepository faturaRepository, FaturaMapper faturaMapper) {
         this.usuarioService = usuarioService;
         this.cartaoService = cartaoService;
         this.contaService = contaService;
         this.faturaRepository = faturaRepository;
+        this.faturaMapper = faturaMapper;
     }
 
     /**
@@ -59,28 +66,19 @@ public class FaturaService {
                 
         // 3. Adiciona o valor à fatura e salva
         fatura.setValorTotal(fatura.getValorTotal().add(valor));
+        log.info("Transação adicionada à fatura {}/{} do cartão {}. Valor: R$ {}", mes, ano, cartao.getId(), valor);
         return faturaRepository.save(fatura);
     }
 
     /**
-     * Remove o valor de uma transação da fatura correspondente.
-     * Usado quando uma transação é deletada ou tem seu valor atualizado (estorno do valor antigo).
+     * Remove o valor de uma transação da fatura diretamente a partir da entidade Fatura.
      * Subtrai o valor do valorTotal da fatura e salva.
      *
-     * @param cartao Cartão associado à transação
-     * @param dataTransacao Data da transação original
+     * @param fatura Entidade Fatura que sofrerá o decréscimo
      * @param valor Valor a ser subtraído
      */
     @Transactional
-    public void removerTransacao(CartaoEntity cartao, LocalDate dataTransacao, BigDecimal valor) {
-        LocalDate dataReferencia = calcularDataReferenciaFatura(dataTransacao, cartao.getDiaFechamento());
-        int mes = dataReferencia.getMonthValue();
-        int ano = dataReferencia.getYear();
-
-        FaturaEntity fatura = faturaRepository.findByCartaoIdAndMesAndAno(cartao.getId(), mes, ano)
-                .orElseThrow(() -> new RegraDeNegocioException("Fatura não encontrada para o mês da transação que está sendo removida."));
-
-        // Proteção contra fatura negativa
+    public void removerTransacaoPorFatura(FaturaEntity fatura, BigDecimal valor) {
         BigDecimal novoValorTotal = fatura.getValorTotal().subtract(valor);
         if (novoValorTotal.compareTo(BigDecimal.ZERO) < 0) {
             novoValorTotal = BigDecimal.ZERO;
@@ -88,6 +86,40 @@ public class FaturaService {
 
         fatura.setValorTotal(novoValorTotal);
         faturaRepository.save(fatura);
+    }
+
+    /**
+     * Adiciona o valor de uma transação à fatura diretamente a partir da entidade Fatura.
+     * Usado ao reverter impacto financeiro (ex: desfazer exclusão de receita/estorno).
+     *
+     * @param fatura Entidade Fatura que sofrerá o acréscimo
+     * @param valor Valor a ser adicionado
+     */
+    @Transactional
+    public void adicionarTransacaoPorFatura(FaturaEntity fatura, BigDecimal valor) {
+        fatura.setValorTotal(fatura.getValorTotal().add(valor));
+        faturaRepository.save(fatura);
+    }
+
+    /**
+     * Registra um estorno ou cashback na fatura (Receita vinculada ao cartão).
+     * Subtrai o valor do valorTotal da fatura e salva.
+     */
+    @Transactional
+    public FaturaEntity registrarCredito(CartaoEntity cartao, LocalDate dataTransacao, BigDecimal valor) {
+        LocalDate dataReferencia = calcularDataReferenciaFatura(dataTransacao, cartao.getDiaFechamento());
+        int mes = dataReferencia.getMonthValue();
+        int ano = dataReferencia.getYear();
+
+        FaturaEntity fatura = faturaRepository.findByCartaoIdAndMesAndAno(cartao.getId(), mes, ano)
+                .orElseGet(() -> criarNovaFatura(cartao, mes, ano));
+
+        BigDecimal novoValorTotal = fatura.getValorTotal().subtract(valor);
+        if (novoValorTotal.compareTo(BigDecimal.ZERO) < 0) {
+            novoValorTotal = BigDecimal.ZERO;
+        }
+        fatura.setValorTotal(novoValorTotal);
+        return faturaRepository.save(fatura);
     }
 
     /**
@@ -105,20 +137,22 @@ public class FaturaService {
         FaturaEntity fatura = buscarPorId(faturaId, usuarioId);
 
         if (fatura.getStatus() == StatusFatura.PAGA) {
+            log.warn("Tentativa de pagar fatura {} que já está PAGA", faturaId);
             throw new RegraDeNegocioException("Esta fatura já está totalmente paga.");
         }
 
         // Verifica se o usuário não está tentando pagar mais do que deve
         BigDecimal dividaRestante = fatura.getValorTotal().subtract(fatura.getValorPago());
-        if (dto.getValorPago().compareTo(dividaRestante) > 0) {
+        if (dto.valorPago().compareTo(dividaRestante) > 0) {
+            log.warn("Pagamento de R$ {} excede dívida restante de R$ {} na fatura {}", dto.valorPago(), dividaRestante, faturaId);
             throw new RegraDeNegocioException("O valor do pagamento não pode ser maior que o restante da fatura (R$ " + dividaRestante + ").");
         }
         
         // 1. Debita o valor do pagamento da Conta selecionada
-        contaService.debitarSaldo(dto.getContaId(), dto.getValorPago(), usuarioId);
+        contaService.debitarSaldo(dto.contaId(), dto.valorPago(), usuarioId);
         
         // 2. Registra o pagamento na fatura
-        fatura.setValorPago(fatura.getValorPago().add(dto.getValorPago()));
+        fatura.setValorPago(fatura.getValorPago().add(dto.valorPago()));
         
         // 3. Se o que foi pago for Maior ou Igual à divida total, quita a fatura
         if (fatura.getValorPago().compareTo(fatura.getValorTotal()) >= 0) {
@@ -126,7 +160,8 @@ public class FaturaService {
         }
         
         faturaRepository.save(fatura);
-        return new FaturaResponseDTO(fatura);
+        log.info("Fatura {} paga com R$ {}. Status: {}", faturaId, dto.valorPago(), fatura.getStatus());
+        return faturaMapper.toResponse(fatura);
     }
 
     /**
@@ -160,7 +195,7 @@ public class FaturaService {
             faturaRepository.saveAll(faturas);
         }
 
-        return faturas.stream().map(FaturaResponseDTO::new).toList();
+        return faturas.stream().map(faturaMapper::toResponse).toList();
     }
 
     /**

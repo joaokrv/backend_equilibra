@@ -11,7 +11,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -48,9 +49,9 @@ public class CartaoController {
     @PostMapping
     public ResponseEntity<CartaoResponseDTO> criarCartao(
             @Valid @RequestBody CartaoRegistroRequestDTO dto,
-            @RequestHeader("UsuarioId") Long usuarioId) {
+            @AuthenticationPrincipal UsuarioEntity usuario) {
 
-        CartaoResponseDTO cartao = cartaoService.criarCartao(dto, usuarioId);
+        CartaoResponseDTO cartao = cartaoService.criarCartao(dto, usuario.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(cartao);
     }
 
@@ -62,9 +63,9 @@ public class CartaoController {
      */
     @GetMapping
     public ResponseEntity<List<CartaoResponseDTO>> listarCartoes(
-            @RequestHeader("UsuarioId") Long usuarioId) {
+            @AuthenticationPrincipal UsuarioEntity usuario) {
 
-        List<CartaoResponseDTO> cartoes = cartaoService.buscarTodosDoUsuario(usuarioId);
+        List<CartaoResponseDTO> cartoes = cartaoService.buscarTodosDoUsuario(usuario.getId());
         return ResponseEntity.ok(cartoes);
     }
 
@@ -79,9 +80,9 @@ public class CartaoController {
     @GetMapping("/{id}")
     public ResponseEntity<CartaoResponseDTO> buscarPorId(
             @PathVariable Long id,
-            @RequestHeader("UsuarioId") Long usuarioId) {
+            @AuthenticationPrincipal UsuarioEntity usuario) {
 
-        CartaoResponseDTO cartao = cartaoService.buscarPorId(id, usuarioId);
+        CartaoResponseDTO cartao = cartaoService.buscarPorId(id, usuario.getId());
         return ResponseEntity.ok(cartao);
     }
 
@@ -96,9 +97,9 @@ public class CartaoController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletarCartao(
             @PathVariable Long id,
-            @RequestHeader("UsuarioId") Long usuarioId) {
+            @AuthenticationPrincipal UsuarioEntity usuario) {
 
-        cartaoService.deletarCartao(id, usuarioId);
+        cartaoService.deletarCartao(id, usuario.getId());
         return ResponseEntity.noContent().build();
     }
 }

@@ -2,14 +2,19 @@ package org.app_financeiro.backend.service;
 
 import org.app_financeiro.backend.dto.request.UsuarioRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.UsuarioResponseDTO;
+import org.app_financeiro.backend.mapper.UsuarioMapper;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.exception.CredenciaisInvalidasException;
 import org.app_financeiro.backend.exception.EmailJaCadastradoException;
 import org.app_financeiro.backend.exception.EmailNaoVerificadoException;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
+import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.app_financeiro.backend.repository.UsuarioRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 /**
  * Serviço responsável por gerenciar a lógica de negócios relacionada aos Usuários.
@@ -18,41 +23,48 @@ import org.springframework.stereotype.Service;
 @Service
 public class UsuarioService {
 
+    private static final Logger log = LoggerFactory.getLogger(UsuarioService.class);
+
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UsuarioMapper usuarioMapper;
 
-    public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder) {
+    public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder, UsuarioMapper usuarioMapper) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
+        this.usuarioMapper = usuarioMapper;
     }
 
     /**
      * Registra um novo usuário no sistema.
      * Regras:
-     * - Email deve ser único.
-     * - Senha é submetida a hash via BCrypt antes de salvar no banco.
+     * - Email deve ser único (inclui e-mails de contas inativas).
+     * - Senha é submetida a hash via Argon2 + Pepper antes de salvar no banco.
      * - emailVerificado começa como false (precisa ser verificado via código de e-mail).
      *
      * @param dto DTO contendo dados de registro do usuário
      * @return DTO com os dados do usuário recém-criado
      * @throws EmailJaCadastradoException se o e-mail já existir no banco
      */
+    @Transactional
     public UsuarioResponseDTO registrarUsuario(UsuarioRegistroRequestDTO dto) {
 
-        if (usuarioRepository.findByEmail(dto.getEmail()).isPresent()) {
+        if (usuarioRepository.existsByEmailIncludingInactive(dto.email())) {
+            log.warn("Tentativa de registro com e-mail já cadastrado: {}", dto.email());
             throw new EmailJaCadastradoException();
         }
 
-        String senhaCriptografada = passwordEncoder.encode(dto.getSenha());
+        String senhaCriptografada = passwordEncoder.encode(dto.senha());
 
         UsuarioEntity usuario = new UsuarioEntity();
-        usuario.setNome(dto.getNome());
-        usuario.setEmail(dto.getEmail());
+        usuario.setNome(dto.nome());
+        usuario.setEmail(dto.email());
         usuario.setSenha(senhaCriptografada);
 
         UsuarioEntity savedUser = usuarioRepository.save(usuario);
 
-        return new UsuarioResponseDTO(savedUser);
+        log.info("Usuário registrado com sucesso: id={}, email={}", savedUser.getId(), savedUser.getEmail());
+        return usuarioMapper.toResponse(savedUser);
     }
 
     /**
@@ -70,18 +82,20 @@ public class UsuarioService {
      * @throws EmailNaoVerificadoException se o e-mail ainda não tiver sido verificado com o código OTP
      */
     public UsuarioResponseDTO loginUsuario(String email, String senha) {
-        UsuarioEntity usuario = usuarioRepository.findByEmailAndAtivoTrue(email)
+        UsuarioEntity usuario = usuarioRepository.findByEmail(email)
                 .orElseThrow(CredenciaisInvalidasException::new);
 
         if (!passwordEncoder.matches(senha, usuario.getSenha())) {
+            log.warn("Tentativa de login com senha inválida para e-mail: {}", email);
             throw new CredenciaisInvalidasException();
         }
 
         if (!usuario.isEmailVerificado()) {
+            log.warn("Tentativa de login com e-mail não verificado: {}", email);
             throw new EmailNaoVerificadoException();
         }
 
-        return new UsuarioResponseDTO(usuario);
+        return usuarioMapper.toResponse(usuario);
     }
 
     /**
@@ -93,7 +107,7 @@ public class UsuarioService {
      * @throws RecursoNaoEncontradoException se não encontrar o e-mail
      */
     public UsuarioEntity buscarPorEmail(String email) {
-        return usuarioRepository.findByEmailAndAtivoTrue(email).orElseThrow(() -> new RecursoNaoEncontradoException("Email não encontrado"));
+        return usuarioRepository.findByEmail(email).orElseThrow(() -> new RecursoNaoEncontradoException("Email não encontrado"));
     }
 
     /**
@@ -106,14 +120,8 @@ public class UsuarioService {
      * @throws RecursoNaoEncontradoException se o usuário não existir ou se a conta estiver inativa
      */
     public UsuarioEntity buscarPorIdOuFalhar(Long usuarioId) {
-        UsuarioEntity usuario =
-                usuarioRepository.findById(usuarioId).orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado"));
-
-        if (!usuario.isAtivo()) {
-            throw new RecursoNaoEncontradoException("Usuário inativo.");
-        }
-
-        return usuario;
+        return usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado"));
     }
 
     /**
@@ -121,12 +129,38 @@ public class UsuarioService {
      * O registro continua no banco de dados, mas o campo 'ativo' é setado para false.
      *
      * @param usuarioId ID do usuário cuja conta será desativada.
+     * @throws RecursoNaoEncontradoException se o usuário não existir ou já estiver inativo
      */
+    @Transactional
     public void desativarConta(Long usuarioId) {
         UsuarioEntity usuario = buscarPorIdOuFalhar(usuarioId);
 
         usuario.setAtivo(false);
 
         usuarioRepository.save(usuario);
+        log.info("Conta desativada (soft delete): usuarioId={}", usuarioId);
+    }
+
+    /**
+     * Reativa uma conta previamente desativada (soft delete).
+     * Valida a senha do usuário antes de reativar para confirmar identidade.
+     *
+     * @param email E-mail da conta a reativar
+     * @param senha Senha para confirmar identidade
+     * @throws RecursoNaoEncontradoException se não existir conta inativa com esse e-mail
+     * @throws CredenciaisInvalidasException se a senha estiver incorreta
+     */
+    @Transactional
+    public void reativarConta(String email, String senha) {
+        UsuarioEntity usuario = usuarioRepository.findInactiveByEmail(email)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Nenhuma conta inativa encontrada para este e-mail"));
+
+        if (!passwordEncoder.matches(senha, usuario.getSenha())) {
+            throw new CredenciaisInvalidasException();
+        }
+
+        usuario.setAtivo(true);
+        usuarioRepository.save(usuario);
+        log.info("Conta reativada: usuarioId={}, email={}", usuario.getId(), email);
     }
 }

@@ -1,9 +1,17 @@
 package org.app_financeiro.backend.exception;
 
 import org.app_financeiro.backend.dto.response.ErroResponseDTO;
+import org.app_financeiro.backend.enums.ErrorCode;
+import org.springframework.context.MessageSource;
+import org.springframework.context.i18n.LocaleContextHolder;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.security.authentication.BadCredentialsException;
+import org.springframework.security.authentication.DisabledException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -35,66 +43,86 @@ import java.util.List;
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
+    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
+
+    private final MessageSource messageSource;
+
+    public GlobalExceptionHandler(MessageSource messageSource) {
+        this.messageSource = messageSource;
+    }
+
     // =============================================
-    // EXCEPTIONS ESPECÍFICAS (mais específica primeiro)
+    // EXCEPTIONS ESPECÍFICAS 
     // =============================================
 
     @ExceptionHandler(EmailJaCadastradoException.class)
     public ResponseEntity<ErroResponseDTO> handleEmailJaCadastrado(EmailJaCadastradoException ex) {
+        String msg = messageSource.getMessage(ErrorCode.EMAIL_JA_CADASTRADO.getMessageKey(), null, LocaleContextHolder.getLocale());
         ErroResponseDTO erro = new ErroResponseDTO(
                 HttpStatus.CONFLICT.value(),
+                ErrorCode.EMAIL_JA_CADASTRADO.name(),
                 "Conflito",
-                ex.getMessage()
+                msg
         );
         return new ResponseEntity<>(erro, HttpStatus.CONFLICT);
     }
 
     @ExceptionHandler(CredenciaisInvalidasException.class)
     public ResponseEntity<ErroResponseDTO> handleCredenciaisInvalidas(CredenciaisInvalidasException ex) {
+        String msg = messageSource.getMessage(ErrorCode.CREDENCIAIS_INVALIDAS.getMessageKey(), null, LocaleContextHolder.getLocale());
         ErroResponseDTO erro = new ErroResponseDTO(
                 HttpStatus.UNAUTHORIZED.value(),
+                ErrorCode.CREDENCIAIS_INVALIDAS.name(),
                 "Não autorizado",
-                ex.getMessage()
+                msg
         );
         return new ResponseEntity<>(erro, HttpStatus.UNAUTHORIZED);
     }
 
     @ExceptionHandler(EmailNaoVerificadoException.class)
     public ResponseEntity<ErroResponseDTO> handleEmailNaoVerificado(EmailNaoVerificadoException ex) {
+        String msg = messageSource.getMessage(ErrorCode.EMAIL_NAO_VERIFICADO.getMessageKey(), null, LocaleContextHolder.getLocale());
         ErroResponseDTO erro = new ErroResponseDTO(
                 HttpStatus.FORBIDDEN.value(),
+                ErrorCode.EMAIL_NAO_VERIFICADO.name(),
                 "Acesso negado",
-                ex.getMessage()
+                msg
         );
         return new ResponseEntity<>(erro, HttpStatus.FORBIDDEN);
     }
 
     @ExceptionHandler(SaldoInsuficienteException.class)
     public ResponseEntity<ErroResponseDTO> handleSaldoInsuficiente(SaldoInsuficienteException ex) {
+        String msg = messageSource.getMessage(ErrorCode.SALDO_INSUFICIENTE.getMessageKey(), null, LocaleContextHolder.getLocale());
         ErroResponseDTO erro = new ErroResponseDTO(
                 HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                ErrorCode.SALDO_INSUFICIENTE.name(),
                 "Saldo insuficiente",
-                ex.getMessage()
+                msg
         );
         return new ResponseEntity<>(erro, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
     @ExceptionHandler(LimiteInsuficienteException.class)
     public ResponseEntity<ErroResponseDTO> handleLimiteInsuficiente(LimiteInsuficienteException ex) {
+        String msg = messageSource.getMessage(ErrorCode.LIMITE_INSUFICIENTE.getMessageKey(), null, LocaleContextHolder.getLocale());
         ErroResponseDTO erro = new ErroResponseDTO(
                 HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                ErrorCode.LIMITE_INSUFICIENTE.name(),
                 "Limite insuficiente",
-                ex.getMessage()
+                msg
         );
         return new ResponseEntity<>(erro, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
     @ExceptionHandler(OperacaoNaoPermitidaException.class)
     public ResponseEntity<ErroResponseDTO> handleOperacaoNaoPermitida(OperacaoNaoPermitidaException ex) {
+        String msg = messageSource.getMessage(ErrorCode.OPERACAO_NAO_PERMITIDA.getMessageKey(), null, LocaleContextHolder.getLocale());
         ErroResponseDTO erro = new ErroResponseDTO(
                 HttpStatus.CONFLICT.value(),
+                ErrorCode.OPERACAO_NAO_PERMITIDA.name(),
                 "Operação não permitida",
-                ex.getMessage()
+                msg
         );
         return new ResponseEntity<>(erro, HttpStatus.CONFLICT);
     }
@@ -105,10 +133,12 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RecursoNaoEncontradoException.class)
     public ResponseEntity<ErroResponseDTO> handleRecursoNaoEncontrado(RecursoNaoEncontradoException ex) {
+        String msg = messageSource.getMessage(ErrorCode.REGISTRO_NAO_ENCONTRADO.getMessageKey(), null, LocaleContextHolder.getLocale());
         ErroResponseDTO erro = new ErroResponseDTO(
                 HttpStatus.NOT_FOUND.value(),
+                ErrorCode.REGISTRO_NAO_ENCONTRADO.name(),
                 "Recurso não encontrado",
-                ex.getMessage()
+                msg
         );
         return new ResponseEntity<>(erro, HttpStatus.NOT_FOUND);
     }
@@ -116,11 +146,52 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(RegraDeNegocioException.class)
     public ResponseEntity<ErroResponseDTO> handleRegraDeNegocio(RegraDeNegocioException ex) {
         ErroResponseDTO erro = new ErroResponseDTO(
-                HttpStatus.BAD_REQUEST.value(),
+                HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                ErrorCode.REGRA_DE_NEGOCIO.name(),
                 "Erro de regra de negócio",
                 ex.getMessage()
         );
-        return new ResponseEntity<>(erro, HttpStatus.BAD_REQUEST);
+        return new ResponseEntity<>(erro, HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    // =============================================
+    // EXCEPTIONS DE SEGURANÇA (Spring Security)
+    // =============================================
+
+    @ExceptionHandler(BadCredentialsException.class)
+    public ResponseEntity<ErroResponseDTO> handleBadCredentials(BadCredentialsException ex) {
+        String msg = messageSource.getMessage("error.bad_credentials", null, LocaleContextHolder.getLocale());
+        ErroResponseDTO erro = new ErroResponseDTO(
+                HttpStatus.UNAUTHORIZED.value(),
+                ErrorCode.CREDENCIAIS_INVALIDAS.name(),
+                "Não autorizado",
+                msg
+        );
+        return new ResponseEntity<>(erro, HttpStatus.UNAUTHORIZED);
+    }
+
+    @ExceptionHandler(DisabledException.class)
+    public ResponseEntity<ErroResponseDTO> handleDisabled(DisabledException ex) {
+        String msg = messageSource.getMessage("error.conta_desativada", null, LocaleContextHolder.getLocale());
+        ErroResponseDTO erro = new ErroResponseDTO(
+                HttpStatus.FORBIDDEN.value(),
+                "ACCESS_DENIED",
+                "Acesso negado",
+                msg
+        );
+        return new ResponseEntity<>(erro, HttpStatus.FORBIDDEN);
+    }
+
+    @ExceptionHandler(AuthenticationException.class)
+    public ResponseEntity<ErroResponseDTO> handleAuthentication(AuthenticationException ex) {
+        String msg = messageSource.getMessage("error.autenticacao_generica", null, LocaleContextHolder.getLocale());
+        ErroResponseDTO erro = new ErroResponseDTO(
+                HttpStatus.UNAUTHORIZED.value(),
+                "AUTHENTICATION_ERROR",
+                "Erro de autenticação",
+                msg
+        );
+        return new ResponseEntity<>(erro, HttpStatus.UNAUTHORIZED);
     }
 
     // =============================================
@@ -141,6 +212,7 @@ public class GlobalExceptionHandler {
 
         ErroResponseDTO erro = new ErroResponseDTO(
                 HttpStatus.UNPROCESSABLE_ENTITY.value(),
+                "VALIDATION_ERROR",
                 "Erro de validação",
                 "Um ou mais campos estão inválidos. Verifique os detalhes.",
                 detalhes
@@ -155,6 +227,7 @@ public class GlobalExceptionHandler {
     public ResponseEntity<ErroResponseDTO> handleJsonMalformado(HttpMessageNotReadableException ex) {
         ErroResponseDTO erro = new ErroResponseDTO(
                 HttpStatus.BAD_REQUEST.value(),
+                "INVALID_REQUEST",
                 "Requisição inválida",
                 "O corpo da requisição está malformado ou contém valores com tipo incorreto."
         );
@@ -171,8 +244,10 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErroResponseDTO> handleExcecaoGenerica(Exception ex) {
+        log.error("Exceção inesperada capturada: {}", ex.getMessage(), ex);
         ErroResponseDTO erro = new ErroResponseDTO(
                 HttpStatus.INTERNAL_SERVER_ERROR.value(),
+                "INTERNAL_ERROR",
                 "Erro interno",
                 "Ocorreu um erro inesperado. Tente novamente mais tarde."
         );

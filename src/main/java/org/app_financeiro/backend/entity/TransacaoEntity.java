@@ -9,6 +9,7 @@ import org.app_financeiro.backend.enums.MetodoPagamento;
 import org.app_financeiro.backend.enums.StatusTransacao;
 import org.app_financeiro.backend.enums.TipoTransacao;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -33,6 +34,7 @@ import java.math.BigDecimal;
 @Table(name = "transacoes", indexes = {
     @Index(name = "idx_transacao_usuario_data", columnList = "usuario_id, data")
 })
+@SQLRestriction("ativo = true")
 public class TransacaoEntity {
 
     @Id
@@ -43,7 +45,7 @@ public class TransacaoEntity {
     @Column(nullable = false)
     private String descricao;
 
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal valor;
 
     /** Data em que a transação ocorreu (usada para calcular a qual fatura pertence). */

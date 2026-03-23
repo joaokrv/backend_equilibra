@@ -12,7 +12,10 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.app_financeiro.backend.entity.UsuarioEntity;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -28,16 +31,15 @@ import java.util.List;
  * - PUT    /api/transacoes/{id}                 → Atualiza uma transação existente
  * - DELETE /api/transacoes/{id}                 → Soft delete da transação
  *
- * NOTA: O header "UsuarioId" é TEMPORÁRIO — será substituído por JWT/SecurityContext.
- *
  * REGRAS DE NEGÓCIO IMPORTANTES (implementadas no Service):
  * - DESPESA com conta: debita o saldo da conta (bloqueia se saldo insuficiente)
  * - DESPESA com cartão: consome o limite (bloqueia se limite insuficiente)
  * - RECEITA com conta: credita o saldo da conta
- * - Ao atualizar/deletar, o Service deve reverter o impacto anterior antes de aplicar o novo
+ * - Ao atualizar/deletar, o Service reverter o impacto anterior antes de aplicar o novo
  */
 @RestController
 @RequestMapping("/api/transacoes")
+@Tag(name = "Transações", description = "Gerenciamento de receitas e despesas (contas e cartões)")
 public class TransacaoController {
 
     private final TransacaoService transacaoService;
@@ -50,16 +52,17 @@ public class TransacaoController {
      * Cria uma nova transação.
      * O Service é responsável por impactar o saldo/limite conforme o tipo.
      *
-     * @param dto       dados da transação (descricao, valor, data, tipo, contaId/cartaoId, categoriaId, etc.)
-     * @param usuarioId ID do usuário (header temporário)
+     * @param dto     dados da transação (descricao, valor, data, tipo, contaId/cartaoId, categoriaId, etc.)
+     * @param usuario usuário autenticado via JWT
      * @return 201 Created com a transação criada
      */
     @PostMapping
+    @Operation(summary = "Criar transação", description = "Registra uma nova receita ou despesa. Impacta automaticamente o saldo da conta ou limite do cartão.")
     public ResponseEntity<TransacaoResponseDTO> criarTransacao(
             @Valid @RequestBody TransacaoRegistroRequestDTO dto,
-            @RequestHeader("UsuarioId") Long usuarioId) {
+            @AuthenticationPrincipal UsuarioEntity usuario) {
 
-        TransacaoResponseDTO transacao = transacaoService.criarTransacao(dto, usuarioId);
+        TransacaoResponseDTO transacao = transacaoService.criarTransacao(dto, usuario.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(transacao);
     }
 
@@ -67,54 +70,66 @@ public class TransacaoController {
      * Lista transações do usuário filtradas por mês e ano.
      * Ambos os parâmetros são obrigatórios.
      *
-     * @param ano       ano da consulta (ex: 2026)
-     * @param mes       mês da consulta (1-12)
-     * @param usuarioId ID do usuário (header temporário)
+     * @param ano     ano da consulta (ex: 2026)
+     * @param mes     mês da consulta (1-12)
+     * @param usuario usuário autenticado via JWT
      * @return 200 OK com a lista de transações do mês
      */
-    @GetMapping
-    public ResponseEntity<List<TransacaoResponseDTO>> listarPorMes(
+    @GetMapping(params = {"ano","mes"})
+    @Operation(summary = "Listar transações mensais", description = "Retorna todas as transações de um mês e ano específicos para o usuário logado.")
+    public ResponseEntity<List<TransacaoResponseDTO>> listarMensal(
             @RequestParam int ano,
             @RequestParam int mes,
-            @RequestHeader("UsuarioId") Long usuarioId) {
+            @AuthenticationPrincipal UsuarioEntity usuario) {
 
-        List<TransacaoResponseDTO> transacoes = transacaoService.buscarPorMes(ano, mes, usuarioId);
+        List<TransacaoResponseDTO> transacoes = transacaoService.buscarPorMes(ano, mes, usuario.getId());
         return ResponseEntity.ok(transacoes);
     }
 
     /**
      * Atualiza uma transação existente.
-     * O Service deve reverter o impacto anterior e aplicar o novo.
+     * O Service reverte o impacto anterior e aplica o novo.
      *
-     * @param id        ID da transação
-     * @param dto       novos dados da transação
-     * @param usuarioId ID do usuário (header temporário)
+     * @param id      ID da transação
+     * @param dto     novos dados da transação
+     * @param usuario usuário autenticado via JWT
      * @return 200 OK com a transação atualizada
      */
     @PutMapping("/{id}")
+    @Operation(summary = "Atualizar transação", description = "Altera os dados de uma transação existente e reajusta os saldos/limites impactados.")
     public ResponseEntity<TransacaoResponseDTO> atualizarTransacao(
             @PathVariable Long id,
             @Valid @RequestBody TransacaoRegistroRequestDTO dto,
-            @RequestHeader("UsuarioId") Long usuarioId) {
+            @AuthenticationPrincipal UsuarioEntity usuario) {
 
-        TransacaoResponseDTO transacao = transacaoService.atualizarTransacao(id, dto, usuarioId);
+        TransacaoResponseDTO transacao = transacaoService.atualizarTransacao(id, dto, usuario.getId());
         return ResponseEntity.ok(transacao);
     }
 
     /**
-     * Desativa (soft delete) uma transação.
-     * O Service deve reverter o impacto no saldo/limite.
+     * Lista transações do usuário com paginação.
      *
-     * @param id        ID da transação
-     * @param usuarioId ID do usuário (header temporário)
-     * @return 204 No Content
+     * @param usuario  usuário autenticado via JWT
+     * @param pageable parâmetros de paginação
+     * @return 200 OK com a página de transações
      */
+    @GetMapping
+    @Operation(summary = "Listar transações paginadas", description = "Retorna transações do usuário em páginas (sem filtro mensal). Use parâmetros page, size, sort.")
+    public ResponseEntity<org.springframework.data.domain.Page<TransacaoResponseDTO>> listarPaginado(
+            @AuthenticationPrincipal UsuarioEntity usuario,
+            org.springframework.data.domain.Pageable pageable) {
+
+        var page = transacaoService.listarPorUsuario(usuario.getId(), pageable);
+        return ResponseEntity.ok(page);
+    }
+
     @DeleteMapping("/{id}")
+    @Operation(summary = "Excluir transação", description = "Remove logicamente uma transação e estorna seu impacto financeiro (saldo/limite).")
     public ResponseEntity<Void> deletarTransacao(
             @PathVariable Long id,
-            @RequestHeader("UsuarioId") Long usuarioId) {
+            @AuthenticationPrincipal UsuarioEntity usuario) {
 
-        transacaoService.deletarTransacao(id, usuarioId);
+        transacaoService.deletarTransacao(id, usuario.getId());
         return ResponseEntity.noContent().build();
     }
 }

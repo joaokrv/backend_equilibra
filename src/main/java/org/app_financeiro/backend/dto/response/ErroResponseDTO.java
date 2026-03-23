@@ -1,7 +1,5 @@
 package org.app_financeiro.backend.dto.response;
 
-import lombok.Data;
-
 import java.time.LocalDateTime;
 import java.util.List;
 
@@ -11,33 +9,25 @@ import java.util.List;
  *
  * Usado pelo GlobalExceptionHandler para formatar todas as respostas de erro.
  */
-@Data
-public class ErroResponseDTO {
-
-    private LocalDateTime timestamp;
-    private int status;
-    private String erro;
-    private String mensagem;
-    private List<String> detalhes; // Para erros de validação (múltiplos campos)
-
+public record ErroResponseDTO(
+    LocalDateTime timestamp,
+    int status,
+    String code,
+    String erro,
+    String mensagem,
+    List<String> detalhes // Para erros de validação (múltiplos campos)
+) {
     /**
      * Construtor para erros simples (uma mensagem).
      */
-    public ErroResponseDTO(int status, String erro, String mensagem) {
-        this.timestamp = LocalDateTime.now();
-        this.status = status;
-        this.erro = erro;
-        this.mensagem = mensagem;
+    public ErroResponseDTO(int status, String code, String erro, String mensagem) {
+        this(LocalDateTime.now(), status, code, erro, mensagem, null);
     }
 
     /**
      * Construtor para erros de validação (múltiplas mensagens de campo).
      */
-    public ErroResponseDTO(int status, String erro, String mensagem, List<String> detalhes) {
-        this.timestamp = LocalDateTime.now();
-        this.status = status;
-        this.erro = erro;
-        this.mensagem = mensagem;
-        this.detalhes = detalhes;
+    public ErroResponseDTO(int status, String code, String erro, String mensagem, List<String> detalhes) {
+        this(LocalDateTime.now(), status, code, erro, mensagem, detalhes);
     }
 }

@@ -1,6 +1,6 @@
-# Controle Financeiro Pessoal — Backend
+# Equilibra — Backend
 
-Backend da aplicação de controle financeiro pessoal. Este repositório contém a API REST que alimenta o app Web e Mobile.
+Backend da aplicação **Equilibra**, um sistema de controle financeiro pessoal. Este repositório contém a API REST que alimenta o app Web e Mobile.
 
 ---
 
@@ -23,6 +23,9 @@ O objetivo não é concorrer com apps como Mobills ou Guiabolso — é uma aplic
 - Organizar gastos por **categorias** personalizadas
 - Registrar e acompanhar **investimentos e metas de poupança**
 - Verificar identidade via **código OTP por e-mail** no cadastro
+- **Autenticação JWT** com access token + refresh token
+- **Reativação de conta** após desativação (soft delete), com validação de senha
+- **Internacionalização (i18n)** de mensagens de erro (pt-BR e EN)
 
 ---
 
@@ -30,14 +33,19 @@ O objetivo não é concorrer com apps como Mobills ou Guiabolso — é uma aplic
 
 | Camada | Tecnologia |
 |---|---|
-| Linguagem | Java 21 |
+| Linguagem | Java 25 |
 | Framework | Spring Boot 3.5.x |
 | Persistência | Spring Data JPA + Hibernate |
-| Segurança | Spring Security (BCrypt) |
+| Segurança | Spring Security + JWT (jjwt 0.12.x) |
+| Mapeamento | MapStruct 1.6.x |
 | Validação | Jakarta Bean Validation |
+| Logging | SLF4J + Logback |
+| Documentação API | Springdoc OpenAPI (Swagger UI) |
+| Monitoramento | Spring Boot Actuator |
 | Utilitários | Lombok |
 | Build | Maven |
-| Banco de Dados | A definir (sem driver configurado ainda) |
+| Testes | JUnit 5 + Mockito 5.17.0 + Testcontainers (PostgreSQL real) |
+| Banco de Dados | PostgreSQL 16 + Flyway (Migrations) |
 
 ---
 
@@ -49,14 +57,22 @@ O projeto segue a arquitetura em camadas padrão do Spring Boot:
 Controller  →  Service  →  Repository  →  Banco de Dados
      ↕              ↕
    DTOs          Entities
+     ↕
+  Mappers (MapStruct)
 ```
 
 **Padrões e decisões técnicas adotadas:**
 
 - **Fail-Fast**: validações acontecem no início de cada método. Saldo negativo e limite insuficiente bloqueiam a operação com exceção, nunca apenas alertam.
-- **Soft Delete**: nenhum registro é apagado fisicamente. O campo `ativo = false` desativa o registro, preservando o histórico financeiro.
+- **Soft Delete + @SQLRestriction**: nenhum registro é apagado fisicamente. O campo `ativo = false` desativa o registro, e `@SQLRestriction("ativo = true")` filtra automaticamente em todas as queries.
 - **Lazy Creation de Faturas**: faturas não são criadas antecipadamente. Elas surgem automaticamente quando a primeira transação do mês é lançada no cartão.
-- **Ghost Closing de Faturas**: ao listar faturas, o sistema verifica a data atual e atualiza o status (`ABERTA → FECHADA → ATRASADA`) sem precisar de jobs agendados.
+- **Ghost Closing de Faturas + Scheduler**: ao listar faturas, o sistema verifica a data atual e atualiza o status. Adicionalmente, um `@Scheduled` diário marca faturas vencidas como ATRASADA.
+- **Status automático de Transações**: se o usuário não informar o status, ele é derivado automaticamente do método de pagamento (PIX/DINHEIRO/DEBITO → PAGO; BOLETO/CARTAO_CREDITO → PENDENTE; cartão sempre força PENDENTE).
+- **Limite dinâmico de Cartões**: o limite disponível é calculado em tempo real como `limiteTotal - somaFaturasAbertas`, sem campo persistido.
+- **MapStruct para mapeamento**: todas as conversões Entity ↔ DTO são feitas por interfaces MapStruct em tempo de compilação, eliminando código manual.
+- **Orquestrador de Movimentações**: `MovimentacaoFinanceiraService` encapsula os impactos financeiros em Contas, Cartões e Faturas, evitando duplicação entre criar/atualizar/deletar transações.
+- **JWT Stateless**: autenticação via Access Token (curta duração) + Refresh Token (longa duração), sem sessão no servidor.
+- **Logging Estruturado**: todos os services possuem `log.info` para operações de sucesso e `log.warn` para violações de regra de negócio. O `GlobalExceptionHandler` usa `log.error` para exceções inesperadas.
 - **Lombok seguro em Entities**: usamos `@Getter`, `@Setter`, `@NoArgsConstructor` e `@EqualsAndHashCode(onlyExplicitlyIncluded = true)` vinculado apenas ao `id`, evitando loops infinitos e queries N+1 que o `@Data` causaria.
 - **Nomenclatura pt-BR**: nomes de classes, variáveis, exceções e mensagens seguem o português brasileiro.
 
@@ -66,33 +82,84 @@ Controller  →  Service  →  Repository  →  Banco de Dados
 
 ```
 src/main/java/org/app_financeiro/backend/
-├── controller/          # Endpoints REST (7 controllers, 23 endpoints)
-├── service/             # Regras de negócio
-├── repository/          # Interfaces Spring Data JPA
+├── controller/          # Endpoints REST (7 controllers)
+├── service/             # Regras de negócio (10 services)
+├── repository/          # Interfaces Spring Data JPA (8 repositórios)
 ├── entity/              # Entidades JPA (8 tabelas)
 ├── dto/
-│   ├── request/         # DTOs de entrada (9 classes)
-│   └── response/        # DTOs de saída (8 classes)
+│   ├── request/         # DTOs de entrada (10 classes)
+│   └── response/        # DTOs de saída (9 classes, incluindo AuthResponseDTO)
+├── mapper/              # MapStruct mappers (7 interfaces)
 ├── enums/               # TipoTransacao, StatusFatura, MetodoPagamento, StatusTransacao
-├── exception/           # Exceções de negócio (9 classes)
-├── config/              # SecurityConfig
-└── handler/             # GlobalExceptionHandler
+├── exception/           # Exceções de negócio (9 classes + GlobalExceptionHandler)
+├── config/              # ApplicationConfig, SecurityConfig, JwtAuthenticationFilter, PepperedPasswordEncoder
+└── util/                # ValidacaoUtils
 ```
 
 ---
 
-## Endpoints da API
+## Segurança e Autenticação
 
-> Nota: o header `UsuarioId` é temporário. Será substituído por JWT quando a autenticação for implementada.
+A API usa **JWT (JSON Web Tokens)** para autenticação stateless.
+
+### Fluxo de autenticação
+
+```
+1. POST /api/auth/registrar                → Cria conta (emailVerificado=false)
+2. POST /api/auth/verificar-email          → Valida código OTP de 6 dígitos
+3. POST /api/auth/login                    → Retorna accessToken + refreshToken + expiresIn
+4. Requisições protegidas                  → Header "Authorization: Bearer <accessToken>"
+5. POST /api/auth/refresh                  → Renova accessToken usando refreshToken
+```
+
+### Rotas públicas (sem autenticação)
+
+- `/api/auth/**` — registro, login, verificação de e-mail
+- `/swagger-ui/**`, `/v3/api-docs/**` — documentação Swagger
+- `/actuator/**` — health check e métricas
+
+### Rotas protegidas
+
+Todas as demais rotas exigem um `accessToken` válido no header `Authorization: Bearer <token>`. O usuário autenticado é injetado automaticamente via `@AuthenticationPrincipal UsuarioEntity`.
+
+### Configuração JWT
+
+As credenciais são definidas via **variáveis de ambiente** (nunca hardcoded):
+
+```bash
+# Gere uma chave secreta segura:
+openssl rand -hex 32
+```
+
+```bash
+# Defina as variáveis de ambiente (ou use um arquivo .env):
+export JWT_SECRET=<chave-gerada>
+export CORS_ALLOWED_ORIGINS=http://localhost:3000
+```
+
+Um template `.env.example` está disponível na raiz do projeto. Copie para `.env` e preencha os valores:
+
+```bash
+cp .env.example .env
+# Edite o .env com seus valores reais
+```
+
+> ⚠️ **Nunca commite o arquivo `.env`** — ele está no `.gitignore`.
+
+---
+
+## Endpoints da API
 
 ### Autenticação (`/api/auth`)
 
 | Método | Rota | Descrição |
 |---|---|---|
 | `POST` | `/api/auth/registrar` | Cadastra novo usuário |
-| `POST` | `/api/auth/login` | Autentica usuário (exige e-mail verificado) |
+| `POST` | `/api/auth/login` | Autentica e retorna access + refresh tokens |
+| `POST` | `/api/auth/refresh` | Renova access token usando refresh token |
 | `POST` | `/api/auth/verificar-email` | Valida código OTP de 6 dígitos |
 | `POST` | `/api/auth/reenviar-codigo` | Reenvia código de verificação |
+| `POST` | `/api/auth/reativar-conta` | Reativa conta desativada (exige senha) |
 
 ### Contas Bancárias (`/api/contas`)
 
@@ -101,6 +168,7 @@ src/main/java/org/app_financeiro/backend/
 | `POST` | `/api/contas` | Cria nova conta |
 | `GET` | `/api/contas` | Lista contas ativas do usuário |
 | `GET` | `/api/contas/{id}` | Busca conta por ID |
+| `PUT` | `/api/contas/{id}/saldo` | Atualiza saldo manualmente |
 | `DELETE` | `/api/contas/{id}` | Soft delete da conta |
 
 ### Cartões de Crédito (`/api/cartoes`)
@@ -143,6 +211,9 @@ src/main/java/org/app_financeiro/backend/
 | `POST` | `/api/investimentos` | Cria investimento / meta de poupança |
 | `GET` | `/api/investimentos` | Lista investimentos ativos |
 | `POST` | `/api/investimentos/{id}/depositar` | Deposita valor (debita de uma conta) |
+| `POST` | `/api/investimentos/{id}/resgatar` | Resgata valor (credita em uma conta) |
+| `PUT` | `/api/investimentos/{id}/meta` | Atualiza a meta do investimento |
+| `DELETE` | `/api/investimentos/{id}` | Soft delete do investimento |
 
 ---
 
@@ -152,11 +223,12 @@ src/main/java/org/app_financeiro/backend/
 UsuarioEntity
     ├── ContaEntity          (saldo modificado por transações)
     ├── CartaoEntity         (limite disponível calculado dinamicamente)
-    │     └── FaturaEntity   (criação lazy, status atualizado por ghost closing)
+    │     └── FaturaEntity   (criação lazy, status atualizado por ghost closing + scheduler)
     │           └── TransacaoEntity (via cartão)
     ├── TransacaoEntity      (via conta)
     ├── CategoriaEntity      (classificação de transações)
-    └── InvestimentoEntity   (metas de poupança)
+    ├── InvestimentoEntity   (metas de poupança)
+    └── CodigoVerificacaoEntity (códigos OTP vinculados por e-mail)
 ```
 
 ### Ciclo de vida de uma Fatura
@@ -170,10 +242,22 @@ FECHADA ou ATRASADA  →  (paga integralmente)  →  PAGA
 ### Regras de impacto de uma Transação
 
 ```
-DESPESA + conta   →  debitarSaldo()    (bloqueia se saldo insuficiente)
-DESPESA + cartão  →  consumirLimite()  (bloqueia se limite insuficiente)
-RECEITA + conta   →  creditarSaldo()
-RECEITA + cartão  →  erro (não permitido)
+DESPESA + conta + PAGO       →  debitarSaldo()    (bloqueia se saldo insuficiente)
+DESPESA + conta + PENDENTE   →  Nenhum impacto    (apenas registra no banco)
+DESPESA + cartão             →  consumirLimite() + adiciona na Fatura (sempre PENDENTE)
+RECEITA + conta + PAGO       →  creditarSaldo()
+RECEITA + conta + PENDENTE   →  Nenhum impacto    (apenas registra no banco)
+RECEITA + cartão             →  Estorno/Cashback: subtrai da Fatura (clamp em zero)
+```
+
+### Determinação automática de status
+
+```
+Método de pagamento → Status derivado:
+  PIX, DINHEIRO, DEBITO, VALE_ALIMENTACAO, TRANSFERENCIA  →  PAGO
+  BOLETO, CARTAO_CREDITO                                  →  PENDENTE
+  Transação via cartão (qualquer método)                   →  Sempre PENDENTE (forçado)
+  Se o usuário informou status explicitamente              →  Respeita (exceto cartão)
 ```
 
 ---
@@ -184,7 +268,7 @@ Todas as exceções são capturadas pelo `GlobalExceptionHandler` e retornam um 
 
 ```json
 {
-  "timestamp": "2026-02-28T14:30:00",
+  "timestamp": "2026-03-01T14:30:00",
   "status": 422,
   "erro": "Saldo insuficiente",
   "mensagem": "Saldo insuficiente para realizar a operação"
@@ -200,65 +284,105 @@ Todas as exceções são capturadas pelo `GlobalExceptionHandler` e retornam um 
 | `OperacaoNaoPermitidaException` | 409 |
 | `SaldoInsuficienteException` | 422 |
 | `LimiteInsuficienteException` | 422 |
+| `CodigoVerificacaoInvalidoException` | 400 |
 | `RegraDeNegocioException` | 400 |
 | `MethodArgumentNotValidException` | 422 |
 
 ---
 
+## Observabilidade
+
+### Swagger / OpenAPI
+
+A documentação interativa da API está disponível em:
+
+- **Swagger UI**: `http://localhost:8080/swagger-ui.html`
+- **OpenAPI JSON**: `http://localhost:8080/v3/api-docs`
+
+Gerada automaticamente pelo Springdoc OpenAPI a partir das anotações dos Controllers.
+
+### Actuator
+
+Endpoints de monitoramento disponíveis em:
+
+- **Health**: `http://localhost:8080/actuator/health`
+- **Info**: `http://localhost:8080/actuator/info`
+
+### Logging
+
+Todos os services utilizam logging estruturado via SLF4J:
+
+- `log.info` — operações concluídas com sucesso (criação, atualização, exclusão)
+- `log.warn` — violações de regra de negócio (saldo insuficiente, duplicatas, etc.)
+- `log.error` — exceções inesperadas no fallback do `GlobalExceptionHandler`
+
+---
+
 ## Status do Projeto
 
-### Progresso geral: 60%
+### Progresso geral: ~95%
 
 | Módulo | Status | Detalhes |
 |---|---|---|
-| Entidades (8/8) | ✅ Completo | Todas modeladas, Lombok seguro aplicado |
-| Repositórios (8/8) | ✅ Completo | Queries customizadas definidas |
-| DTOs (18/18) | ✅ Completo | Proteção NPE nos ResponseDTOs |
-| Exceções + Handler | ✅ Completo | 9 exceções, GlobalExceptionHandler |
-| SecurityConfig | ✅ Completo | BCrypt configurado, JWT pendente |
-| `UsuarioService` | ✅ Completo | Registro, login, soft delete, BCrypt |
+| Entidades (8/8) | ✅ Completo | Todas modeladas, `@SQLRestriction`, precision/scale |
+| Repositórios (8/8) | ✅ Completo | Queries customizadas + `@EntityGraph` otimizado |
+| DTOs (19/19) | ✅ Completo | 10 request + 9 response (incluindo `AuthResponseDTO`) |
+| Exceções + Handler | ✅ Completo | 9 exceções + `GlobalExceptionHandler` com `log.error` |
+| MapStruct (7/7) | ✅ Completo | Mappers para todas as entities |
+| SecurityConfig + JWT | ✅ Completo | Access/Refresh tokens, CORS, rotas públicas/protegidas |
+| Controllers (7/7) | ✅ Completo | `@AuthenticationPrincipal`, endpoints completos |
+| `UsuarioService` | ✅ Completo | Registro, login, soft delete, reativação, Argon2 + Pepper |
 | `ContaService` | ✅ Completo | CRUD, débito/crédito, bloqueio de saldo negativo |
-| `CartaoService` | ✅ Completo | CRUD, limite disponível dinâmico |
-| `FaturaService` | ✅ Completo | Criação lazy, ghost closing, pagamento parcial |
-| `CategoriaService` | ⏳ Pendente | Esqueleto com regras documentadas |
-| `TransacaoService` | ⏳ Pendente | Esqueleto com regras documentadas — módulo mais complexo |
-| `InvestimentoService` | ⏳ Pendente | Esqueleto com regras documentadas |
-| `EmailVerificacaoService` | ⏳ Pendente | Esqueleto com regras documentadas |
-| Testes | ⏳ Pendente | Apenas o teste de contexto padrão existe |
-| Banco de dados | ⏳ Pendente | Driver e configuração não definidos ainda |
-| JWT / Spring Security | ⏳ Pendente | Header temporário `UsuarioId` em uso |
-| CORS | ⏳ Pendente | Não configurado |
+| `CartaoService` | ✅ Completo | CRUD, limite dinâmico, query agregada |
+| `FaturaService` | ✅ Completo | Lazy creation, ghost closing, pagamento parcial |
+| `CategoriaService` | ✅ Completo | CRUD completo |
+| `TransacaoService` | ✅ Completo | CRUD com impacto financeiro bidirecional |
+| `InvestimentoService` | ✅ Completo | Criar, depositar, resgatar, meta, deletar |
+| `EmailVerificacaoService` | ✅ Completo | OTP 6 dígitos, verificação, reenvio |
+| `MovimentacaoFinanceiraService` | ✅ Completo | Orquestrador de impactos financeiros |
+| `FaturaSchedulerService` | ✅ Completo | `@Scheduled` diário para faturas atrasadas |
+| Logging | ✅ Completo | Todos os services com `log.info`/`log.warn`/`log.error` |
+| Swagger + Actuator | ✅ Completo | Springdoc OpenAPI + Health/Info endpoints |
+| Documentação JavaDoc | ✅ Completo | Padrão `/** */` em todas as classes |
+| Testes Automatizados | ✅ Completo | 33 arquivos de teste (unit + integração + repositório). Testcontainers com PostgreSQL 16 real. |
+| Banco de dados produção | ✅ Completo | Postgres 16 oficializado. Migrations V1, V2 e V3 criadas via Flyway. |
+| Controle de concorrência | ✅ Em evolução | `@Version` nas entidades; migration V4 adicionada; testes de optimistic lock implementados |
+| Scheduler único | ✅ Em evolução | ShedLock adicionado; migration V5; teste garante execução única |
+| Mensagens de erro / i18n | ✅ Em evolução | ErrorCode enum + MessageSource; handler refatorado; testes de localization |
+| Paginação | ✅ Em evolução | Endpoint e service adicionados; testes unitários e de integração implementados |
+
+---
+
+## Documentação Técnica
+
+Módulos detalhados sobre cada decisão arquitetural estão disponíveis em `docs/`:
+
+| Módulo | Descrição |
+|---|---|
+| [`mapstruct.md`](docs/mapstruct.md) | MapStruct — mapeamento automático Entity ↔ DTO |
+| [`jwt-seguranca.md`](docs/jwt-seguranca.md) | JWT — autenticação stateless + Argon2 + PepperedPasswordEncoder |
+| [`movimentacao-financeira.md`](docs/movimentacao-financeira.md) | Orquestrador de impactos financeiros |
+| [`faturas-e-scheduler.md`](docs/faturas-e-scheduler.md) | Faturas: lazy creation, ghost closing, scheduler |
+| [`soft-delete-e-sqlrestriction.md`](docs/soft-delete-e-sqlrestriction.md) | Soft delete + @SQLRestriction + BigDecimal |
+| [`logging-observabilidade.md`](docs/logging-observabilidade.md) | Logging SLF4J + Swagger + Actuator |
+| [`referencia-api.md`](docs/referencia-api.md) | Guia de Referência da API (Endpoints e Arquitetura) |
+| [`erros-e-i18n.md`](docs/erros-e-i18n.md) | Tratamento de erros, ErrorCodes e internacionalização |
+| [`contexto-testes.md`](docs/contexto-testes.md) | Catálogo completo de cenários de teste |
+| [`locking.md`](docs/locking.md) | Controle de concorrência com @Version |
 
 ---
 
 ## Próximos Passos
 
-### Fase 5 — CategoriaService (mais simples, bom ponto de partida)
-Implementar os 5 métodos do `CategoriaService`: criar com validação de duplicidade, listar, listar por tipo, deletar e o método interno `buscarPorIdOuFalhar` que será usado pelo `TransacaoService`.
+### Fase 9 — Deploy
 
-### Fase 6 — TransacaoService (núcleo do sistema)
-O módulo mais crítico. Requer que o `CategoriaService` e dois novos métodos no `CartaoService` (`consumirLimite` e `restaurarLimite`) sejam implementados primeiro. A lógica de atualização exige reverter o impacto financeiro antigo antes de aplicar o novo.
-
-### Fase 7 — InvestimentoService
-Implementar criação de metas, listagem e depósitos (que debitam de uma conta).
-
-### Fase 8 — EmailVerificacaoService
-Implementar geração de código OTP, validação e reenvio. Exigirá a adição do `spring-boot-starter-mail` ao `pom.xml` e configuração SMTP.
-
-### Fase 9 — Banco de Dados
-Escolher o banco (PostgreSQL recomendado), adicionar o driver ao `pom.xml`, configurar `application.properties` e o `compose.yaml` para desenvolvimento local.
-
-### Fase 10 — JWT e Spring Security
-Substituir o header `UsuarioId` por autenticação real com tokens JWT. Configurar filtros de segurança, CORS e proteger os endpoints.
-
-### Fase 11 — Testes
-Escrever testes unitários para os Services (JUnit 5 + Mockito) e testes de integração para os Controllers.
+Definir plataforma de hospedagem gratuita (Railway, Render) e banco de dados (Supabase ou equivalente). Configurar CI/CD para deploy automático.
 
 ---
 
 ## Como Executar
 
-> O projeto ainda não possui banco de dados configurado. Para rodar localmente, é necessário primeiro configurar um banco de dados e adicionar as credenciais no `application.properties`.
+> Nota: É necessário ter o **Docker Desktop** rodando na máquina local.
 
 ```bash
 # Clonar o repositório
@@ -267,9 +391,17 @@ git clone <url-do-repositorio>
 # Entrar na pasta do backend
 cd backend
 
-# Compilar
-mvn compile
+# Subir a infraestrutura (PostgreSQL) em background
+docker compose up -d
+
+# Compilar e Rodar os Testes Automatizados (TDD com Testcontainers)
+mvn clean install
 
 # Rodar
 mvn spring-boot:run
 ```
+
+Após iniciar, acesse:
+- **API**: `http://localhost:8080`
+- **Swagger UI**: `http://localhost:8080/swagger-ui.html`
+- **Health Check**: `http://localhost:8080/actuator/health`

@@ -12,7 +12,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -51,9 +52,9 @@ public class CategoriaController {
     @PostMapping
     public ResponseEntity<CategoriaResponseDTO> criarCategoria(
             @Valid @RequestBody CategoriaRegistroRequestDTO dto,
-            @RequestHeader("UsuarioId") Long usuarioId) {
+            @AuthenticationPrincipal UsuarioEntity usuario) {
 
-        CategoriaResponseDTO categoria = categoriaService.criarCategoria(dto, usuarioId);
+        CategoriaResponseDTO categoria = categoriaService.criarCategoria(dto, usuario.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(categoria);
     }
 
@@ -67,14 +68,14 @@ public class CategoriaController {
      */
     @GetMapping
     public ResponseEntity<List<CategoriaResponseDTO>> listarCategorias(
-            @RequestHeader("UsuarioId") Long usuarioId,
+            @AuthenticationPrincipal UsuarioEntity usuario,
             @RequestParam(required = false) TipoTransacao tipo) {
 
         List<CategoriaResponseDTO> categorias;
         if (tipo != null) {
-            categorias = categoriaService.buscarPorTipo(usuarioId, tipo);
+            categorias = categoriaService.buscarPorTipo(usuario.getId(), tipo);
         } else {
-            categorias = categoriaService.buscarTodasDoUsuario(usuarioId);
+            categorias = categoriaService.buscarTodasDoUsuario(usuario.getId());
         }
         return ResponseEntity.ok(categorias);
     }
@@ -90,9 +91,9 @@ public class CategoriaController {
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletarCategoria(
             @PathVariable Long id,
-            @RequestHeader("UsuarioId") Long usuarioId) {
+            @AuthenticationPrincipal UsuarioEntity usuario) {
 
-        categoriaService.deletarCategoria(id, usuarioId);
+        categoriaService.deletarCategoria(id, usuario.getId());
         return ResponseEntity.noContent().build();
     }
 }

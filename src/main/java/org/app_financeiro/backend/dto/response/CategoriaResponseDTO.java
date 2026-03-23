@@ -1,21 +1,12 @@
 package org.app_financeiro.backend.dto.response;
 
-import lombok.Data;
-import org.app_financeiro.backend.entity.CategoriaEntity;
 import org.app_financeiro.backend.enums.TipoTransacao;
 
 /**
  * DTO de resposta com os dados de uma categoria de transação.
  */
-@Data
-public class CategoriaResponseDTO {
-    private Long id;
-    private String nome;
-    private TipoTransacao tipo;
-
-    public CategoriaResponseDTO(CategoriaEntity entity) {
-        this.id = entity.getId();
-        this.nome = entity.getNome();
-        this.tipo = entity.getTipo();
-    }
-}
+public record CategoriaResponseDTO(
+    Long id,
+    String nome,
+    TipoTransacao tipo
+) {}

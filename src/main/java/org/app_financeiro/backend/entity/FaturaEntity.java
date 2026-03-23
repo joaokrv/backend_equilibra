@@ -7,6 +7,7 @@ import lombok.NoArgsConstructor;
 import lombok.EqualsAndHashCode;
 import org.app_financeiro.backend.enums.StatusFatura;
 import org.hibernate.annotations.CreationTimestamp;
+import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 
 import java.math.BigDecimal;
@@ -38,12 +39,17 @@ import java.time.LocalDateTime;
 @Table(name = "faturas", indexes = {
     @Index(name = "idx_fatura_cartao_mes_ano", columnList = "cartao_id, mes, ano", unique = true)
 })
+@SQLRestriction("ativo = true")
 public class FaturaEntity {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     @EqualsAndHashCode.Include
     private Long id;
+
+    @Version
+    @Column(nullable = false)
+    private Long version;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "cartao_id", nullable = false)
@@ -59,10 +65,10 @@ public class FaturaEntity {
     @Column(nullable = false)
     private Integer ano;
 
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal valorTotal = BigDecimal.ZERO;
 
-    @Column(nullable = false)
+    @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal valorPago = BigDecimal.ZERO;
 
     @Column(nullable = false)

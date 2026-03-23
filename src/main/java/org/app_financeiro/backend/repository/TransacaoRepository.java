@@ -7,6 +7,8 @@ import org.app_financeiro.backend.entity.TransacaoEntity;
 import org.app_financeiro.backend.enums.TipoTransacao;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -17,76 +19,46 @@ import java.util.List;
  * Repositório JPA para operações de persistência de TransacaoEntity.
  * Oferece queries por usuário, período, tipo, categoria, conta e cartão,
  * além de suporte a paginação.
+ *
+ * NOTA: A entidade TransacaoEntity possui @SQLRestriction("ativo = true"),
+ * portanto todas as queries derivadas filtram automaticamente por ativo = true.
  */
 @Repository
 public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long> {
 
     /**
-     * Retorna todas as transações ativas de um usuário.
-     *
-     * @param usuarioId ID do usuário
-     * @return Lista de transações ativas
+     * Retorna todas as transações (ativas) de um usuário.
      */
-    List<TransacaoEntity> findByUsuarioIdAndAtivoTrue(Long usuarioId);
+    List<TransacaoEntity> findByUsuarioId(Long usuarioId);
 
     /**
-     * Retorna transações ativas de um usuário em um intervalo de datas.
-     *
-     * @param usuarioId ID do usuário
-     * @param start     Data de início do intervalo (inclusive)
-     * @param end       Data de fim do intervalo (inclusive)
-     * @return Lista de transações no período
+     * Retorna transações (ativas) de um usuário em um intervalo de datas.
      */
-    List<TransacaoEntity> findByUsuarioIdAndDataBetweenAndAtivoTrue(Long usuarioId, LocalDate start, LocalDate end);
+    @EntityGraph(attributePaths = {"categoria", "conta", "cartao"})
+    List<TransacaoEntity> findByUsuarioIdAndDataBetween(Long usuarioId, LocalDate start, LocalDate end);
 
     /**
-     * Retorna transações ativas de um usuário filtradas por tipo (RECEITA ou DESPESA).
-     *
-     * @param usuarioId ID do usuário
-     * @param tipo      Tipo da transação
-     * @return Lista de transações do tipo informado
+     * Retorna transações (ativas) de um usuário filtradas por tipo (RECEITA ou DESPESA).
      */
-    List<TransacaoEntity> findByUsuarioIdAndTipoAndAtivoTrue(Long usuarioId, TipoTransacao tipo);
+    List<TransacaoEntity> findByUsuarioIdAndTipo(Long usuarioId, TipoTransacao tipo);
 
     /**
-     * Retorna transações ativas de um usuário em um período, filtradas por categoria.
-     *
-     * @param usuarioId  ID do usuário
-     * @param categoria  Entidade da categoria
-     * @param start      Data de início do intervalo
-     * @param end        Data de fim do intervalo
-     * @return Lista de transações da categoria no período
+     * Retorna transações (ativas) de um usuário em um período, filtradas por categoria.
      */
-    List<TransacaoEntity> findByUsuarioIdAndCategoriaAndDataBetweenAndAtivoTrue(Long usuarioId, CategoriaEntity categoria, LocalDate start, LocalDate end);
+    List<TransacaoEntity> findByUsuarioIdAndCategoriaAndDataBetween(Long usuarioId, CategoriaEntity categoria, LocalDate start, LocalDate end);
 
     /**
-     * Retorna transações ativas de um usuário em um período, filtradas por conta bancária.
-     *
-     * @param usuarioId ID do usuário
-     * @param conta     Entidade da conta
-     * @param start     Data de início do intervalo
-     * @param end       Data de fim do intervalo
-     * @return Lista de transações da conta no período
+     * Retorna transações (ativas) de um usuário em um período, filtradas por conta bancária.
      */
-    List<TransacaoEntity> findByUsuarioIdAndContaAndDataBetweenAndAtivoTrue(Long usuarioId, ContaEntity conta, LocalDate start, LocalDate end);
+    List<TransacaoEntity> findByUsuarioIdAndContaAndDataBetween(Long usuarioId, ContaEntity conta, LocalDate start, LocalDate end);
 
     /**
-     * Retorna transações ativas de um usuário em um período, filtradas por cartão de crédito.
-     *
-     * @param usuarioId ID do usuário
-     * @param cartao    Entidade do cartão
-     * @param start     Data de início do intervalo
-     * @param end       Data de fim do intervalo
-     * @return Lista de transações do cartão no período
+     * Retorna transações (ativas) de um usuário em um período, filtradas por cartão de crédito.
      */
-    List<TransacaoEntity> findByUsuarioIdAndCartaoAndDataBetweenAndAtivoTrue(Long usuarioId, CartaoEntity cartao, LocalDate start, LocalDate end);
+    List<TransacaoEntity> findByUsuarioIdAndCartaoAndDataBetween(Long usuarioId, CartaoEntity cartao, LocalDate start, LocalDate end);
 
     /**
-     * Retorna transações ativas de um usuário com suporte a paginação.
-     *
-     * @param usuarioId ID do usuário
-     * @param pageable  Configuração de paginação e ordenação
-     * @return Página de transações ativas
+     * Retorna transações (ativas) de um usuário com suporte a paginação.
      */
-    Page<TransacaoEntity> findByUsuarioIdAndAtivoTrue(Long usuarioId, Pageable pageable);
+    Page<TransacaoEntity> findByUsuarioId(Long usuarioId, Pageable pageable);
 }
