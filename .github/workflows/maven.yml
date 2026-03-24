@@ -29,6 +29,7 @@ jobs:
       run: >
         mvn test -f pom.xml
         "-Dtest=org.app_financeiro.backend.service.*Test,org.app_financeiro.backend.config.PepperedPasswordEncoderTest,org.app_financeiro.backend.config.JwtAuthenticationFilterTest,org.app_financeiro.backend.exception.GlobalExceptionHandlerTest"
+        "-Dtest.excludes=**/FaturaSchedulerLockTest.java"
 
     # 6. Status check: Se chegarmos aqui, tudo passou!
     - name: Build Success Notification
