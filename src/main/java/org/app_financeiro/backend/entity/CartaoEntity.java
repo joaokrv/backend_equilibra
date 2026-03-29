@@ -6,6 +6,7 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.EqualsAndHashCode;
 import java.math.BigDecimal;
+import org.app_financeiro.backend.enums.BandeiraCartao;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
@@ -41,6 +42,10 @@ public class CartaoEntity {
 
     @Column(nullable = false)
     private String nome;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private BandeiraCartao bandeira = BandeiraCartao.OUTROS;
 
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal limite;

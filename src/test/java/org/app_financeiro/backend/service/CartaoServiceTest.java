@@ -4,6 +4,7 @@ import org.app_financeiro.backend.dto.projections.DividaCartaoProjection;
 import org.app_financeiro.backend.dto.request.CartaoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.CartaoResponseDTO;
 import org.app_financeiro.backend.entity.CartaoEntity;
+import org.app_financeiro.backend.enums.BandeiraCartao;
 import org.app_financeiro.backend.entity.FaturaEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.enums.StatusFatura;
@@ -64,14 +65,15 @@ class CartaoServiceTest {
         cartaoPadrao.setDiaFechamento(3);
         cartaoPadrao.setDiaVencimento(10);
         cartaoPadrao.setUsuario(usuarioPadrao);
+        cartaoPadrao.setBandeira(BandeiraCartao.VISA);
         cartaoPadrao.setAtivo(true);
     }
 
     @Test
     void deveCriarCartaoComSucessoELimiteDisponivelTotal() {
         // Arrange
-        CartaoRegistroRequestDTO request = new CartaoRegistroRequestDTO("Nubank", new BigDecimal("1000.00"), 3, 10);
-        CartaoResponseDTO responseEsperada = new CartaoResponseDTO(10L, "Nubank", new BigDecimal("1000.00"), new BigDecimal("1000.00"), 3, 10);
+        CartaoRegistroRequestDTO request = new CartaoRegistroRequestDTO("Nubank", new BigDecimal("1000.00"), 3, 10, BandeiraCartao.NUBANK);
+        CartaoResponseDTO responseEsperada = new CartaoResponseDTO(10L, "Nubank", new BigDecimal("1000.00"), new BigDecimal("1000.00"), 3, 10, BandeiraCartao.NUBANK);
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(cartaoRepository.save(any(CartaoEntity.class))).thenAnswer(i -> {
@@ -102,7 +104,7 @@ class CartaoServiceTest {
         when(cartaoRepository.findById(10L)).thenReturn(Optional.of(cartaoPadrao));
         when(faturaRepository.findByCartaoIdAndStatusNot(10L, StatusFatura.PAGA)).thenReturn(List.of());
 
-        CartaoResponseDTO responseEsperada = new CartaoResponseDTO(10L, "Nubank", new BigDecimal("1000.00"), new BigDecimal("1000.00"), 3, 10);
+        CartaoResponseDTO responseEsperada = new CartaoResponseDTO(10L, "Nubank", new BigDecimal("1000.00"), new BigDecimal("1000.00"), 3, 10, BandeiraCartao.VISA);
         when(cartaoMapper.toResponse(cartaoPadrao, new BigDecimal("1000.00"))).thenReturn(responseEsperada);
 
         // Act
@@ -127,7 +129,7 @@ class CartaoServiceTest {
         when(faturaRepository.findByCartaoIdAndStatusNot(10L, StatusFatura.PAGA))
                 .thenReturn(List.of(faturaJan, faturaFev)); // Soma = 700 de dívida atual. 1000 - 700 = 300
 
-        CartaoResponseDTO responseEsperada = new CartaoResponseDTO(10L, "Nubank", new BigDecimal("1000.00"), new BigDecimal("300.00"), 3, 10);
+        CartaoResponseDTO responseEsperada = new CartaoResponseDTO(10L, "Nubank", new BigDecimal("1000.00"), new BigDecimal("300.00"), 3, 10, BandeiraCartao.VISA);
         when(cartaoMapper.toResponse(cartaoPadrao, new BigDecimal("300.00"))).thenReturn(responseEsperada);
 
         // Act
@@ -152,8 +154,8 @@ class CartaoServiceTest {
 
         when(faturaRepository.somarDividasPorCartoes(1L, StatusFatura.PAGA)).thenReturn(List.of(div1, div2));
 
-        CartaoResponseDTO resp1 = new CartaoResponseDTO(10L, "Nubank", new BigDecimal("1000.00"), new BigDecimal("400.00"), 3, 10);
-        CartaoResponseDTO resp2 = new CartaoResponseDTO(20L, "CartaoNovo", new BigDecimal("500.00"), new BigDecimal("500.00"), 3, 10);
+        CartaoResponseDTO resp1 = new CartaoResponseDTO(10L, "Nubank", new BigDecimal("1000.00"), new BigDecimal("400.00"), 3, 10, BandeiraCartao.VISA);
+        CartaoResponseDTO resp2 = new CartaoResponseDTO(20L, "CartaoNovo", new BigDecimal("500.00"), new BigDecimal("500.00"), 3, 10, BandeiraCartao.MASTERCARD);
 
         when(cartaoMapper.toResponse(cartaoPadrao, new BigDecimal("400.00"))).thenReturn(resp1);
         when(cartaoMapper.toResponse(cartao2, new BigDecimal("500.00"))).thenReturn(resp2);

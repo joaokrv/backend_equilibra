@@ -21,5 +21,6 @@ public interface CartaoMapper {
     @Mapping(source = "limiteDisponivel", target = "limiteDisponivel")
     @Mapping(source = "entity.diaFechamento", target = "diaFechamento")
     @Mapping(source = "entity.diaVencimento", target = "diaVencimento")
+    @Mapping(source = "entity.bandeira", target = "bandeira")
     CartaoResponseDTO toResponse(CartaoEntity entity, BigDecimal limiteDisponivel);
 }

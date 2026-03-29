@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
+import org.app_financeiro.backend.enums.BandeiraCartao;
 import java.math.BigDecimal;
 
 /**
@@ -27,5 +28,8 @@ public record CartaoRegistroRequestDTO(
     @NotNull(message = "O dia de vencimento é obrigatório")
     @Min(value = 1, message = "O dia deve ser entre 1 e 31")
     @Max(value = 31, message = "O dia deve ser entre 1 e 31")
-    Integer diaVencimento
+    Integer diaVencimento,
+
+    @NotNull(message = "A bandeira do cartão é obrigatória")
+    BandeiraCartao bandeira
 ) {}

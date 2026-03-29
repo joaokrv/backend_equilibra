@@ -1,6 +1,7 @@
 package org.app_financeiro.backend.dto.response;
 
 import java.math.BigDecimal;
+import org.app_financeiro.backend.enums.BandeiraCartao;
 
 /**
  * DTO de resposta com os dados de um cartão de crédito do usuário.
@@ -11,5 +12,6 @@ public record CartaoResponseDTO(
     BigDecimal limite,
     BigDecimal limiteDisponivel,
     Integer diaFechamento,
-    Integer diaVencimento
+    Integer diaVencimento,
+    BandeiraCartao bandeira
 ) {}

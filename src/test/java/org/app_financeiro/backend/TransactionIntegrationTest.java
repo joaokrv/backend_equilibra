@@ -8,6 +8,7 @@ import org.app_financeiro.backend.entity.CartaoEntity;
 import org.app_financeiro.backend.entity.CategoriaEntity;
 import org.app_financeiro.backend.entity.ContaEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
+import org.app_financeiro.backend.enums.BandeiraCartao;
 import org.app_financeiro.backend.enums.MetodoPagamento;
 import org.app_financeiro.backend.enums.TipoTransacao;
 import org.app_financeiro.backend.repository.*;
@@ -136,7 +137,7 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     }
 
     private Long criarCartao(String token, String nome, BigDecimal limite) throws Exception {
-        CartaoRegistroRequestDTO req = new CartaoRegistroRequestDTO(nome, limite, 5, 10);
+        CartaoRegistroRequestDTO req = new CartaoRegistroRequestDTO(nome, limite, 5, 10, BandeiraCartao.VISA);
         MvcResult res = mockMvc.perform(post("/api/cartoes").header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req))).andReturn();
         Map<String, Object> map = objectMapper.readValue(res.getResponse().getContentAsString(), Map.class);
         return ((Number) map.get("id")).longValue();

@@ -5,6 +5,7 @@ import org.app_financeiro.backend.dto.request.CartaoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.request.ContaRegistroRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioLoginRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioRegistroRequestDTO;
+import org.app_financeiro.backend.enums.BandeiraCartao;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.repository.CartaoRepository;
 import org.app_financeiro.backend.repository.CodigoVerificacaoRepository;
@@ -124,7 +125,8 @@ class AccountIntegrationTest extends AbstractIntegrationTest {
                 "NuBank Teste", 
                 new BigDecimal("5000.00"), 
                 5, 
-                10
+                10,
+                BandeiraCartao.NUBANK
         );
 
         // Criar Cartão
