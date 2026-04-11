@@ -9,6 +9,8 @@ import org.app_financeiro.backend.enums.TipoTransacao;
 import org.app_financeiro.backend.exception.OperacaoNaoPermitidaException;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.repository.CategoriaRepository;
+import org.app_financeiro.backend.repository.TransacaoRecorrenteRepository;
+import org.app_financeiro.backend.repository.TransacaoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -26,11 +28,19 @@ public class CategoriaService {
     private static final Logger log = LoggerFactory.getLogger(CategoriaService.class);
 
     private final CategoriaRepository categoriaRepository;
+    private final TransacaoRepository transacaoRepository;
+    private final TransacaoRecorrenteRepository transacaoRecorrenteRepository;
     private final UsuarioService usuarioService;
     private final CategoriaMapper categoriaMapper;
 
-    public CategoriaService(CategoriaRepository categoriaRepository, UsuarioService usuarioService, CategoriaMapper categoriaMapper) {
+    public CategoriaService(CategoriaRepository categoriaRepository,
+                            TransacaoRepository transacaoRepository,
+                            TransacaoRecorrenteRepository transacaoRecorrenteRepository,
+                            UsuarioService usuarioService,
+                            CategoriaMapper categoriaMapper) {
         this.categoriaRepository = categoriaRepository;
+        this.transacaoRepository = transacaoRepository;
+        this.transacaoRecorrenteRepository = transacaoRecorrenteRepository;
         this.usuarioService = usuarioService;
         this.categoriaMapper = categoriaMapper;
     }
@@ -145,9 +155,14 @@ public class CategoriaService {
     @Transactional
     public void deletarCategoria(Long categoriaId, Long usuarioId) {
         CategoriaEntity categoria = buscarPorIdOuFalhar(categoriaId, usuarioId);
+
+        int transacoesAtualizadas = transacaoRepository.desassociarCategoria(usuarioId, categoriaId);
+        int recorrenciasAtualizadas = transacaoRecorrenteRepository.desassociarCategoria(usuarioId, categoriaId);
+
         categoria.setAtivo(false);
         categoriaRepository.save(categoria);
-        log.info("Categoria {} '{}' desativada para usuário {}", categoriaId, categoria.getNome(), usuarioId);
+        log.info("Categoria {} '{}' desativada para usuário {} (transacoesDesassociadas={}, recorrenciasDesassociadas={})",
+                categoriaId, categoria.getNome(), usuarioId, transacoesAtualizadas, recorrenciasAtualizadas);
     }
 
     /**

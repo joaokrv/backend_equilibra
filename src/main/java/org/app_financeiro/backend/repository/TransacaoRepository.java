@@ -8,10 +8,12 @@ import org.app_financeiro.backend.enums.TipoTransacao;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.EntityGraph;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -80,4 +82,37 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
      * Verifica se já existe uma transação com a mesma chave de idempotência.
      */
     boolean existsByIdempotencyKey(String idempotencyKey);
+
+        @Modifying(clearAutomatically = true)
+        @Transactional
+        @Query("""
+                        UPDATE TransacaoEntity t
+                        SET t.isAtivo = false
+                        WHERE t.usuario.id = :usuarioId
+                            AND t.conta IS NOT NULL
+                            AND t.conta.id = :contaId
+                        """)
+        int inativarPorConta(@Param("usuarioId") Long usuarioId, @Param("contaId") Long contaId);
+
+                        @Modifying(clearAutomatically = true)
+                        @Transactional
+                        @Query("""
+                            UPDATE TransacaoEntity t
+                            SET t.isAtivo = false
+                            WHERE t.usuario.id = :usuarioId
+                              AND t.cartao IS NOT NULL
+                              AND t.cartao.id = :cartaoId
+                            """)
+                        int inativarPorCartao(@Param("usuarioId") Long usuarioId, @Param("cartaoId") Long cartaoId);
+
+                        @Modifying(clearAutomatically = true)
+                        @Transactional
+                        @Query("""
+                            UPDATE TransacaoEntity t
+                            SET t.categoria = null
+                            WHERE t.usuario.id = :usuarioId
+                              AND t.categoria IS NOT NULL
+                              AND t.categoria.id = :categoriaId
+                            """)
+                        int desassociarCategoria(@Param("usuarioId") Long usuarioId, @Param("categoriaId") Long categoriaId);
 }

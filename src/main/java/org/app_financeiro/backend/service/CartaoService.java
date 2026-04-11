@@ -14,6 +14,8 @@ import org.app_financeiro.backend.exception.LimiteInsuficienteException;
 import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.app_financeiro.backend.repository.CartaoRepository;
 import org.app_financeiro.backend.repository.FaturaRepository;
+import org.app_financeiro.backend.repository.TransacaoRecorrenteRepository;
+import org.app_financeiro.backend.repository.TransacaoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -44,13 +46,23 @@ public class CartaoService {
     private final UsuarioService usuarioService;
     private final CartaoMapper cartaoMapper;
     private final ContaRepository contaRepository;
+    private final TransacaoRepository transacaoRepository;
+    private final TransacaoRecorrenteRepository transacaoRecorrenteRepository;
 
-    public CartaoService(CartaoRepository cartaoRepository, FaturaRepository faturaRepository, UsuarioService usuarioService, CartaoMapper cartaoMapper, ContaRepository contaRepository) {
+    public CartaoService(CartaoRepository cartaoRepository,
+                         FaturaRepository faturaRepository,
+                         UsuarioService usuarioService,
+                         CartaoMapper cartaoMapper,
+                         ContaRepository contaRepository,
+                         TransacaoRepository transacaoRepository,
+                         TransacaoRecorrenteRepository transacaoRecorrenteRepository) {
         this.cartaoRepository = cartaoRepository;
         this.faturaRepository = faturaRepository;
         this.usuarioService = usuarioService;
         this.cartaoMapper = cartaoMapper;
         this.contaRepository = contaRepository;
+        this.transacaoRepository = transacaoRepository;
+        this.transacaoRecorrenteRepository = transacaoRecorrenteRepository;
     }
 
     /**
@@ -202,16 +214,21 @@ public class CartaoService {
     @Transactional
     public void deletarCartao(Long cartaoId, Long usuarioId) {
         CartaoEntity cartao = buscarCartaoValidado(cartaoId, usuarioId);
-        
+
         boolean temFaturasPendentes = faturaRepository.existsByCartaoIdAndStatusNot(cartaoId, StatusFatura.PAGA);
         if (temFaturasPendentes) {
             log.warn("Tentativa de deletar cartão com faturas pendentes: cartaoId={}", cartaoId);
             throw new RegraDeNegocioException("Não é possível deletar um cartão que possui faturas pendentes.");
         }
-        
+
+        int faturasInativadas = faturaRepository.inativarPorCartao(usuarioId, cartaoId);
+        int transacoesInativadas = transacaoRepository.inativarPorCartao(usuarioId, cartaoId);
+        int recorrenciasInativadas = transacaoRecorrenteRepository.inativarPorCartao(usuarioId, cartaoId);
+
         cartao.setAtivo(false);
         cartaoRepository.save(cartao);
-        log.info("Cartão desativado (soft delete): cartaoId={}, usuarioId={}", cartaoId, usuarioId);
+        log.info("Cartão desativado (soft delete em cascata): cartaoId={}, usuarioId={}, faturasInativadas={}, transacoesInativadas={}, recorrenciasInativadas={}",
+                cartaoId, usuarioId, faturasInativadas, transacoesInativadas, recorrenciasInativadas);
     }
 
     /**

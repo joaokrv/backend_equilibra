@@ -8,7 +8,11 @@ import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.app_financeiro.backend.exception.SaldoInsuficienteException;
+import org.app_financeiro.backend.repository.CartaoRepository;
 import org.app_financeiro.backend.repository.ContaRepository;
+import org.app_financeiro.backend.repository.InvestimentoRepository;
+import org.app_financeiro.backend.repository.TransacaoRecorrenteRepository;
+import org.app_financeiro.backend.repository.TransacaoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -33,11 +37,25 @@ public class ContaService {
     private static final Logger log = LoggerFactory.getLogger(ContaService.class);
 
     private final ContaRepository contaRepository;
+    private final InvestimentoRepository investimentoRepository;
+    private final TransacaoRepository transacaoRepository;
+    private final TransacaoRecorrenteRepository transacaoRecorrenteRepository;
+    private final CartaoRepository cartaoRepository;
     private final UsuarioService usuarioService;
     private final ContaMapper contaMapper;
 
-    public ContaService(ContaRepository contaRepository, UsuarioService usuarioService, ContaMapper contaMapper) {
+    public ContaService(ContaRepository contaRepository,
+                        InvestimentoRepository investimentoRepository,
+                        TransacaoRepository transacaoRepository,
+                        TransacaoRecorrenteRepository transacaoRecorrenteRepository,
+                        CartaoRepository cartaoRepository,
+                        UsuarioService usuarioService,
+                        ContaMapper contaMapper) {
         this.contaRepository = contaRepository;
+        this.investimentoRepository = investimentoRepository;
+        this.transacaoRepository = transacaoRepository;
+        this.transacaoRecorrenteRepository = transacaoRecorrenteRepository;
+        this.cartaoRepository = cartaoRepository;
         this.usuarioService = usuarioService;
         this.contaMapper = contaMapper;
     }
@@ -178,9 +196,15 @@ public class ContaService {
             throw new RegraDeNegocioException("Não é possível inativar uma conta que ainda possui saldo.");
         }
 
+        int investimentosInativados = investimentoRepository.inativarVinculadosAConta(usuarioId, contaId);
+        int transacoesInativadas = transacaoRepository.inativarPorConta(usuarioId, contaId);
+        int recorrenciasInativadas = transacaoRecorrenteRepository.inativarPorConta(usuarioId, contaId);
+        int cartoesDesvinculados = cartaoRepository.desvincularConta(usuarioId, contaId);
+
         conta.setAtivo(false);
         contaRepository.save(conta);
-        log.info("Conta desativada (soft delete): contaId={}, usuarioId={}", contaId, usuarioId);
+        log.info("Conta desativada (soft delete em cascata): contaId={}, usuarioId={}, investimentosInativados={}, transacoesInativadas={}, recorrenciasInativadas={}, cartoesDesvinculados={}",
+                contaId, usuarioId, investimentosInativados, transacoesInativadas, recorrenciasInativadas, cartoesDesvinculados);
     }
 
     public ContaEntity buscarContaValidada(Long contaId, Long usuarioId) {

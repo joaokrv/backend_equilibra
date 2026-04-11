@@ -89,4 +89,14 @@ public interface FaturaRepository extends JpaRepository<FaturaEntity, Long> {
             @Param("statusAberta") StatusFatura statusAberta,
             @Param("statusFechada") StatusFatura statusFechada
     );
+
+            @Modifying(clearAutomatically = true)
+            @Transactional
+            @Query("""
+                UPDATE FaturaEntity f
+                SET f.ativo = false
+                WHERE f.usuario.id = :usuarioId
+                  AND f.cartao.id = :cartaoId
+                """)
+            int inativarPorCartao(@Param("usuarioId") Long usuarioId, @Param("cartaoId") Long cartaoId);
 }

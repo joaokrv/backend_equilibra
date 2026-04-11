@@ -9,6 +9,8 @@ import org.app_financeiro.backend.exception.OperacaoNaoPermitidaException;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.mapper.CategoriaMapper;
 import org.app_financeiro.backend.repository.CategoriaRepository;
+import org.app_financeiro.backend.repository.TransacaoRecorrenteRepository;
+import org.app_financeiro.backend.repository.TransacaoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,6 +36,12 @@ class CategoriaServiceTest {
 
     @Mock
     private UsuarioService usuarioService;
+
+    @Mock
+    private TransacaoRepository transacaoRepository;
+
+    @Mock
+    private TransacaoRecorrenteRepository transacaoRecorrenteRepository;
 
     @Mock
     private CategoriaMapper categoriaMapper;
@@ -147,6 +155,8 @@ class CategoriaServiceTest {
     void deveDeletarCategoriaComSucesso() {
         // Arrange
         when(categoriaRepository.findById(10L)).thenReturn(Optional.of(categoriaDespesa));
+        when(transacaoRepository.desassociarCategoria(1L, 10L)).thenReturn(4);
+        when(transacaoRecorrenteRepository.desassociarCategoria(1L, 10L)).thenReturn(2);
         when(categoriaRepository.save(any(CategoriaEntity.class))).thenAnswer(i -> i.getArgument(0));
 
         // Act
@@ -155,6 +165,8 @@ class CategoriaServiceTest {
         // Assert
         assertThat(categoriaDespesa.isAtivo()).isFalse(); // Testa o soft delete
         verify(categoriaRepository).save(categoriaDespesa);
+        verify(transacaoRepository).desassociarCategoria(1L, 10L);
+        verify(transacaoRecorrenteRepository).desassociarCategoria(1L, 10L);
     }
 
     @Test

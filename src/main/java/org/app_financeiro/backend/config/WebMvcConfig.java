@@ -16,7 +16,9 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // Bloqueando exclusivamente acessos às tentativas de registro e verificação
+        // Protege apenas endpoints sensíveis de autenticação e segurança de conta.
+        // Endpoints de mercado foram removidos daqui para não consumir o mesmo bucket por IP
+        // e causar 429 indevido durante cadastro/verificação.
         registry.addInterceptor(rateLimitInterceptor)
                 .addPathPatterns(
                         "/api/auth/login",

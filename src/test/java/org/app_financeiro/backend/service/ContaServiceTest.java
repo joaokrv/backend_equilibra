@@ -8,7 +8,11 @@ import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.app_financeiro.backend.exception.SaldoInsuficienteException;
 import org.app_financeiro.backend.mapper.ContaMapper;
+import org.app_financeiro.backend.repository.CartaoRepository;
 import org.app_financeiro.backend.repository.ContaRepository;
+import org.app_financeiro.backend.repository.InvestimentoRepository;
+import org.app_financeiro.backend.repository.TransacaoRecorrenteRepository;
+import org.app_financeiro.backend.repository.TransacaoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -30,6 +34,18 @@ class ContaServiceTest {
 
     @Mock
     private ContaRepository contaRepository;
+
+    @Mock
+    private InvestimentoRepository investimentoRepository;
+
+    @Mock
+    private TransacaoRepository transacaoRepository;
+
+    @Mock
+    private TransacaoRecorrenteRepository transacaoRecorrenteRepository;
+
+    @Mock
+    private CartaoRepository cartaoRepository;
 
     @Mock
     private UsuarioService usuarioService;
@@ -191,6 +207,10 @@ class ContaServiceTest {
         contaPadrao.setSaldo(BigDecimal.ZERO);
         when(contaRepository.findById(10L)).thenReturn(Optional.of(contaPadrao));
         when(contaRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+        when(investimentoRepository.inativarVinculadosAConta(1L, 10L)).thenReturn(1);
+        when(transacaoRepository.inativarPorConta(1L, 10L)).thenReturn(2);
+        when(transacaoRecorrenteRepository.inativarPorConta(1L, 10L)).thenReturn(1);
+        when(cartaoRepository.desvincularConta(1L, 10L)).thenReturn(1);
 
         // Act
         contaService.deletarConta(10L, 1L);
@@ -198,6 +218,10 @@ class ContaServiceTest {
         // Assert
         assertThat(contaPadrao.isAtivo()).isFalse();
         verify(contaRepository).save(contaPadrao);
+        verify(investimentoRepository).inativarVinculadosAConta(1L, 10L);
+        verify(transacaoRepository).inativarPorConta(1L, 10L);
+        verify(transacaoRecorrenteRepository).inativarPorConta(1L, 10L);
+        verify(cartaoRepository).desvincularConta(1L, 10L);
     }
 
     @Test
@@ -212,6 +236,10 @@ class ContaServiceTest {
                 .hasMessageContaining("Não é possível inativar uma conta que ainda possui saldo");
 
         verify(contaRepository, never()).save(any());
+        verify(investimentoRepository, never()).inativarVinculadosAConta(anyLong(), anyLong());
+        verify(transacaoRepository, never()).inativarPorConta(anyLong(), anyLong());
+        verify(transacaoRecorrenteRepository, never()).inativarPorConta(anyLong(), anyLong());
+        verify(cartaoRepository, never()).desvincularConta(anyLong(), anyLong());
     }
 
     @Test

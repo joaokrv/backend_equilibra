@@ -15,6 +15,8 @@ import org.app_financeiro.backend.mapper.CartaoMapper;
 import org.app_financeiro.backend.repository.CartaoRepository;
 import org.app_financeiro.backend.repository.ContaRepository;
 import org.app_financeiro.backend.repository.FaturaRepository;
+import org.app_financeiro.backend.repository.TransacaoRecorrenteRepository;
+import org.app_financeiro.backend.repository.TransacaoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -49,6 +51,12 @@ class CartaoServiceTest {
 
     @Mock
     private ContaRepository contaRepository;
+
+    @Mock
+    private TransacaoRepository transacaoRepository;
+
+    @Mock
+    private TransacaoRecorrenteRepository transacaoRecorrenteRepository;
 
     @InjectMocks
     private CartaoService cartaoService;
@@ -211,6 +219,9 @@ class CartaoServiceTest {
         // Arrange
         when(cartaoRepository.findById(10L)).thenReturn(Optional.of(cartaoPadrao));
         when(faturaRepository.existsByCartaoIdAndStatusNot(10L, StatusFatura.PAGA)).thenReturn(false);
+        when(faturaRepository.inativarPorCartao(1L, 10L)).thenReturn(2);
+        when(transacaoRepository.inativarPorCartao(1L, 10L)).thenReturn(3);
+        when(transacaoRecorrenteRepository.inativarPorCartao(1L, 10L)).thenReturn(1);
         when(cartaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         // Act
@@ -219,6 +230,9 @@ class CartaoServiceTest {
         // Assert
         assertThat(cartaoPadrao.isAtivo()).isFalse();
         verify(cartaoRepository).save(cartaoPadrao);
+        verify(faturaRepository).inativarPorCartao(1L, 10L);
+        verify(transacaoRepository).inativarPorCartao(1L, 10L);
+        verify(transacaoRecorrenteRepository).inativarPorCartao(1L, 10L);
     }
 
     @Test
@@ -233,6 +247,9 @@ class CartaoServiceTest {
                 .hasMessageContaining("Não é possível deletar um cartão que possui faturas pendentes");
 
         verify(cartaoRepository, never()).save(any());
+        verify(faturaRepository, never()).inativarPorCartao(anyLong(), anyLong());
+        verify(transacaoRepository, never()).inativarPorCartao(anyLong(), anyLong());
+        verify(transacaoRecorrenteRepository, never()).inativarPorCartao(anyLong(), anyLong());
     }
 
     @Test
