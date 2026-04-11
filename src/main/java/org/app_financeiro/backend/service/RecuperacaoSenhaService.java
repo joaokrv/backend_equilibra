@@ -12,15 +12,10 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -52,10 +47,7 @@ public class RecuperacaoSenhaService {
     private final TokenRecuperacaoSenhaRepository tokenRepository;
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JavaMailSender mailSender;
-
-    @Value("${spring.mail.username}")
-    private String mailFrom;
+    private final ExternalEmailSenderService externalEmailSenderService;
 
     @Value("${cors.allowed-origins}")
     private String allowedOrigins;
@@ -63,11 +55,11 @@ public class RecuperacaoSenhaService {
     public RecuperacaoSenhaService(TokenRecuperacaoSenhaRepository tokenRepository,
                                     UsuarioRepository usuarioRepository,
                                     PasswordEncoder passwordEncoder,
-                                    JavaMailSender mailSender) {
+                                    ExternalEmailSenderService externalEmailSenderService) {
         this.tokenRepository = tokenRepository;
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
-        this.mailSender = mailSender;
+        this.externalEmailSenderService = externalEmailSenderService;
     }
 
     /**
@@ -167,8 +159,8 @@ public class RecuperacaoSenhaService {
      */
     private void enviarEmailRecuperacao(String destinatario, String token) {
         try {
-            if (allowedOrigins == null || mailFrom == null) {
-                log.error("Configurações de e-mail ou CORS ausentes — e-mail de recuperação não enviado.");
+            if (allowedOrigins == null) {
+                log.error("Configuração de CORS ausente — e-mail de recuperação não enviado.");
                 return;
             }
 
@@ -186,17 +178,10 @@ public class RecuperacaoSenhaService {
                     .replace("{{LINK}}", linkRecuperacao)
                     .replace("{{MINUTOS}}", String.valueOf(MINUTOS_EXPIRACAO));
 
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(new InternetAddress(mailFrom, "Equilibra", "UTF-8"));
-            helper.setTo(destinatario);
-            helper.setSubject("Equilibra - Recuperacao de Senha");
-            helper.setText(htmlContent, true);
-
-            mailSender.send(message);
+            externalEmailSenderService.sendHtml(destinatario, "Equilibra - Recuperacao de Senha", htmlContent);
             log.debug("E-mail de recuperação de senha enviado para: {}", destinatario);
 
-        } catch (MessagingException | IOException e) {
+        } catch (IOException e) {
             log.warn("Falha ao enviar e-mail de recuperação para {} — {}", destinatario, e.getMessage());
         }
     }

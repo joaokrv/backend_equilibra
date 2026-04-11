@@ -11,16 +11,10 @@ import org.app_financeiro.backend.repository.CodigoVerificacaoRepository;
 import org.app_financeiro.backend.repository.UsuarioRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -49,18 +43,15 @@ public class EmailVerificacaoService {
 
     private final CodigoVerificacaoRepository codigoVerificacaoRepository;
     private final UsuarioRepository usuarioRepository;
-    private final JavaMailSender mailSender;
+    private final ExternalEmailSenderService externalEmailSenderService;
     private final SecureRandom secureRandom = new SecureRandom();
-
-    @Value("${spring.mail.username}")
-    private String mailFrom;
 
     public EmailVerificacaoService(CodigoVerificacaoRepository codigoVerificacaoRepository,
                                    UsuarioRepository usuarioRepository,
-                                   JavaMailSender mailSender) {
+                                   ExternalEmailSenderService externalEmailSenderService) {
         this.codigoVerificacaoRepository = codigoVerificacaoRepository;
         this.usuarioRepository = usuarioRepository;
-        this.mailSender = mailSender;
+        this.externalEmailSenderService = externalEmailSenderService;
     }
 
     /**
@@ -155,18 +146,11 @@ public class EmailVerificacaoService {
             String htmlTemplate = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             String htmlContent = htmlTemplate.replace("{{CODIGO}}", codigo);
 
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(new InternetAddress(mailFrom, "Equilibra", "UTF-8"));
-            helper.setTo(destinatario);
-            helper.setSubject("Equilibra - Codigo de Verificacao");
-            helper.setText(htmlContent, true);
-
-            mailSender.send(message);
+            externalEmailSenderService.sendHtml(destinatario, "Equilibra - Codigo de Verificacao", htmlContent);
             log.info("E-mail de verificação enviado para {}", destinatario);
 
-        } catch (MessagingException | IOException e) {
-            log.warn("Falha ao enviar e-mail de verificação para {} — o usuário pode solicitar reenvio: {}", destinatario, e.getMessage());
+        } catch (IOException e) {
+            log.warn("Falha ao montar template de verificação para {}: {}", destinatario, e.getMessage());
         }
     }
 }

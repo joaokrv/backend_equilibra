@@ -12,17 +12,11 @@ import org.app_financeiro.backend.repository.SolicitacaoAlteracaoEmailRepository
 import org.app_financeiro.backend.repository.UsuarioRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
-import org.springframework.mail.javamail.JavaMailSender;
-import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.mail.MessagingException;
-import jakarta.mail.internet.InternetAddress;
-import jakarta.mail.internet.MimeMessage;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
@@ -44,20 +38,17 @@ public class AlteracaoEmailService {
     private final SolicitacaoAlteracaoEmailRepository solicitacaoRepository;
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
-    private final JavaMailSender mailSender;
+    private final ExternalEmailSenderService externalEmailSenderService;
     private final SecureRandom secureRandom = new SecureRandom();
-
-    @Value("${spring.mail.username}")
-    private String mailFrom;
 
     public AlteracaoEmailService(SolicitacaoAlteracaoEmailRepository solicitacaoRepository,
                                  UsuarioRepository usuarioRepository,
                                  PasswordEncoder passwordEncoder,
-                                 JavaMailSender mailSender) {
+                                 ExternalEmailSenderService externalEmailSenderService) {
         this.solicitacaoRepository = solicitacaoRepository;
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
-        this.mailSender = mailSender;
+        this.externalEmailSenderService = externalEmailSenderService;
     }
 
     /**
@@ -131,17 +122,10 @@ public class AlteracaoEmailService {
             String htmlTemplate = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             String htmlContent = htmlTemplate.replace("{{CODIGO}}", codigo);
 
-            MimeMessage message = mailSender.createMimeMessage();
-            MimeMessageHelper helper = new MimeMessageHelper(message, true, "UTF-8");
-            helper.setFrom(new InternetAddress(mailFrom, "Equilibra", "UTF-8"));
-            helper.setTo(destinatario);
-            helper.setSubject("Equilibra - Alteração de E-mail");
-            helper.setText(htmlContent, true);
-
-            mailSender.send(message);
+            externalEmailSenderService.sendHtml(destinatario, "Equilibra - Alteracao de E-mail", htmlContent);
             log.debug("E-mail de alteração enviado para {}", destinatario);
 
-        } catch (MessagingException | IOException e) {
+        } catch (IOException e) {
             log.warn("Falha ao enviar e-mail de alteração para {}: {}", destinatario, e.getMessage());
         }
     }
