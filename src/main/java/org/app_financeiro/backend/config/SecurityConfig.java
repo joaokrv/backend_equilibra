@@ -14,6 +14,7 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
+import org.springframework.web.cors.CorsUtils;
 import org.springframework.context.annotation.Primary;
 import org.springframework.context.annotation.Profile;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -70,7 +71,8 @@ public class SecurityConfig {
                         .permissionsPolicy(permissions -> permissions.policy("camera=(), microphone=(), geolocation=()"))
                 )
                 .authorizeHttpRequests(req ->
-                        req.requestMatchers(WHITE_LIST_URL)
+                        req.requestMatchers(CorsUtils::isPreFlightRequest).permitAll()
+                                .requestMatchers(WHITE_LIST_URL)
                                 .permitAll()
                                 .requestMatchers("/actuator/**").hasRole("ADMIN")
                                 .requestMatchers("/api/v1/auth/**").permitAll()
@@ -96,7 +98,9 @@ public class SecurityConfig {
                 .toList();
         configuration.setAllowedOrigins(origins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
-        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept-Language"));
+        configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept-Language", "X-Requested-With"));
+                configuration.setAllowCredentials(true);
+        configuration.setMaxAge(3600L);
 
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", configuration);
