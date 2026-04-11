@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.mail.MailException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.AuthenticationException;
@@ -233,6 +234,21 @@ public class GlobalExceptionHandler {
                 "O corpo da requisição está malformado ou contém valores com tipo incorreto."
         );
         return new ResponseEntity<>(erro, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Trata falhas de infraestrutura no envio de e-mail (SMTP indisponível, timeout, etc.).
+     */
+    @ExceptionHandler(MailException.class)
+    public ResponseEntity<ErroResponseDTO> handleMailException(MailException ex) {
+        log.error("Falha ao enviar e-mail: {}", ex.getMessage(), ex);
+        ErroResponseDTO erro = new ErroResponseDTO(
+                HttpStatus.SERVICE_UNAVAILABLE.value(),
+                "MAIL_SERVICE_UNAVAILABLE",
+                "Serviço de e-mail indisponível",
+                "Não foi possível enviar o e-mail agora. Tente novamente em alguns minutos."
+        );
+        return new ResponseEntity<>(erro, HttpStatus.SERVICE_UNAVAILABLE);
     }
 
     // =============================================
