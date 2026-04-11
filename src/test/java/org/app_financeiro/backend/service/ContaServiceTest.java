@@ -145,7 +145,7 @@ class ContaServiceTest {
     void deveDebitarSaldoComSucesso() {
         // Arrange
         BigDecimal valorSaque = new BigDecimal("40.00");
-        when(contaRepository.findById(10L)).thenReturn(Optional.of(contaPadrao));
+        when(contaRepository.findByIdWithLock(10L)).thenReturn(Optional.of(contaPadrao));
         when(contaRepository.save(any(ContaEntity.class))).thenAnswer(i -> i.getArgument(0));
 
         // Act
@@ -160,7 +160,7 @@ class ContaServiceTest {
     void deveLancarSaldoInsuficienteExceptionAoTentarDebitarAlemDoLimite() {
         // Arrange
         BigDecimal valorSaque = new BigDecimal("150.00"); // Saldo é 100
-        when(contaRepository.findById(10L)).thenReturn(Optional.of(contaPadrao));
+        when(contaRepository.findByIdWithLock(10L)).thenReturn(Optional.of(contaPadrao));
 
         // Act & Assert
         assertThatThrownBy(() -> contaService.debitarSaldo(10L, valorSaque, 1L))
@@ -174,7 +174,7 @@ class ContaServiceTest {
     void deveCreditarSaldoComSucesso() {
         // Arrange
         BigDecimal deposito = new BigDecimal("50.00");
-        when(contaRepository.findById(10L)).thenReturn(Optional.of(contaPadrao));
+        when(contaRepository.findByIdWithLock(10L)).thenReturn(Optional.of(contaPadrao));
         when(contaRepository.save(any(ContaEntity.class))).thenAnswer(i -> i.getArgument(0));
 
         // Act
@@ -217,7 +217,7 @@ class ContaServiceTest {
     @Test
     void deveLancarExcecaoAoAtualizarSaldoComValorNegativo() {
         // Arrange
-        when(contaRepository.findById(10L)).thenReturn(Optional.of(contaPadrao));
+        when(contaRepository.findByIdWithLock(10L)).thenReturn(Optional.of(contaPadrao));
 
         // Act & Assert
         assertThatThrownBy(() -> contaService.atualizarSaldo(10L, new BigDecimal("-50.00"), 1L))

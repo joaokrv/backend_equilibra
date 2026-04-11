@@ -5,6 +5,7 @@ import jakarta.persistence.EntityManager;
 import org.app_financeiro.backend.dto.request.InvestimentoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioLoginRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioRegistroRequestDTO;
+import org.app_financeiro.backend.enums.TipoInvestimento;
 import org.app_financeiro.backend.entity.ContaEntity;
 import org.app_financeiro.backend.entity.InvestimentoEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
@@ -19,7 +20,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -59,9 +59,6 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
 
     @MockBean
     private CodigoVerificacaoRepository codigoVerificacaoRepository;
-
-    @MockBean
-    private JavaMailSender mailSender;
 
     private String tokenA;
     private Long idUserA;
@@ -114,6 +111,7 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
         inv.setValorInicial(inicial);
         inv.setValorAtual(inicial);
         inv.setMetaAtual(meta);
+        inv.setTipoInvestimento(TipoInvestimento.OUTRO);
         inv.setAtivo(true);
         inv.setUsuario(usuarioRepository.getReferenceById(usuarioId));
         return investimentoRepository.saveAndFlush(inv).getId();
@@ -125,7 +123,8 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void deveCriarInvestimentoComSucesso() throws Exception {
-        InvestimentoRegistroRequestDTO dto = new InvestimentoRegistroRequestDTO("Carro Novo", new BigDecimal("500.00"), new BigDecimal("50000.00"));
+        Long idConta = criarConta("Conta Origem", new BigDecimal("10000.00"), idUserA);
+        InvestimentoRegistroRequestDTO dto = new InvestimentoRegistroRequestDTO("Carro Novo", new BigDecimal("500.00"), new BigDecimal("50000.00"), idConta, null, TipoInvestimento.CDB, null);
 
         mockMvc.perform(post("/api/investimentos")
                 .header("Authorization", tokenA)
@@ -135,6 +134,10 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.descricao").value("Carro Novo"))
                 .andExpect(jsonPath("$.valorAtual").value(500.0))
                 .andExpect(jsonPath("$.metaAtual").value(50000.0));
+
+        // Verifica que debitou da conta de origem
+        ContaEntity conta = contaRepository.findById(idConta).orElseThrow();
+        assertThat(conta.getSaldo()).isEqualByComparingTo("9500.00");
     }
 
     @Test
@@ -213,7 +216,8 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void naoDeveCriarInvestimentoComDescricaoEmBranco() throws Exception {
-        InvestimentoRegistroRequestDTO dto = new InvestimentoRegistroRequestDTO("", new BigDecimal("100.00"), new BigDecimal("500.00"));
+        Long idConta = criarConta("Conta Teste", new BigDecimal("1000.00"), idUserA);
+        InvestimentoRegistroRequestDTO dto = new InvestimentoRegistroRequestDTO("", new BigDecimal("100.00"), new BigDecimal("500.00"), idConta, null, TipoInvestimento.CDB, null);
 
         mockMvc.perform(post("/api/investimentos")
                 .header("Authorization", tokenA)

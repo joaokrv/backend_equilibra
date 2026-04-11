@@ -176,7 +176,16 @@ public class FaturaService {
     public List<FaturaResponseDTO> listarFaturasPorCartao(Long cartaoId, Long usuarioId) {
         cartaoService.buscarPorId(cartaoId, usuarioId);
         List<FaturaEntity> faturas = faturaRepository.findByCartaoId(cartaoId);
-        
+        atualizarStatusVencidas(faturas);
+        return faturas.stream().map(faturaMapper::toResponse).toList();
+    }
+
+    /**
+     * Atualiza em memória (e persiste se necessário) os status de faturas que ultrapassaram
+     * suas datas de fechamento ou vencimento — o chamado "Fechamento Fantasma".
+     * Executado dentro da mesma transação do método que lista as faturas.
+     */
+    private void atualizarStatusVencidas(List<FaturaEntity> faturas) {
         LocalDate hoje = LocalDate.now();
         boolean algumaFoiAtualizada = false;
 
@@ -193,9 +202,8 @@ public class FaturaService {
 
         if (algumaFoiAtualizada) {
             faturaRepository.saveAll(faturas);
+            log.debug("Ghost closing: {} fatura(s) com status atualizado.", faturas.size());
         }
-
-        return faturas.stream().map(faturaMapper::toResponse).toList();
     }
 
     /**

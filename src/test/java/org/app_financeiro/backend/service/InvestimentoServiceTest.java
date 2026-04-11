@@ -2,6 +2,8 @@ package org.app_financeiro.backend.service;
 
 import org.app_financeiro.backend.dto.request.InvestimentoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.InvestimentoResponseDTO;
+import org.app_financeiro.backend.enums.TipoInvestimento;
+import org.app_financeiro.backend.entity.ContaEntity;
 import org.app_financeiro.backend.entity.InvestimentoEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
@@ -58,6 +60,7 @@ class InvestimentoServiceTest {
         investimentoPadrao.setValorInicial(new BigDecimal("500.00"));
         investimentoPadrao.setValorAtual(new BigDecimal("1500.00"));
         investimentoPadrao.setMetaAtual(new BigDecimal("10000.00"));
+        investimentoPadrao.setTipoInvestimento(TipoInvestimento.CDB);
         investimentoPadrao.setUsuario(usuarioPadrao);
         investimentoPadrao.setAtivo(true);
     }
@@ -66,12 +69,19 @@ class InvestimentoServiceTest {
     void deveCriarInvestimentoComSucesso() {
         // Arrange
         InvestimentoRegistroRequestDTO request = new InvestimentoRegistroRequestDTO(
-                "Viagem Japão", new BigDecimal("500.00"), new BigDecimal("10000.00"));
+            "Viagem Japão", new BigDecimal("500.00"), new BigDecimal("10000.00"), 1L, null,
+            TipoInvestimento.CDB, null);
 
         InvestimentoResponseDTO responseEsperada = new InvestimentoResponseDTO(
-                10L, "Viagem Japão", new BigDecimal("500.00"), new BigDecimal("500.00"), new BigDecimal("10000.00"));
+            10L, "Viagem Japão", TipoInvestimento.CDB, null, new BigDecimal("500.00"), new BigDecimal("500.00"), new BigDecimal("10000.00"), "Conta Teste", null);
+
+        ContaEntity contaMock = new ContaEntity();
+        contaMock.setId(1L);
+        contaMock.setNome("Conta Teste");
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
+        when(contaService.buscarContaValidada(1L, 1L)).thenReturn(contaMock);
+        when(contaService.debitarSaldo(1L, new BigDecimal("500.00"), 1L)).thenReturn(null);
         when(investimentoRepository.save(any())).thenAnswer(i -> {
             InvestimentoEntity inv = i.getArgument(0);
             inv.setId(10L);
@@ -87,8 +97,7 @@ class InvestimentoServiceTest {
         assertThat(result.descricao()).isEqualTo("Viagem Japão");
         assertThat(result.valorAtual()).isEqualTo(new BigDecimal("500.00"));
         verify(investimentoRepository).save(any());
-        // A criação NÃO deve debitar de conta
-        verify(contaService, never()).debitarSaldo(any(), any(), any());
+        verify(contaService).debitarSaldo(1L, new BigDecimal("500.00"), 1L);
     }
 
     @Test
@@ -101,7 +110,7 @@ class InvestimentoServiceTest {
         when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         InvestimentoResponseDTO responseEsperada = new InvestimentoResponseDTO(
-                10L, "Viagem Japão", new BigDecimal("500.00"), new BigDecimal("1700.00"), new BigDecimal("10000.00"));
+            10L, "Viagem Japão", TipoInvestimento.CDB, null, new BigDecimal("500.00"), new BigDecimal("1700.00"), new BigDecimal("10000.00"), null, null);
         when(investimentoMapper.toResponse(any())).thenReturn(responseEsperada);
 
         // Act
@@ -142,7 +151,7 @@ class InvestimentoServiceTest {
         when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         // Esperamos 1500 - 500 = 1000
         InvestimentoResponseDTO responseEsperada = new InvestimentoResponseDTO(
-                10L, "Viagem Japão", new BigDecimal("500.00"), new BigDecimal("1000.00"), new BigDecimal("10000.00"));
+            10L, "Viagem Japão", TipoInvestimento.CDB, null, new BigDecimal("500.00"), new BigDecimal("1000.00"), new BigDecimal("10000.00"), null, null);
         when(investimentoMapper.toResponse(any())).thenReturn(responseEsperada);
 
         // Act
@@ -177,7 +186,7 @@ class InvestimentoServiceTest {
         when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         InvestimentoResponseDTO responseEsperada = new InvestimentoResponseDTO(
-                10L, "Viagem Japão", new BigDecimal("500.00"), new BigDecimal("1500.00"), new BigDecimal("15000.00"));
+            10L, "Viagem Japão", TipoInvestimento.CDB, null, new BigDecimal("500.00"), new BigDecimal("1500.00"), new BigDecimal("15000.00"), null, null);
         when(investimentoMapper.toResponse(any())).thenReturn(responseEsperada);
 
         // Act

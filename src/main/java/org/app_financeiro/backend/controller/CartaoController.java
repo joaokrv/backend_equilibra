@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.app_financeiro.backend.entity.UsuarioEntity;
@@ -101,5 +102,24 @@ public class CartaoController {
 
         cartaoService.deletarCartao(id, usuario.getId());
         return ResponseEntity.noContent().build();
+    }
+
+    /**
+     * Atualiza os dados de um cartão existente.
+     * O Service valida se o cartão pertence ao usuário e aplica as regras de limite.
+     *
+     * @param id      ID do cartão
+     * @param dto     dados atualizados do cartão
+     * @param usuario usuário autenticado
+     * @return 200 OK com os dados atualizados
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<CartaoResponseDTO> atualizarCartao(
+            @PathVariable Long id,
+            @Valid @RequestBody CartaoRegistroRequestDTO dto,
+            @AuthenticationPrincipal UsuarioEntity usuario) {
+
+        CartaoResponseDTO cartaoAtualizado = cartaoService.atualizarCartao(id, dto, usuario.getId());
+        return ResponseEntity.ok(cartaoAtualizado);
     }
 }

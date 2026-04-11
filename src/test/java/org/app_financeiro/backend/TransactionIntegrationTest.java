@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.app_financeiro.backend.dto.request.*;
-import org.app_financeiro.backend.entity.CartaoEntity;
-import org.app_financeiro.backend.entity.CategoriaEntity;
 import org.app_financeiro.backend.entity.ContaEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.enums.BandeiraCartao;
@@ -17,11 +15,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
-import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -69,9 +65,6 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
 
     @MockBean
     private CodigoVerificacaoRepository codigoVerificacaoRepository;
-
-    @MockBean
-    private JavaMailSender mailSender;
 
     private String tokenA;
     private Long usuarioAId;
@@ -137,7 +130,7 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     }
 
     private Long criarCartao(String token, String nome, BigDecimal limite) throws Exception {
-        CartaoRegistroRequestDTO req = new CartaoRegistroRequestDTO(nome, limite, 5, 10, BandeiraCartao.VISA);
+        CartaoRegistroRequestDTO req = new CartaoRegistroRequestDTO(nome, limite, 5, 10, BandeiraCartao.VISA, null);
         MvcResult res = mockMvc.perform(post("/api/cartoes").header("Authorization", "Bearer " + token).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req))).andReturn();
         Map<String, Object> map = objectMapper.readValue(res.getResponse().getContentAsString(), Map.class);
         return ((Number) map.get("id")).longValue();
@@ -153,7 +146,7 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     @Test
     void deveCriarDespesaEmContaEReduzirSaldo() throws Exception {
         TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
-            "Almoço", new BigDecimal("50.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, null, catDespesaAId, null, null
+            "Almoço", new BigDecimal("50.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, null, catDespesaAId, null, null, "key-int-1"
         );
 
         mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
@@ -166,7 +159,7 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     @Test
     void deveCriarDespesaNoCartaoEConsumirLimite() throws Exception {
         TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
-            "Televisão", new BigDecimal("1000.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.CARTAO_CREDITO, null, cartaoAId, catDespesaAId, null, null
+            "Televisão", new BigDecimal("1000.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.CARTAO_CREDITO, null, cartaoAId, catDespesaAId, null, null, "key-int-2"
         );
 
         mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
@@ -181,7 +174,7 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     @Test
     void naoDeveCriarDespesaSeSaldoInsuficiente() throws Exception {
         TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
-            "Carro Luxo", new BigDecimal("2000.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, null, catDespesaAId, null, null
+            "Carro Luxo", new BigDecimal("2000.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, null, catDespesaAId, null, null, "key-int-3"
         );
 
         mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
@@ -192,7 +185,7 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     @Test
     void naoDevePermitirCategoriaIncompativel() throws Exception {
         TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
-            "Teste Erro", new BigDecimal("10.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, null, catReceitaAId, null, null
+            "Teste Erro", new BigDecimal("10.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, null, catReceitaAId, null, null, "key-int-4"
         );
 
         mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
@@ -202,7 +195,7 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     @Test
     void naoDevePermitirContaECartaoJuntos() throws Exception {
         TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
-            "Erro Duplo", new BigDecimal("10.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, cartaoAId, catDespesaAId, null, null
+            "Erro Duplo", new BigDecimal("10.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, cartaoAId, catDespesaAId, null, null, "key-int-5"
         );
 
         mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
@@ -216,7 +209,8 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
                 "descricao": "",
                 "valor": -10,
                 "data": null,
-                "tipo": null
+                "tipo": null,
+                "idempotencyKey": ""
             }
             """;
 
@@ -227,7 +221,7 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     @Test
     void naoDevePermitirUsuarioBAcessarContaDeUsuarioA() throws Exception {
         TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
-            "Invasao", new BigDecimal("10.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, null, null, null, null
+            "Invasao", new BigDecimal("10.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, null, null, null, null, "key-int-6"
         );
 
         // Usuario B tenta usar contaAId
@@ -244,7 +238,7 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     void deveListarTransacoesDoUsuarioPorMesEAno() throws Exception {
         LocalDate hoje = LocalDate.now();
         TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
-            "Gasto Mes", new BigDecimal("10.00"), hoje, TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, null, null, null, null
+            "Gasto Mes", new BigDecimal("10.00"), hoje, TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, null, null, null, null, "key-int-7"
         );
 
         mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
@@ -262,7 +256,7 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     @Test
     void naoDevePermitirTotalParcelasInvalido() throws Exception {
         TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
-            "Parcela Erro", new BigDecimal("100.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.CARTAO_CREDITO, null, cartaoAId, null, 1, 0
+            "Parcela Erro", new BigDecimal("100.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.CARTAO_CREDITO, null, cartaoAId, null, 1, 0, "key-int-8"
         );
 
         mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
@@ -279,7 +273,7 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     void naoDeveDeletarTransacaoDeOutroUsuario() throws Exception {
         // 1. User A cria transação
         TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
-            "Segredo A", new BigDecimal("10.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, null, null, null, null
+            "Segredo A", new BigDecimal("10.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, null, null, null, null, "key-int-9"
         );
 
         MvcResult res = mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))

@@ -27,6 +27,15 @@ public interface UsuarioRepository extends JpaRepository<UsuarioEntity, Long> {
     Optional<UsuarioEntity> findByEmail(String email);
 
     /**
+     * Busca um usuário ativo pelo número de celular.
+     * Filtra automaticamente por ativo = true via @SQLRestriction.
+     *
+     * @param celular Número do celular (somente dígitos)
+     * @return Optional com o usuário ativo, ou vazio se não encontrado
+     */
+    Optional<UsuarioEntity> findByCelular(String celular);
+
+    /**
      * Busca um usuário pelo e-mail independentemente do status (ativo/inativo).
      * Usa query nativa para contornar o @SQLRestriction e verificar duplicidade no registro.
      *
@@ -40,10 +49,10 @@ public interface UsuarioRepository extends JpaRepository<UsuarioEntity, Long> {
      * Busca usuários por ID e status ativo.
      *
      * @param id    ID do usuário
-     * @param ativo true para ativos, false para inativos
+     * @param isAtivo true para ativos, false para inativos
      * @return Lista de usuários correspondentes
      */
-    List<UsuarioEntity> findByIdAndAtivo(Long id, boolean ativo);
+    List<UsuarioEntity> findByIdAndIsAtivo(Long id, boolean isAtivo);
 
     /**
      * Busca um usuário inativo pelo e-mail, ignorando o @SQLRestriction.

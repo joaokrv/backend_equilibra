@@ -1,5 +1,6 @@
 package org.app_financeiro.backend.service;
 
+import org.app_financeiro.backend.dto.model.ResultadoMovimentacaoCartao;
 import org.app_financeiro.backend.entity.CartaoEntity;
 import org.app_financeiro.backend.entity.ContaEntity;
 import org.app_financeiro.backend.entity.FaturaEntity;

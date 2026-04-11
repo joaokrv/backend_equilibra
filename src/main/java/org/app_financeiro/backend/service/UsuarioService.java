@@ -1,20 +1,34 @@
 package org.app_financeiro.backend.service;
 
+import org.app_financeiro.backend.dto.request.AlterarSenhaRequestDTO;
+import org.app_financeiro.backend.dto.request.UsuarioAtualizacaoRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.UsuarioResponseDTO;
 import org.app_financeiro.backend.mapper.UsuarioMapper;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.exception.CredenciaisInvalidasException;
 import org.app_financeiro.backend.exception.EmailJaCadastradoException;
-import org.app_financeiro.backend.exception.EmailNaoVerificadoException;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.exception.RegraDeNegocioException;
+import org.app_financeiro.backend.entity.CategoriaEntity;
+import org.app_financeiro.backend.enums.TipoTransacao;
+import org.app_financeiro.backend.repository.CategoriaRepository;
+import org.app_financeiro.backend.repository.ContaRepository;
+import org.app_financeiro.backend.repository.InvestimentoRepository;
+import org.app_financeiro.backend.repository.TransacaoRepository;
 import org.app_financeiro.backend.repository.UsuarioRepository;
+
+import java.util.List;
+import org.app_financeiro.backend.dto.response.PerfilResumoResponseDTO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.multipart.MultipartFile;
+
+import java.io.IOException;
+import java.math.BigDecimal;
 
 /**
  * Serviço responsável por gerenciar a lógica de negócios relacionada aos Usuários.
@@ -28,27 +42,37 @@ public class UsuarioService {
     private final UsuarioRepository usuarioRepository;
     private final PasswordEncoder passwordEncoder;
     private final UsuarioMapper usuarioMapper;
+    private final TransacaoRepository transacaoRepository;
+    private final ContaRepository contaRepository;
+    private final InvestimentoRepository investimentoRepository;
+    private final CategoriaRepository categoriaRepository;
 
-    public UsuarioService(UsuarioRepository usuarioRepository, PasswordEncoder passwordEncoder, UsuarioMapper usuarioMapper) {
+    public UsuarioService(UsuarioRepository usuarioRepository,
+                          PasswordEncoder passwordEncoder,
+                          UsuarioMapper usuarioMapper,
+                          TransacaoRepository transacaoRepository,
+                          ContaRepository contaRepository,
+                          InvestimentoRepository investimentoRepository,
+                          CategoriaRepository categoriaRepository) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.usuarioMapper = usuarioMapper;
+        this.transacaoRepository = transacaoRepository;
+        this.contaRepository = contaRepository;
+        this.categoriaRepository = categoriaRepository;
+        this.investimentoRepository = investimentoRepository;
     }
 
     /**
-     * Registra um novo usuário no sistema.
-     * Regras:
-     * - Email deve ser único (inclui e-mails de contas inativas).
-     * - Senha é submetida a hash via Argon2 + Pepper antes de salvar no banco.
-     * - emailVerificado começa como false (precisa ser verificado via código de e-mail).
+     * Registra um novo usuário no sistema com senha criptografada.
+     * Por padrão, a conta é criada como ativa mas pendente de verificação de e-mail.
      *
-     * @param dto DTO contendo dados de registro do usuário
-     * @return DTO com os dados do usuário recém-criado
-     * @throws EmailJaCadastradoException se o e-mail já existir no banco
+     * @param dto dados para registro do usuário
+     * @return dados do usuário criado
+     * @throws EmailJaCadastradoException caso o e-mail já esteja em uso
      */
     @Transactional
     public UsuarioResponseDTO registrarUsuario(UsuarioRegistroRequestDTO dto) {
-
         if (usuarioRepository.existsByEmailIncludingInactive(dto.email())) {
             log.warn("Tentativa de registro com e-mail já cadastrado: {}", dto.email());
             throw new EmailJaCadastradoException();
@@ -62,24 +86,20 @@ public class UsuarioService {
         usuario.setSenha(senhaCriptografada);
 
         UsuarioEntity savedUser = usuarioRepository.save(usuario);
+        criarCategoriasPadrao(savedUser);
 
         log.info("Usuário registrado com sucesso: id={}, email={}", savedUser.getId(), savedUser.getEmail());
         return usuarioMapper.toResponse(savedUser);
     }
 
     /**
-     * Autentica o usuário por e-mail e senha.
-     * Regras:
-     * - Email deve existir no banco de dados.
-     * - Senha fornecida deve corresponder ao hash salvo.
-     * - E-mail do usuário deve estar verificado (emailVerificado == true).
-     * - A conta do usuário não pode estar desativada.
+     * Autentica um usuário através de suas credenciais.
+     * Valida se a senha corresponde ao hash e se o usuário está ativo.
      *
-     * @param email E-mail de login
-     * @param senha Senha em texto plano a ser validada
-     * @return DTO com os dados do usuário logado
-     * @throws CredenciaisInvalidasException se o e-mail não existir, senha estiver errada ou usuário inativo
-     * @throws EmailNaoVerificadoException se o e-mail ainda não tiver sido verificado com o código OTP
+     * @param email e-mail do usuário
+     * @param senha senha em texto plano
+     * @return dados do usuário autenticado
+     * @throws CredenciaisInvalidasException caso e-mail não exista ou senha esteja incorreta
      */
     public UsuarioResponseDTO loginUsuario(String email, String senha) {
         UsuarioEntity usuario = usuarioRepository.findByEmail(email)
@@ -90,51 +110,45 @@ public class UsuarioService {
             throw new CredenciaisInvalidasException();
         }
 
-        if (!usuario.isEmailVerificado()) {
-            log.warn("Tentativa de login com e-mail não verificado: {}", email);
-            throw new EmailNaoVerificadoException();
-        }
-
         return usuarioMapper.toResponse(usuario);
     }
 
     /**
-     * Busca um usuário ativo no banco de dados pelo e-mail.
-     * Método utilitário para uso interno entre os Services.
+     * Busca a entidade de um usuário pelo e-mail.
      *
-     * @param email E-mail exato do usuário
-     * @return A Entidade do Usuário
-     * @throws RecursoNaoEncontradoException se não encontrar o e-mail
+     * @param email e-mail do usuário
+     * @return entidade do usuário localizada
+     * @throws RecursoNaoEncontradoException caso o e-mail não seja encontrado
      */
     public UsuarioEntity buscarPorEmail(String email) {
-        return usuarioRepository.findByEmail(email).orElseThrow(() -> new RecursoNaoEncontradoException("Email não encontrado"));
+        return usuarioRepository.findByEmail(email)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Email não encontrado"));
     }
 
     /**
-     * Busca um usuário ativo por ID e garante sua existência antes de prosseguir.
-     * Muito utilizado pelos outros Services (Conta, Cartão, Transação) para garantir que
-     * a operação está sendo feita por um usuário válido e com sessão ativa.
+     * Busca um usuário pelo ID ou lança exceção em caso de ausência.
      *
-     * @param usuarioId ID do usuário a ser buscado no banco de dados
-     * @return A Entidade do Usuário
-     * @throws RecursoNaoEncontradoException se o usuário não existir ou se a conta estiver inativa
+     * @param usuarioId ID do usuário
+     * @return entidade do usuário localizada
+     * @throws RecursoNaoEncontradoException caso o ID não exista ou esteja inativo
      */
+    @Transactional(readOnly = true)
     public UsuarioEntity buscarPorIdOuFalhar(Long usuarioId) {
+        if (usuarioId == null) {
+            throw new RegraDeNegocioException("ID de usuário não pode ser nulo");
+        }
         return usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado"));
     }
 
     /**
-     * Desativa a conta do usuário através do processo de Soft Delete.
-     * O registro continua no banco de dados, mas o campo 'ativo' é setado para false.
+     * Desativa logicamente a conta do usuário (Soft Delete).
      *
-     * @param usuarioId ID do usuário cuja conta será desativada.
-     * @throws RecursoNaoEncontradoException se o usuário não existir ou já estiver inativo
+     * @param usuarioId ID do usuário a ser desativado
      */
     @Transactional
     public void desativarConta(Long usuarioId) {
         UsuarioEntity usuario = buscarPorIdOuFalhar(usuarioId);
-
         usuario.setAtivo(false);
 
         usuarioRepository.save(usuario);
@@ -142,13 +156,13 @@ public class UsuarioService {
     }
 
     /**
-     * Reativa uma conta previamente desativada (soft delete).
-     * Valida a senha do usuário antes de reativar para confirmar identidade.
+     * Reativa uma conta que foi previamente desativada.
+     * Exige validação de senha para confirmar a identidade.
      *
-     * @param email E-mail da conta a reativar
-     * @param senha Senha para confirmar identidade
-     * @throws RecursoNaoEncontradoException se não existir conta inativa com esse e-mail
-     * @throws CredenciaisInvalidasException se a senha estiver incorreta
+     * @param email e-mail da conta a reativar
+     * @param senha senha para validação
+     * @throws RecursoNaoEncontradoException caso não exista conta inativa para o e-mail
+     * @throws CredenciaisInvalidasException caso a senha esteja incorreta
      */
     @Transactional
     public void reativarConta(String email, String senha) {
@@ -162,5 +176,166 @@ public class UsuarioService {
         usuario.setAtivo(true);
         usuarioRepository.save(usuario);
         log.info("Conta reativada: usuarioId={}, email={}", usuario.getId(), email);
+    }
+
+    /**
+     * Atualiza os dados de perfil de um usuário existente.
+     * Valida se o celular já está em uso por outro usuário antes de salvar.
+     *
+     * @param usuarioId ID do usuário a ser atualizado
+     * @param dto       novos dados do perfil
+     * @return dados do usuário atualizados
+     * @throws RegraDeNegocioException caso o celular já esteja em uso por outro cadastro
+     */
+    @Transactional
+    public UsuarioResponseDTO atualizarPerfil(Long usuarioId, UsuarioAtualizacaoRequestDTO dto) {
+        UsuarioEntity usuario = buscarPorIdOuFalhar(usuarioId);
+
+        // Validação de unicidade do celular
+        if (dto.celular() != null && !dto.celular().isBlank()) {
+            usuarioRepository.findByCelular(dto.celular())
+                    .filter(outro -> !outro.getId().equals(usuarioId))
+                    .ifPresent(outro -> {
+                        log.warn("Tentativa de atualização de perfil com celular já em uso: {}", dto.celular());
+                        throw new RegraDeNegocioException("Este número de celular já está vinculado a outra conta");
+                    });
+            usuario.setCelular(dto.celular());
+        }
+
+        usuario.setNome(dto.nome());
+        usuario.setMoeda(dto.moeda());
+
+        UsuarioEntity salvo = usuarioRepository.save(usuario);
+        log.info("Perfil atualizado com sucesso: usuarioId={}, moeda={}", usuarioId, dto.moeda());
+
+        return usuarioMapper.toResponse(salvo);
+    }
+
+    /**
+     * Atualiza a foto de perfil do usuário recebendo um arquivo binário.
+     * Salva o conteúdo diretamente no banco de dados (LOB).
+     *
+     * @param usuarioId ID do usuário
+     * @param file      arquivo de imagem multipart
+     * @throws RegraDeNegocioException caso ocorra erro no processamento do arquivo
+     */
+    @Transactional
+    public void atualizarFoto(Long usuarioId, MultipartFile file) {
+        UsuarioEntity usuario = buscarPorIdOuFalhar(usuarioId);
+        
+        validarAssinaturaImagem(file);
+
+        try {
+            if (file.getSize() > 2 * 1024 * 1024) { // Limite de 2MB
+                throw new RegraDeNegocioException("A imagem é muito grande. Máximo de 2MB permitido.");
+            }
+            usuario.setFoto(file.getBytes());
+            usuarioRepository.save(usuario);
+            log.info("Foto de perfil atualizada: usuarioId={}, size={} bytes", usuarioId, file.getSize());
+        } catch (IOException e) {
+            log.error("Erro ao processar upload de foto para usuário {}: {}", usuarioId, e.getMessage());
+            throw new RegraDeNegocioException("Erro ao processar o arquivo de imagem");
+        }
+    }
+
+    /**
+     * Valida a assinatura binária (Magic Bytes) do arquivo para garantir que seja JPEG ou PNG.
+     * Protege contra ataques de spoofing de extensão.
+     */
+    private void validarAssinaturaImagem(MultipartFile file) {
+        try (java.io.InputStream is = file.getInputStream()) {
+            byte[] header = new byte[4];
+            int bytesRead = is.read(header);
+
+            if (bytesRead < 3) {
+                throw new RegraDeNegocioException("Arquivo de imagem corrompido ou muito curto.");
+            }
+
+            // JPEG: FF D8 FF
+            boolean isJpeg = (header[0] & 0xFF) == 0xFF && (header[1] & 0xFF) == 0xD8 && (header[2] & 0xFF) == 0xFF;
+            // PNG: 89 50 4E 47
+            boolean isPng = (header[0] & 0xFF) == 0x89 && (header[1] & 0xFF) == 0x50 && (header[2] & 0xFF) == 0x4E && (header[3] & 0xFF) == 0x47;
+
+            if (!isJpeg && !isPng) {
+                log.warn("Tentativa de upload de arquivo com formato inválido interceptada (Magic Bytes não conferem).");
+                throw new RegraDeNegocioException("Formato de arquivo inválido. Apenas JPEG e PNG são permitidos.");
+            }
+        } catch (IOException e) {
+            throw new RegraDeNegocioException("Erro ao ler assinatura do arquivo.");
+        }
+    }
+
+    /**
+     * Altera a senha do usuário logado.
+     * Exige confirmação da senha atual para validação de identidade.
+     * Invalida todas as sessões ativas ao limpar a chaveSessao.
+     *
+     * @param usuarioId ID do usuário autenticado
+     * @param dto       contém senha atual e nova senha
+     * @throws CredenciaisInvalidasException se a senha atual não conferir
+     * @throws RegraDeNegocioException       se a nova senha for igual à atual
+     */
+    @Transactional
+    public void alterarSenha(Long usuarioId, AlterarSenhaRequestDTO dto) {
+        UsuarioEntity usuario = usuarioRepository.findById(usuarioId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado."));
+
+        if (!passwordEncoder.matches(dto.senhaAtual(), usuario.getSenha())) {
+            throw new CredenciaisInvalidasException();
+        }
+
+        if (passwordEncoder.matches(dto.novaSenha(), usuario.getSenha())) {
+            throw new RegraDeNegocioException("A nova senha deve ser diferente da atual.");
+        }
+
+        usuario.setSenha(passwordEncoder.encode(dto.novaSenha()));
+        usuario.setChaveSessao(null);
+        usuarioRepository.save(usuario);
+
+        log.info("Senha alterada: usuarioId={}", usuarioId);
+    }
+
+    private void criarCategoriasPadrao(UsuarioEntity usuario) {
+        List<String> despesas = List.of("Aluguel", "Água", "Luz", "Internet", "Gás", "Condomínio", "Transporte", "Alimentação", "Saúde", "Educação");
+        List<String> receitas = List.of("Salário", "Vale Alimentação", "Vale Transporte", "Freelance", "Rendimentos");
+
+        for (String nome : despesas) {
+            CategoriaEntity cat = new CategoriaEntity();
+            cat.setNome(nome);
+            cat.setTipo(TipoTransacao.DESPESA);
+            cat.setUsuario(usuario);
+            cat.setPadrao(true);
+            categoriaRepository.save(cat);
+        }
+        for (String nome : receitas) {
+            CategoriaEntity cat = new CategoriaEntity();
+            cat.setNome(nome);
+            cat.setTipo(TipoTransacao.RECEITA);
+            cat.setUsuario(usuario);
+            cat.setPadrao(true);
+            categoriaRepository.save(cat);
+        }
+        log.info("Categorias padrão criadas para usuário {}", usuario.getId());
+    }
+
+    /**
+     * Consolida o resumo financeiro (balanço geral) para exibição no perfil.
+     *
+     * @param usuarioId ID do usuário logado
+     * @return DTO com os totais calculados
+     */
+    public PerfilResumoResponseDTO obterResumoFinanceiro(Long usuarioId) {
+        BigDecimal receitas = transacaoRepository.somarReceitasPorUsuario(usuarioId);
+        BigDecimal despesas = transacaoRepository.somarDespesasPorUsuario(usuarioId);
+        BigDecimal saldoContas = contaRepository.somarSaldoPorUsuario(usuarioId);
+        BigDecimal investido = investimentoRepository.somarTotalInvestidoPorUsuario(usuarioId);
+
+        return new PerfilResumoResponseDTO(
+            receitas != null ? receitas : BigDecimal.ZERO,
+            despesas != null ? despesas : BigDecimal.ZERO,
+            saldoContas != null ? saldoContas : BigDecimal.ZERO,
+            investido != null ? investido : BigDecimal.ZERO,
+            0.0
+        );
     }
 }

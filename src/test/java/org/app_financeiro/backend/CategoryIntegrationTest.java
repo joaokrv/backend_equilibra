@@ -18,7 +18,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -54,9 +53,6 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
 
     @MockBean
     private CodigoVerificacaoRepository codigoVerificacaoRepository;
-
-    @MockBean
-    private JavaMailSender mailSender;
 
     private String tokenA;
     private Long idUserA;

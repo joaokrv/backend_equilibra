@@ -60,6 +60,11 @@ public class CartaoEntity {
     @JoinColumn(name = "usuario_id", nullable = false)
     private UsuarioEntity usuario;
 
+    /** Conta bancária vinculada ao cartão — usada para sugerir o débito ao pagar a fatura. */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "conta_id")
+    private ContaEntity conta;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime dataCriacao;

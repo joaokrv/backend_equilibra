@@ -27,6 +27,8 @@ class ContaRepositoryConcurrencyTest {
         // cria usuário e conta inicial
         UsuarioEntity user = new UsuarioEntity();
         user.setNome("usuario");
+        user.setEmail("usuario.concorrencia@email.com");
+        user.setSenha("SenhaSegura123");
         user = usuarioRepository.save(user);
 
         ContaEntity conta = new ContaEntity();

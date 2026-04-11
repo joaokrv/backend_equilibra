@@ -4,8 +4,10 @@ import org.app_financeiro.backend.dto.request.CartaoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.CartaoResponseDTO;
 import org.app_financeiro.backend.mapper.CartaoMapper;
 import org.app_financeiro.backend.entity.CartaoEntity;
+import org.app_financeiro.backend.entity.ContaEntity;
 import org.app_financeiro.backend.entity.FaturaEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
+import org.app_financeiro.backend.repository.ContaRepository;
 import org.app_financeiro.backend.enums.StatusFatura;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.exception.LimiteInsuficienteException;
@@ -41,12 +43,14 @@ public class CartaoService {
     private final FaturaRepository faturaRepository;
     private final UsuarioService usuarioService;
     private final CartaoMapper cartaoMapper;
+    private final ContaRepository contaRepository;
 
-    public CartaoService(CartaoRepository cartaoRepository, FaturaRepository faturaRepository, UsuarioService usuarioService, CartaoMapper cartaoMapper) {
+    public CartaoService(CartaoRepository cartaoRepository, FaturaRepository faturaRepository, UsuarioService usuarioService, CartaoMapper cartaoMapper, ContaRepository contaRepository) {
         this.cartaoRepository = cartaoRepository;
         this.faturaRepository = faturaRepository;
         this.usuarioService = usuarioService;
         this.cartaoMapper = cartaoMapper;
+        this.contaRepository = contaRepository;
     }
 
     /**
@@ -69,6 +73,13 @@ public class CartaoService {
         cartao.setDiaVencimento(dto.diaVencimento());
         cartao.setUsuario(usuario);
         cartao.setAtivo(true);
+
+        if (dto.contaId() != null) {
+            ContaEntity conta = contaRepository.findById(dto.contaId())
+                    .filter(c -> c.getUsuario().getId().equals(usuarioId))
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Conta não encontrada ou não pertence ao usuário"));
+            cartao.setConta(conta);
+        }
         
         CartaoEntity cartaoSalvo = cartaoRepository.save(cartao);
         
@@ -103,8 +114,9 @@ public class CartaoService {
 
         BigDecimal somaDividas = BigDecimal.ZERO;
         for (FaturaEntity fatura : faturasPendentes) {
-            BigDecimal dividaDaFatura = fatura.getValorTotal().subtract(fatura.getValorPago());
-            somaDividas = somaDividas.add(dividaDaFatura);
+            BigDecimal total = fatura.getValorTotal() != null ? fatura.getValorTotal() : BigDecimal.ZERO;
+            BigDecimal pago  = fatura.getValorPago()  != null ? fatura.getValorPago()  : BigDecimal.ZERO;
+            somaDividas = somaDividas.add(total.subtract(pago));
         }
 
         return cartao.getLimite().subtract(somaDividas);
@@ -116,6 +128,7 @@ public class CartaoService {
      * @param usuarioId ID do usuário autenticado
      * @return Lista de CartaoResponseDTO (pode ser vazia)
      */
+    @Transactional(readOnly = true)
     public List<CartaoResponseDTO> buscarTodosDoUsuario(Long usuarioId) {
         List<CartaoEntity> cartoes = cartaoRepository.findByUsuarioId(usuarioId);
 
@@ -134,6 +147,47 @@ public class CartaoService {
                     return cartaoMapper.toResponse(cartao, limiteDisponivel);
                 })
                 .toList();
+    }
+
+    /**
+     * Atualiza os dados de um cartão existente.
+     *
+     * Regra importante:
+     * - O novo limite não pode ser menor que o valor já utilizado em faturas não pagas.
+     */
+    @Transactional
+    public CartaoResponseDTO atualizarCartao(Long cartaoId, CartaoRegistroRequestDTO dto, Long usuarioId) {
+        CartaoEntity cartao = buscarCartaoValidado(cartaoId, usuarioId);
+
+        BigDecimal limiteDisponivelAtual = calcularLimiteDisponivel(cartao);
+        BigDecimal limiteUtilizado = cartao.getLimite().subtract(limiteDisponivelAtual);
+
+        if (dto.limite().compareTo(limiteUtilizado) < 0) {
+            throw new RegraDeNegocioException(
+                    "O novo limite não pode ser menor que o valor já utilizado no cartão."
+            );
+        }
+
+        cartao.setNome(dto.nome());
+        cartao.setLimite(dto.limite());
+        cartao.setDiaFechamento(dto.diaFechamento());
+        cartao.setDiaVencimento(dto.diaVencimento());
+        cartao.setBandeira(dto.bandeira());
+
+        if (dto.contaId() != null) {
+            ContaEntity conta = contaRepository.findById(dto.contaId())
+                    .filter(c -> c.getUsuario().getId().equals(usuarioId))
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Conta não encontrada ou não pertence ao usuário"));
+            cartao.setConta(conta);
+        } else {
+            cartao.setConta(null);
+        }
+
+        CartaoEntity cartaoAtualizado = cartaoRepository.save(cartao);
+        BigDecimal limiteDisponivelAtualizado = calcularLimiteDisponivel(cartaoAtualizado);
+
+        log.info("Cartão atualizado: id={}, usuarioId={}", cartaoId, usuarioId);
+        return cartaoMapper.toResponse(cartaoAtualizado, limiteDisponivelAtualizado);
     }
 
     /**
@@ -177,7 +231,8 @@ public class CartaoService {
      */
     @Transactional
     public CartaoEntity consumirLimite(Long cartaoId, BigDecimal valor, Long usuarioId) {
-        CartaoEntity cartao = buscarCartaoValidado(cartaoId, usuarioId);
+        // Bloqueia o cartão para garantir que o cálculo do limite disponível seja atômico
+        CartaoEntity cartao = obterCartaoComBloqueioExclusivo(cartaoId, usuarioId);
 
         BigDecimal limiteDisponivel = calcularLimiteDisponivel(cartao);
 
@@ -191,6 +246,21 @@ public class CartaoService {
 
     public CartaoEntity buscarCartaoValidado(Long cartaoId, Long usuarioId) {
         CartaoEntity cartao = cartaoRepository.findById(cartaoId)
+                        .orElseThrow(() -> new RecursoNaoEncontradoException("Cartão não encontrado"));
+
+        if(!cartao.getUsuario().getId().equals(usuarioId)) {
+            throw new RecursoNaoEncontradoException("Cartão não pertence ao usuário");
+        }
+
+        return cartao;
+    }
+
+    /**
+     * Versão do buscarCartaoValidado com bloqueio pessimista (SELECT FOR UPDATE).
+     * Deve ser usado em transações que impactam o limite disponível.
+     */
+    public CartaoEntity obterCartaoComBloqueioExclusivo(Long cartaoId, Long usuarioId) {
+        CartaoEntity cartao = cartaoRepository.findByIdWithLock(cartaoId)
                         .orElseThrow(() -> new RecursoNaoEncontradoException("Cartão não encontrado"));
 
         if(!cartao.getUsuario().getId().equals(usuarioId)) {

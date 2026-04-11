@@ -1,5 +1,6 @@
 package org.app_financeiro.backend.service;
 
+import org.app_financeiro.backend.dto.model.ResultadoMovimentacaoCartao;
 import org.app_financeiro.backend.entity.CartaoEntity;
 import org.app_financeiro.backend.entity.ContaEntity;
 import org.app_financeiro.backend.entity.FaturaEntity;
@@ -15,8 +16,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 
 /**
- * Serviço responsável por encapsular a orquestração de impactos financeiros
- * envolvendo Contas, Cartões e Faturas.
+ * Serviço responsável por orquestrar os impactos financeiros entre Contas, Cartões e Faturas.
+ * Garante a integridade dos saldos e limites durante a criação, edição e exclusão de transações.
  */
 @Service
 public class MovimentacaoFinanceiraService {
@@ -36,9 +37,14 @@ public class MovimentacaoFinanceiraService {
     }
 
     /**
-     * Aplica impacto financeiro em conta bancária.
-     * Só impacta o saldo quando status = PAGO (DESPESA debita, RECEITA credita).
-     * Sempre retorna a entidade da conta validada.
+     * Processa o impacto financeiro em uma conta bancária baseado no status da transação.
+     *
+     * @param tipo tipo da transação (RECEITA/DESPESA)
+     * @param status status atual da transação
+     * @param contaId ID da conta afetada
+     * @param valor valor da movimentação
+     * @param usuarioId ID do usuário proprietário
+     * @return entidade da conta com saldo atualizado
      */
     @Transactional
     public ContaEntity processarTransacaoConta(TipoTransacao tipo, StatusTransacao status,
@@ -56,32 +62,46 @@ public class MovimentacaoFinanceiraService {
     }
 
     /**
-     * Aplica impacto financeiro de despesa em cartão de crédito.
-     * Consome o limite do cartão e adiciona a transação na fatura correspondente.
+     * Processa uma despesa em cartão de crédito, consumindo limite e registrando na fatura.
+     *
+     * @param cartaoId ID do cartão utilizado
+     * @param data data da transação
+     * @param valor valor da despesa
+     * @param usuarioId ID do usuário proprietário
+     * @return record contendo o cartão e a fatura afetados
      */
     @Transactional
     public ResultadoMovimentacaoCartao processarDespesaCartao(Long cartaoId, LocalDate data,
-                                                              BigDecimal valor, Long usuarioId) {
+                                                               BigDecimal valor, Long usuarioId) {
         CartaoEntity cartao = cartaoService.consumirLimite(cartaoId, valor, usuarioId);
         FaturaEntity fatura = faturaService.adicionarTransacao(cartao, data, valor);
-        log.info("Despesa de R$ {} processada no cartão {}. Limite consumido + fatura atualizada", valor, cartaoId);
+        log.info("Despesa de R$ {} processada no cartão {}", valor, cartaoId);
         return new ResultadoMovimentacaoCartao(cartao, fatura);
     }
 
     /**
-     * Registra receita (estorno/cashback) vinculada a um cartão.
-     * Reduz o valor total da fatura.
+     * Processa um estorno ou crédito em cartão de crédito, liberando limite e ajustando a fatura.
+     *
+     * @param cartaoId ID do cartão utilizado
+     * @param data data do estorno
+     * @param valor valor do crédito
+     * @param usuarioId ID do usuário proprietário
+     * @return record contendo o cartão e a fatura afetados
      */
     @Transactional
     public ResultadoMovimentacaoCartao processarEstornoCartao(Long cartaoId, LocalDate data, BigDecimal valor, Long usuarioId) {
         CartaoEntity cartao = cartaoService.buscarCartaoValidado(cartaoId, usuarioId);
         FaturaEntity fatura = faturaService.registrarCredito(cartao, data, valor);
+        log.info("Crédito/Estorno de R$ {} processado no cartão {}", valor, cartaoId);
         return new ResultadoMovimentacaoCartao(cartao, fatura);
     }
 
     /**
-     * Desfaz o efeito financeiro de uma transação.
-     * Usado antes de atualizar ou deletar transações.
+     * Reverte o efeito financeiro de uma transação ativa.
+     * Utilizado para neutralizar o impacto antes de exclusões ou alterações de valores.
+     *
+     * @param transacao entidade da transação a ser revertida
+     * @param usuarioId ID do usuário proprietário
      */
     @Transactional
     public void desfazerEfeitoFinanceiro(TransacaoEntity transacao, Long usuarioId) {
@@ -97,6 +117,9 @@ public class MovimentacaoFinanceiraService {
             } else {
                 faturaService.adicionarTransacaoPorFatura(transacao.getFatura(), transacao.getValor());
             }
+        } else {
+            log.warn("Nenhum efeito revertido para transação {} — conta e cartão/fatura ausentes", transacao.getId());
+            return;
         }
         log.info("Efeito financeiro da transação {} revertido", transacao.getId());
     }

@@ -3,28 +3,38 @@ package org.app_financeiro.backend.controller;
 import jakarta.validation.Valid;
 import org.app_financeiro.backend.dto.request.ReativarContaRequestDTO;
 import org.app_financeiro.backend.dto.request.ReenviarCodigoRequestDTO;
+import org.app_financeiro.backend.dto.request.ResetarSenhaRequestDTO;
+import org.app_financeiro.backend.dto.request.SolicitarRecuperacaoSenhaRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioLoginRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioRegistroRequestDTO;
 import org.app_financeiro.backend.dto.request.VerificarEmailRequestDTO;
 import org.app_financeiro.backend.dto.response.AuthResponseDTO;
 import org.app_financeiro.backend.dto.response.UsuarioResponseDTO;
 import org.app_financeiro.backend.entity.UsuarioEntity;
+import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.repository.UsuarioRepository;
 import org.app_financeiro.backend.service.EmailVerificacaoService;
 import org.app_financeiro.backend.service.JwtService;
+import org.app_financeiro.backend.service.RecuperacaoSenhaService;
 import org.app_financeiro.backend.service.UsuarioService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import io.jsonwebtoken.JwtException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.app_financeiro.backend.mapper.UsuarioMapper;
+
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Controller responsável pelos endpoints de autenticação e verificação de e-mail.
@@ -35,6 +45,9 @@ import java.util.Map;
  * - POST /api/auth/refresh         → Renova o access token usando o refresh token
  * - POST /api/auth/verificar-email → Valida código de 6 dígitos
  * - POST /api/auth/reenviar-codigo → Gera e reenvia novo código de verificação
+ * - POST /api/auth/solicitar-recuperacao → Envia link de recuperação de senha por e-mail
+ * - GET  /api/auth/validar-token   → Valida se o token de recuperação é válido
+ * - POST /api/auth/resetar-senha   → Reseta a senha usando o token de recuperação
  */
 @RestController
 @RequestMapping("/api/auth")
@@ -43,20 +56,26 @@ public class UsuarioController {
 
     private final UsuarioService usuarioService;
     private final EmailVerificacaoService emailVerificacaoService;
+    private final RecuperacaoSenhaService recuperacaoSenhaService;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final UsuarioRepository usuarioRepository;
+    private final UsuarioMapper usuarioMapper;
 
     public UsuarioController(UsuarioService usuarioService,
                              EmailVerificacaoService emailVerificacaoService,
+                             RecuperacaoSenhaService recuperacaoSenhaService,
                              AuthenticationManager authenticationManager,
                              JwtService jwtService,
-                             UsuarioRepository usuarioRepository) {
+                             UsuarioRepository usuarioRepository,
+                             UsuarioMapper usuarioMapper) {
         this.usuarioService = usuarioService;
         this.emailVerificacaoService = emailVerificacaoService;
+        this.recuperacaoSenhaService = recuperacaoSenhaService;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.usuarioRepository = usuarioRepository;
+        this.usuarioMapper = usuarioMapper;
     }
 
     /**
@@ -92,7 +111,11 @@ public class UsuarioController {
         );
 
         UsuarioEntity usuario = usuarioRepository.findByEmail(dto.email())
-                .orElseThrow();
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado."));
+
+        // Geração da chave de sessão única (Single Active Session)
+        usuario.setChaveSessao(UUID.randomUUID().toString());
+        usuarioRepository.save(usuario);
 
         String accessToken = jwtService.generateAccessToken(usuario);
         String refreshToken = jwtService.generateRefreshToken(usuario);
@@ -100,7 +123,8 @@ public class UsuarioController {
         AuthResponseDTO response = new AuthResponseDTO(
                 accessToken,
                 refreshToken,
-                jwtService.getAccessTokenExpiration()
+                jwtService.getAccessTokenExpiration(),
+                usuarioMapper.toResponse(usuario)
         );
         return ResponseEntity.ok(response);
     }
@@ -120,11 +144,22 @@ public class UsuarioController {
             return ResponseEntity.badRequest().build();
         }
 
-        String email = jwtService.extractUsername(refreshToken);
+        String email;
+        try {
+            email = jwtService.extractUsername(refreshToken);
+        } catch (JwtException ex) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
         UsuarioEntity usuario = usuarioRepository.findByEmail(email)
-                .orElseThrow();
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado."));
 
         if (!jwtService.isTokenValid(refreshToken, usuario)) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+
+        String chaveSessaoToken = jwtService.extractChaveSessao(refreshToken);
+        if (chaveSessaoToken == null || !chaveSessaoToken.equals(usuario.getChaveSessao())) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
@@ -133,7 +168,8 @@ public class UsuarioController {
         AuthResponseDTO response = new AuthResponseDTO(
                 newAccessToken,
                 refreshToken,
-                jwtService.getAccessTokenExpiration()
+                jwtService.getAccessTokenExpiration(),
+                usuarioMapper.toResponse(usuario)
         );
         return ResponseEntity.ok(response);
     }
@@ -178,5 +214,48 @@ public class UsuarioController {
         usuarioService.reativarConta(dto.email(), dto.senha());
         return ResponseEntity.ok("Conta reativada com sucesso!");
     }
-}
 
+    // ─── Recuperação de Senha ──────────────────────────────────────────────
+
+    /**
+     * Solicita a recuperação de senha. Envia um link por e-mail.
+     * A resposta é sempre 200 OK, mesmo que o e-mail não exista (proteção contra enumeração).
+     *
+     * @param dto contém o e-mail para recuperação
+     * @return 200 OK com mensagem genérica
+     */
+    @PostMapping("/solicitar-recuperacao")
+    @Operation(summary = "Solicitar recuperação de senha", description = "Envia um link de recuperação de senha para o e-mail informado.")
+    public ResponseEntity<String> solicitarRecuperacao(@Valid @RequestBody SolicitarRecuperacaoSenhaRequestDTO dto) {
+        recuperacaoSenhaService.solicitarRecuperacao(dto);
+        return ResponseEntity.ok("Se o e-mail estiver cadastrado, você receberá um link de recuperação.");
+    }
+
+    /**
+     * Valida se o token de recuperação é legítimo e ainda está dentro da validade.
+     * O frontend chama este endpoint ao carregar a página de reset.
+     *
+     * @param token UUID enviado por e-mail
+     * @return 200 OK com o e-mail vinculado ao token
+     */
+    @GetMapping("/validar-token")
+    @Operation(summary = "Validar token de recuperação", description = "Verifica se o token é válido e retorna o e-mail associado.")
+    public ResponseEntity<Map<String, String>> validarToken(@RequestParam String token) {
+        String email = recuperacaoSenhaService.validarToken(token);
+        return ResponseEntity.ok(Map.of("email", email));
+    }
+
+    /**
+     * Reseta a senha do usuário usando o token de recuperação.
+     * Após o reset, o usuário deve fazer login manualmente.
+     *
+     * @param dto contém token e nova senha
+     * @return 200 OK com mensagem de sucesso
+     */
+    @PostMapping("/resetar-senha")
+    @Operation(summary = "Resetar senha", description = "Redefine a senha do usuário usando o token de recuperação enviado por e-mail.")
+    public ResponseEntity<String> resetarSenha(@Valid @RequestBody ResetarSenhaRequestDTO dto) {
+        recuperacaoSenhaService.resetarSenha(dto);
+        return ResponseEntity.ok("Senha redefinida com sucesso! Faça login com sua nova senha.");
+    }
+}

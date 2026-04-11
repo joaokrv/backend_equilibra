@@ -3,8 +3,10 @@ package org.app_financeiro.backend.config;
 import lombok.RequiredArgsConstructor;
 import org.app_financeiro.backend.repository.UsuarioRepository;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.MessageSource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.context.support.ReloadableResourceBundleMessageSource;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -13,6 +15,11 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.boot.web.client.RestTemplateBuilder;
+import org.springframework.web.client.RestTemplate;
+
+import java.time.Duration;
+import java.util.Locale;
 
 @Configuration
 @RequiredArgsConstructor
@@ -44,19 +51,29 @@ public class ApplicationConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
+        // Argon2id com parâmetros OWASP mínimos: memória 19 MB, 2 iterações, paralelismo 1.
+        // Não invalida hashes existentes — Argon2 embute os parâmetros no próprio hash.
         return new PepperedPasswordEncoder(
-                Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8(),
+                new Argon2PasswordEncoder(16, 32, 1, 19456, 2),
                 pepper
         );
     }
 
     @Bean
-    public org.springframework.context.MessageSource messageSource() {
-        org.springframework.context.support.ReloadableResourceBundleMessageSource ms =
-                new org.springframework.context.support.ReloadableResourceBundleMessageSource();
+    public RestTemplate restTemplate(RestTemplateBuilder builder) {
+        return builder
+                .connectTimeout(Duration.ofSeconds(5))
+                .readTimeout(Duration.ofSeconds(10))
+                .build();
+    }
+
+    @Bean
+    public MessageSource messageSource() {
+        ReloadableResourceBundleMessageSource ms =
+                new ReloadableResourceBundleMessageSource();
         ms.setBasename("classpath:messages");
         ms.setDefaultEncoding("UTF-8");
-        ms.setDefaultLocale(new java.util.Locale("pt", "BR"));
+        ms.setDefaultLocale(new Locale("pt", "BR"));
         return ms;
     }
 }

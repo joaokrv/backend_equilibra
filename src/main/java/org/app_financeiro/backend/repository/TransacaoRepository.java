@@ -7,11 +7,13 @@ import org.app_financeiro.backend.entity.TransacaoEntity;
 import org.app_financeiro.backend.enums.TipoTransacao;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
-import org.springframework.data.domain.Sort;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -25,6 +27,18 @@ import java.util.List;
  */
 @Repository
 public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long> {
+
+    /**
+     * Soma o valor total de todas as receitas ativas de um usuário.
+     */
+    @Query("SELECT SUM(t.valor) FROM TransacaoEntity t WHERE t.usuario.id = :usuarioId AND t.tipo = org.app_financeiro.backend.enums.TipoTransacao.RECEITA")
+    BigDecimal somarReceitasPorUsuario(@Param("usuarioId") Long usuarioId);
+
+    /**
+     * Soma o valor total de todas as despesas ativas de um usuário.
+     */
+    @Query("SELECT SUM(t.valor) FROM TransacaoEntity t WHERE t.usuario.id = :usuarioId AND t.tipo = org.app_financeiro.backend.enums.TipoTransacao.DESPESA")
+    BigDecimal somarDespesasPorUsuario(@Param("usuarioId") Long usuarioId);
 
     /**
      * Retorna todas as transações (ativas) de um usuário.
@@ -61,4 +75,9 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
      * Retorna transações (ativas) de um usuário com suporte a paginação.
      */
     Page<TransacaoEntity> findByUsuarioId(Long usuarioId, Pageable pageable);
+
+    /**
+     * Verifica se já existe uma transação com a mesma chave de idempotência.
+     */
+    boolean existsByIdempotencyKey(String idempotencyKey);
 }

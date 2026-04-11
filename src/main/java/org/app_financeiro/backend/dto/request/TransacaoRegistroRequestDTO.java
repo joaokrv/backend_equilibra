@@ -41,5 +41,8 @@ public record TransacaoRegistroRequestDTO(
     Integer numeroParcela,
 
     @Min(value = 1, message = "O total de parcelas deve ser no mínimo 1")
-    Integer totalParcelas
+    Integer totalParcelas,
+
+    @NotBlank(message = "A chave de idempotência é obrigatória para prevenir duplicações")
+    String idempotencyKey
 ) {}

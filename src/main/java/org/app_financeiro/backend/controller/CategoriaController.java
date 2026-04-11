@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.app_financeiro.backend.entity.UsuarioEntity;
@@ -78,6 +79,24 @@ public class CategoriaController {
             categorias = categoriaService.buscarTodasDoUsuario(usuario.getId());
         }
         return ResponseEntity.ok(categorias);
+    }
+
+    /**
+     * Atualiza o nome de uma categoria existente.
+     *
+     * @param id      ID da categoria
+     * @param dto     Dados com o novo nome
+     * @param usuario Usuário autenticado via JWT
+     * @return 200 OK com a categoria atualizada
+     */
+    @PutMapping("/{id}")
+    public ResponseEntity<CategoriaResponseDTO> atualizarCategoria(
+            @PathVariable Long id,
+            @Valid @RequestBody CategoriaRegistroRequestDTO dto,
+            @AuthenticationPrincipal UsuarioEntity usuario) {
+
+        CategoriaResponseDTO atualizada = categoriaService.atualizarCategoria(id, dto, usuario.getId());
+        return ResponseEntity.ok(atualizada);
     }
 
     /**

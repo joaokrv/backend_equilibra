@@ -12,6 +12,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.authentication.WebAuthenticationDetailsSource;
@@ -63,6 +64,15 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
 
             if (jwtService.isTokenValid(jwt, userDetails)) {
+                String tokenChaveSessao = jwtService.extractChaveSessao(jwt);
+                if (userDetails instanceof UsuarioEntity usuario) {
+                    if (tokenChaveSessao != null && !tokenChaveSessao.equals(usuario.getChaveSessao())) {
+                        log.warn("Sessão revogada para {}. Novo login detectado.", userEmail);
+                        filterChain.doFilter(request, response);
+                        return;
+                    }
+                }
+
                 UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                         userDetails,
                         null,

@@ -16,6 +16,7 @@ public enum BandeiraCartao {
     HIPERCARD("Hipercard"),
     NUBANK("Nubank"),
     INTER("Inter"),
+    SICREDI("Sicredi"),
     OUROCARD("Ourocard"),
     DIGIO("Digio"),
     C6_BANK("C6 Bank"),

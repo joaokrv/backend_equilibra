@@ -56,4 +56,7 @@ public class CategoriaEntity {
 
     @Column(nullable = false)
     private boolean ativo = true;
+
+    @Column(name = "is_padrao", nullable = false)
+    private boolean isPadrao = false;
 }

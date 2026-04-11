@@ -79,7 +79,7 @@ public class ContaService {
      */
     @Transactional
     public ContaResponseDTO atualizarSaldo(Long contaId, BigDecimal valor, Long usuarioId) {
-        ContaEntity conta = buscarContaValidada(contaId, usuarioId);
+        ContaEntity conta = obterContaComBloqueioExclusivo(contaId, usuarioId);
 
         if (valor.compareTo(BigDecimal.ZERO) < 0) {
             throw new RegraDeNegocioException("O saldo não pode ser negativo");
@@ -132,7 +132,7 @@ public class ContaService {
      */
     @Transactional
     public ContaEntity debitarSaldo(Long contaId, BigDecimal valor, Long usuarioId) {
-        ContaEntity conta = buscarContaValidada(contaId, usuarioId);
+        ContaEntity conta = obterContaComBloqueioExclusivo(contaId, usuarioId);
 
         if (conta.getSaldo().compareTo(valor) < 0) {
             log.warn("Saldo insuficiente: contaId={}, saldoAtual={}, valorSolicitado={}", contaId, conta.getSaldo(), valor);
@@ -154,7 +154,7 @@ public class ContaService {
      */
     @Transactional
     public ContaEntity creditarSaldo(Long contaId, BigDecimal valor, Long usuarioId) {
-        ContaEntity conta = buscarContaValidada(contaId, usuarioId);
+        ContaEntity conta = obterContaComBloqueioExclusivo(contaId, usuarioId);
 
         conta.setSaldo(conta.getSaldo().add(valor));
         return contaRepository.save(conta);
@@ -185,6 +185,21 @@ public class ContaService {
 
     public ContaEntity buscarContaValidada(Long contaId, Long usuarioId) {
         ContaEntity conta = contaRepository.findById(contaId)
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Conta não encontrada"));
+
+        if (!conta.getUsuario().getId().equals(usuarioId)) {
+            throw new RecursoNaoEncontradoException("Conta não pertence ao usuário");
+        }
+
+        return conta;
+    }
+
+    /**
+     * Versão do buscarContaValidada que aplica Pessimistic Lock (SELECT FOR UPDATE).
+     * Deve ser usado apenas em métodos @Transactional que realizam débitos ou créditos.
+     */
+    public ContaEntity obterContaComBloqueioExclusivo(Long contaId, Long usuarioId) {
+        ContaEntity conta = contaRepository.findByIdWithLock(contaId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Conta não encontrada"));
 
         if (!conta.getUsuario().getId().equals(usuarioId)) {

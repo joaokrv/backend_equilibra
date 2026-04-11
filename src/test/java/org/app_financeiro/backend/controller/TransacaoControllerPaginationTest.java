@@ -43,6 +43,8 @@ class TransacaoControllerPaginationTest extends org.app_financeiro.backend.Abstr
         transacaoRepository.deleteAll();
         usuario = new UsuarioEntity();
         usuario.setNome("u");
+        usuario.setEmail("u.pagination@email.com");
+        usuario.setSenha("SenhaSegura123");
         usuario = usuarioRepository.save(usuario);
 
         for (int i = 0; i < 3; i++) {

@@ -1,6 +1,7 @@
 package org.app_financeiro.backend.controller;
 
 import jakarta.validation.Valid;
+import org.app_financeiro.backend.dto.request.InvestimentoAtualizacaoRequestDTO;
 import org.app_financeiro.backend.dto.request.InvestimentoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.InvestimentoResponseDTO;
 import org.app_financeiro.backend.service.InvestimentoService;
@@ -140,6 +141,20 @@ public class InvestimentoController {
             @AuthenticationPrincipal UsuarioEntity usuario) {
 
         InvestimentoResponseDTO investimento = investimentoService.atualizarMeta(id, novaMeta, usuario.getId());
+        return ResponseEntity.ok(investimento);
+    }
+
+    /**
+     * Atualiza nome da meta, valor da meta e tipo de investimento.
+     */
+    @PutMapping("/{id}")
+    @Operation(summary = "Atualizar investimento", description = "Edita nome, meta e tipo do investimento, incluindo tipo personalizado.")
+    public ResponseEntity<InvestimentoResponseDTO> atualizarInvestimento(
+            @PathVariable Long id,
+            @Valid @RequestBody InvestimentoAtualizacaoRequestDTO dto,
+            @AuthenticationPrincipal UsuarioEntity usuario) {
+
+        InvestimentoResponseDTO investimento = investimentoService.atualizarInvestimento(id, dto, usuario.getId());
         return ResponseEntity.ok(investimento);
     }
 

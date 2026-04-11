@@ -16,7 +16,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
@@ -49,9 +48,6 @@ class AccountIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private CodigoVerificacaoRepository codigoVerificacaoRepository;
-
-    @MockBean
-    private JavaMailSender mailSender;
 
     private String accessToken;
     private Long usuarioId;
@@ -122,11 +118,12 @@ class AccountIntegrationTest extends AbstractIntegrationTest {
         // Para criar um cartão, geralmente não precisa de conta dependendo da regra, 
         // mas vamos ver se o DTO exige algo.
         CartaoRegistroRequestDTO cartaoReq = new CartaoRegistroRequestDTO(
-                "NuBank Teste", 
-                new BigDecimal("5000.00"), 
-                5, 
+                "NuBank Teste",
+                new BigDecimal("5000.00"),
+                5,
                 10,
-                BandeiraCartao.NUBANK
+                BandeiraCartao.NUBANK,
+                null
         );
 
         // Criar Cartão

@@ -1,5 +1,7 @@
 package org.app_financeiro.backend.dto.response;
 
+import org.app_financeiro.backend.enums.TipoInvestimento;
+
 import java.math.BigDecimal;
 
 /**
@@ -8,7 +10,11 @@ import java.math.BigDecimal;
 public record InvestimentoResponseDTO(
     Long id,
     String descricao,
+    TipoInvestimento tipoInvestimento,
+    String tipoPersonalizado,
     BigDecimal valorInicial,
     BigDecimal valorAtual,
-    BigDecimal metaAtual
+    BigDecimal metaAtual,
+    String nomeContaOrigem,
+    String nomeContaDestino
 ) {}

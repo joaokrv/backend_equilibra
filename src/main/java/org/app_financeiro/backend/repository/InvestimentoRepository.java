@@ -1,9 +1,13 @@
 package org.app_financeiro.backend.repository;
 
 import org.app_financeiro.backend.entity.InvestimentoEntity;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.math.BigDecimal;
 import java.util.List;
 
 /**
@@ -16,11 +20,18 @@ import java.util.List;
 public interface InvestimentoRepository extends JpaRepository<InvestimentoEntity, Long> {
 
     /**
+     * Soma o valor total acumulado de todos os investimentos ativos de um usuário.
+     */
+    @Query("SELECT SUM(i.valorAtual) FROM InvestimentoEntity i WHERE i.usuario.id = :usuarioId")
+    BigDecimal somarTotalInvestidoPorUsuario(@Param("usuarioId") Long usuarioId);
+
+    /**
      * Retorna todos os investimentos (ativos) de um usuário.
      * Filtro ativo = true aplicado automaticamente via @SQLRestriction.
      *
      * @param usuarioId ID do usuário
      * @return Lista de investimentos ativos
      */
+    @EntityGraph(attributePaths = {"contaOrigem", "contaDestino"})
     List<InvestimentoEntity> findByUsuarioId(Long usuarioId);
 }

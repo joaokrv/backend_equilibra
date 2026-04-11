@@ -47,9 +47,8 @@ public class CategoriaService {
     @Transactional
     public CategoriaResponseDTO criarCategoria(CategoriaRegistroRequestDTO dto, Long usuarioId) {
         UsuarioEntity usuario =
-                usuarioService.buscarPorIdOuFalhar(usuarioId); // Validar que usuário existe
+                usuarioService.buscarPorIdOuFalhar(usuarioId);
 
-         // Validar duplicidade de nome para o mesmo tipo
         List<CategoriaEntity> categoriasExistentes =
                 categoriaRepository.findByUsuarioIdAndTipo(usuarioId, dto.tipo());
 
@@ -102,6 +101,36 @@ public class CategoriaService {
         return categorias.stream()
                 .map(categoriaMapper::toResponse)
                 .toList();
+    }
+
+    /**
+     * Atualiza o nome de uma categoria existente.
+     * Valida duplicidade de nome (case-insensitive) para o mesmo tipo antes de salvar.
+     *
+     * @param categoriaId ID da categoria a atualizar
+     * @param dto         Dados com o novo nome (tipo é ignorado, não se muda o tipo de uma categoria)
+     * @param usuarioId   ID do usuário autenticado
+     * @return CategoriaResponseDTO com os dados atualizados
+     */
+    @Transactional
+    public CategoriaResponseDTO atualizarCategoria(Long categoriaId, CategoriaRegistroRequestDTO dto, Long usuarioId) {
+        CategoriaEntity categoria = buscarPorIdOuFalhar(categoriaId, usuarioId);
+
+        List<CategoriaEntity> categoriasExistentes =
+                categoriaRepository.findByUsuarioIdAndTipo(usuarioId, categoria.getTipo());
+
+        boolean nomeDuplicado = categoriasExistentes.stream()
+                .filter(c -> !c.getId().equals(categoriaId))
+                .anyMatch(c -> c.getNome().equalsIgnoreCase(dto.nome()));
+
+        if (nomeDuplicado) {
+            throw new OperacaoNaoPermitidaException("Já existe uma categoria com este nome para o tipo " + categoria.getTipo());
+        }
+
+        categoria.setNome(dto.nome());
+        categoriaRepository.save(categoria);
+        log.info("Categoria {} renomeada para '{}' pelo usuário {}", categoriaId, dto.nome(), usuarioId);
+        return categoriaMapper.toResponse(categoria);
     }
 
     /**

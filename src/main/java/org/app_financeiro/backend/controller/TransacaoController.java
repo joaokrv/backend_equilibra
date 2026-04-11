@@ -1,7 +1,10 @@
 package org.app_financeiro.backend.controller;
 
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
 import org.app_financeiro.backend.dto.request.TransacaoRegistroRequestDTO;
+import org.springframework.validation.annotation.Validated;
 import org.app_financeiro.backend.dto.response.TransacaoResponseDTO;
 import org.app_financeiro.backend.service.TransacaoService;
 import org.springframework.http.HttpStatus;
@@ -37,6 +40,7 @@ import java.util.List;
  * - RECEITA com conta: credita o saldo da conta
  * - Ao atualizar/deletar, o Service reverter o impacto anterior antes de aplicar o novo
  */
+@Validated
 @RestController
 @RequestMapping("/api/transacoes")
 @Tag(name = "Transações", description = "Gerenciamento de receitas e despesas (contas e cartões)")
@@ -78,8 +82,8 @@ public class TransacaoController {
     @GetMapping(params = {"ano","mes"})
     @Operation(summary = "Listar transações mensais", description = "Retorna todas as transações de um mês e ano específicos para o usuário logado.")
     public ResponseEntity<List<TransacaoResponseDTO>> listarMensal(
-            @RequestParam int ano,
-            @RequestParam int mes,
+            @RequestParam @Min(2000) @Max(2100) int ano,
+            @RequestParam @Min(1) @Max(12) int mes,
             @AuthenticationPrincipal UsuarioEntity usuario) {
 
         List<TransacaoResponseDTO> transacoes = transacaoService.buscarPorMes(ano, mes, usuario.getId());

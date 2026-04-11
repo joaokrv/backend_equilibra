@@ -1,10 +1,16 @@
 package org.app_financeiro.backend.repository;
 
 import org.app_financeiro.backend.entity.CartaoEntity;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Lock;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import jakarta.persistence.LockModeType;
 import java.util.List;
+import java.util.Optional;
 
 /**
  * Repositório JPA para operações de persistência de CartaoEntity.
@@ -22,5 +28,18 @@ public interface CartaoRepository extends JpaRepository<CartaoEntity, Long> {
      * @param usuarioId ID do usuário
      * @return Lista de cartões ativos
      */
+    @EntityGraph(attributePaths = {"conta"})
     List<CartaoEntity> findByUsuarioId(Long usuarioId);
+
+    /**
+     * Busca um cartão específico com bloqueio pessimista.
+     * Garante que nenhuma outra thread possa ler ou modificar o limite
+     * do cartão até que a transação atual seja concluída.
+     *
+     * @param id ID do cartão
+     * @return Optional contendo o cartão com lock
+     */
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("SELECT c FROM CartaoEntity c WHERE c.id = :id")
+    Optional<CartaoEntity> findByIdWithLock(@Param("id") Long id);
 }

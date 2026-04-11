@@ -1,8 +1,11 @@
 package org.app_financeiro.backend.service;
 
+import org.app_financeiro.backend.dto.request.InvestimentoAtualizacaoRequestDTO;
 import org.app_financeiro.backend.dto.request.InvestimentoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.InvestimentoResponseDTO;
+import org.app_financeiro.backend.enums.TipoInvestimento;
 import org.app_financeiro.backend.mapper.InvestimentoMapper;
+import org.app_financeiro.backend.entity.ContaEntity;
 import org.app_financeiro.backend.entity.InvestimentoEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
@@ -31,7 +34,8 @@ import java.util.List;
  * Para movimentar dinheiro real, use depositar() ou resgatar().
  *
  * REGRAS:
- * 1. O valorInicial não pode ser maior que o valor da meta na criação.
+ * 1. Se a meta for informada, ela deve ser maior que zero.
+ * 2. Se a meta for informada, o valorInicial não pode ser maior que a meta.
  */
 @Service
 public class InvestimentoService {
@@ -53,29 +57,8 @@ public class InvestimentoService {
         this.investimentoMapper = investimentoMapper;
     }
 
-    // =============================================
-    // MÉTODOS PÚBLICOS — PARA VOCÊ IMPLEMENTAR
-    // =============================================
-
     /**
      * Cria um novo investimento/meta de poupança para o usuário.
-     *
-     * REGRAS:
-     * 1. Validar que o usuário existe (usuarioService.buscarPorIdOuFalhar)
-     * 2. Criar InvestimentoEntity:
-     *    - descricao   = dto.getDescricao()
-     *    - valorInicial = dto.getValorInicial()
-     *    - valorAtual   = dto.getValorInicial() (começa igual ao valorInicial)
-     *    - metaAtual    = dto.getMeta()
-     *    - usuario      = usuarioEntity
-     *    - ativo        = true
-     * 3. Salvar e retornar InvestimentoResponseDTO
-     *
-     * PERGUNTAS PARA REFLETIR:
-     * - A criação NÃO debita de nenhuma conta. Por quê?
-     *   Porque o valorInicial é o "ponto de partida" da meta, não uma movimentação real.
-     * - E se dto.getMeta() for menor que dto.getValorInicial()? Deveria bloquear?
-     *   Pense se faz sentido criar um investimento que já nasce "completo".
      *
      * @param dto       Dados do investimento (descrição, valorInicial, meta)
      * @param usuarioId ID do usuário autenticado
@@ -86,35 +69,40 @@ public class InvestimentoService {
     public InvestimentoResponseDTO criarInvestimento(InvestimentoRegistroRequestDTO dto, Long usuarioId) {
         UsuarioEntity usuario = usuarioService.buscarPorIdOuFalhar(usuarioId);
         
+        ContaEntity contaOrigem = contaService.buscarContaValidada(dto.contaId(), usuarioId);
+
+        if (dto.meta() != null && dto.valorInicial().compareTo(dto.meta()) > 0) {
+            throw new RegraDeNegocioException("O valor inicial não pode ser maior que a meta informada");
+        }
+
+        // Se o valor inicial é maior que zero, debitar da conta de origem
+        if (dto.valorInicial().compareTo(BigDecimal.ZERO) > 0) {
+            contaService.debitarSaldo(dto.contaId(), dto.valorInicial(), usuarioId);
+        }
+
         InvestimentoEntity investimento = new InvestimentoEntity();
         investimento.setDescricao(dto.descricao());
         investimento.setValorInicial(dto.valorInicial());
         investimento.setValorAtual(dto.valorInicial());
         investimento.setMetaAtual(dto.meta());
+        investimento.setTipoInvestimento(dto.tipoInvestimento());
+        investimento.setTipoPersonalizado(normalizarTipoPersonalizado(dto.tipoInvestimento(), dto.tipoPersonalizado()));
+        investimento.setContaOrigem(contaOrigem);
         investimento.setUsuario(usuario);
         investimento.setAtivo(true);
-        
+
+        if (dto.contaDestinoId() != null) {
+            ContaEntity contaDestino = contaService.buscarContaValidada(dto.contaDestinoId(), usuarioId);
+            investimento.setContaDestino(contaDestino);
+        }
+
         investimento = investimentoRepository.save(investimento);
-        log.info("Investimento {} '{}' criado para usuário {}. Valor inicial: R$ {}, Meta: R$ {}", investimento.getId(), dto.descricao(), usuarioId, dto.valorInicial(), dto.meta());
+        log.info("Investimento {} '{}' criado para usuário {}. Valor inicial: R$ {}, Meta: {}", investimento.getId(), dto.descricao(), usuarioId, dto.valorInicial(), dto.meta() != null ? "R$ " + dto.meta() : "não definida");
         return investimentoMapper.toResponse(investimento);
     }
 
     /**
      * Deposita um valor em um investimento existente, debitando de uma conta bancária.
-     *
-     * REGRAS:
-     * 1. Buscar investimento por ID e validar (buscarInvestimentoValidado)
-     * 2. Debitar o valor da conta de origem:
-     *    contaService.debitarSaldo(contaId, valor, usuarioId)
-     *    (já lança SaldoInsuficienteException se saldo insuficiente)
-     * 3. Incrementar valorAtual do investimento:
-     *    investimento.setValorAtual(investimento.getValorAtual().add(valor))
-     * 4. Salvar investimento e retornar InvestimentoResponseDTO
-     *
-     * PERGUNTAS PARA REFLETIR:
-     * - E se o depósito fizer o valorAtual ultrapassar a metaAtual?
-     *   O sistema deve permitir ou bloquear? (Sugestão: permitir — o usuário pode querer poupar mais)
-     * - Deve validar que o valor é positivo? O DTO já tem @DecimalMin, mas e aqui?
      *
      * @param investimentoId ID do investimento
      * @param valor          Valor a depositar (positivo)
@@ -139,22 +127,6 @@ public class InvestimentoService {
 
     /**
      * Resgata um valor de um investimento, creditando de volta em uma conta bancária.
-     *
-     * REGRAS:
-     * 1. Buscar investimento por ID e validar (buscarInvestimentoValidado)
-     * 2. Validar que o valorAtual >= valor a resgatar
-     *    Se não: lançar RegraDeNegocioException("Valor de resgate excede o saldo do investimento")
-     * 3. Decrementar valorAtual do investimento:
-     *    investimento.setValorAtual(investimento.getValorAtual().subtract(valor))
-     * 4. Creditar o valor na conta de destino:
-     *    contaService.creditarSaldo(contaId, valor, usuarioId)
-     * 5. Salvar investimento e retornar InvestimentoResponseDTO
-     *
-     * PERGUNTAS PARA REFLETIR:
-     * - A ordem importa: primeiro subtrai do investimento, depois credita na conta?
-     *   E se o creditarSaldo falhar? (Dica: o @Transactional garante rollback total)
-     * - E se o resgate zerar o valorAtual? O investimento deve ser desativado automaticamente?
-     *   (Sugestão: não — o usuário pode querer depositar novamente depois)
      *
      * @param investimentoId ID do investimento
      * @param valor          Valor a resgatar (positivo)
@@ -184,17 +156,6 @@ public class InvestimentoService {
     /**
      * Atualiza a meta (valor-alvo) de um investimento existente.
      *
-     * REGRAS:
-     * 1. Buscar investimento por ID e validar (buscarInvestimentoValidado)
-     * 2. Validar que a nova meta é positiva (> 0):
-     *    Se não: lançar RegraDeNegocioException("A meta deve ser maior que zero")
-     * 3. Atualizar investimento.setMetaAtual(novaMeta)
-     * 4. Salvar e retornar InvestimentoResponseDTO
-     *
-     * PERGUNTAS PARA REFLETIR:
-     * - E se a nova meta for menor que o valorAtual? O investimento já está "completo".
-     *   Deveria bloquear, alertar, ou simplesmente permitir?
-     *
      * @param investimentoId ID do investimento
      * @param novaMeta       Novo valor da meta (positivo)
      * @param usuarioId      ID do usuário autenticado
@@ -218,17 +179,38 @@ public class InvestimentoService {
     }
 
     /**
+     * Atualiza dados centrais da meta: nome, valor da meta e tipo de investimento.
+     */
+    @Transactional
+    public InvestimentoResponseDTO atualizarInvestimento(Long investimentoId,
+                                                         InvestimentoAtualizacaoRequestDTO dto,
+                                                         Long usuarioId) {
+        InvestimentoEntity investimento = buscarInvestimentoValidado(investimentoId, usuarioId);
+
+        if (dto.meta() != null && dto.meta().compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RegraDeNegocioException("A meta deve ser maior que zero");
+        }
+
+        if (dto.meta() != null && investimento.getValorAtual().compareTo(dto.meta()) > 0) {
+            throw new RegraDeNegocioException("A meta não pode ser menor que o valor já investido");
+        }
+
+        investimento.setDescricao(dto.descricao().trim());
+        investimento.setMetaAtual(dto.meta());
+        investimento.setTipoInvestimento(dto.tipoInvestimento());
+        investimento.setTipoPersonalizado(normalizarTipoPersonalizado(dto.tipoInvestimento(), dto.tipoPersonalizado()));
+
+        investimento = investimentoRepository.save(investimento);
+        return investimentoMapper.toResponse(investimento);
+    }
+
+    /**
      * Lista todos os investimentos ativos do usuário.
-     *
-     * REGRAS:
-     * 1. Usar investimentoRepository.findByUsuarioId(usuarioId)
-     * 2. Converter cada InvestimentoEntity para InvestimentoResponseDTO
-     *    com .stream().map(InvestimentoResponseDTO::new).toList()
-     * 3. Retornar a lista (pode ser vazia)
      *
      * @param usuarioId ID do usuário autenticado
      * @return Lista de InvestimentoResponseDTO (pode ser vazia)
      */
+    @Transactional(readOnly = true)
     public List<InvestimentoResponseDTO> buscarTodosDoUsuario(Long usuarioId) {
         return investimentoRepository.findByUsuarioId(usuarioId)
                 .stream()
@@ -238,20 +220,6 @@ public class InvestimentoService {
 
     /**
      * Desativa (soft delete) um investimento.
-     *
-     * REGRAS:
-     * 1. Buscar investimento por ID e validar (buscarInvestimentoValidado)
-     * 2. Validar que o valorAtual == 0 (não pode desativar com dinheiro dentro):
-     *    Se valorAtual > 0: lançar RegraDeNegocioException(
-     *      "Resgate o saldo restante (R$ X) antes de desativar o investimento")
-     * 3. Setar investimento.setAtivo(false)
-     * 4. Salvar
-     *
-     * PERGUNTAS PARA REFLETIR:
-     * - Por que não permitir desativar com saldo? Porque o dinheiro "desapareceria"
-     *   da visão do usuário — ficaria preso em um investimento invisível.
-     * - Alternativa: resgatar automaticamente para uma conta antes de desativar.
-     *   Mas isso exigiria que o usuário informe a conta de destino no request.
      *
      * @param investimentoId ID do investimento a desativar
      * @param usuarioId      ID do usuário autenticado
@@ -292,5 +260,17 @@ public class InvestimentoService {
         }
 
         return investimento;
+    }
+
+    private String normalizarTipoPersonalizado(TipoInvestimento tipoInvestimento, String tipoPersonalizado) {
+        if (tipoInvestimento != TipoInvestimento.OUTRO) {
+            return null;
+        }
+
+        if (tipoPersonalizado == null || tipoPersonalizado.isBlank()) {
+            throw new RegraDeNegocioException("Informe o tipo personalizado quando o tipo for OUTRO");
+        }
+
+        return tipoPersonalizado.trim();
     }
 }

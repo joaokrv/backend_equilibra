@@ -1,5 +1,6 @@
 package org.app_financeiro.backend.service;
 
+import org.app_financeiro.backend.dto.model.ResultadoMovimentacaoCartao;
 import org.app_financeiro.backend.dto.request.TransacaoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.TransacaoResponseDTO;
 import org.app_financeiro.backend.mapper.TransacaoMapper;
@@ -14,52 +15,21 @@ import org.app_financeiro.backend.enums.StatusTransacao;
 import org.app_financeiro.backend.enums.TipoTransacao;
 import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
+import org.app_financeiro.backend.exception.OperacaoNaoPermitidaException;
 import org.app_financeiro.backend.repository.TransacaoRepository;
-import org.app_financeiro.backend.service.MovimentacaoFinanceiraService;
-import org.app_financeiro.backend.service.ResultadoMovimentacaoCartao;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
 /**
  * Service responsável pelas transações financeiras (RECEITA e DESPESA).
- *
- * <p>Esta é a classe mais complexa do sistema. Cada transação impacta o saldo de
- * uma conta OU o limite de um cartão, condicionado ao status da transação.</p>
- *
- * <p><b>REGRAS DE IMPACTO FINANCEIRO:</b></p>
- *
- * <p><b>Transações em CONTA</b> (impacto apenas quando status = PAGO):</p>
- * <ul>
- *   <li>DESPESA + conta + PAGO → {@code contaService.debitarSaldo()}</li>
- *   <li>RECEITA + conta + PAGO → {@code contaService.creditarSaldo()}</li>
- *   <li>PENDENTE + conta → nenhum impacto (apenas registra)</li>
- * </ul>
- *
- * <p><b>Transações em CARTÃO</b> (status sempre forçado a PENDENTE):</p>
- * <ul>
- *   <li>DESPESA + cartão → {@code consumirLimite()} + {@code faturaService.adicionarTransacao()}</li>
- *   <li>RECEITA + cartão → Estorno/Cashback: {@code faturaService.registrarCredito()}
- *       (subtrai da fatura; se o valor exceder o valorTotal, clamp para R$ 0,00)</li>
- * </ul>
- *
- * <p>Transações em cartão são sempre PENDENTE (pois o pagamento real ocorre
- * quando a fatura é paga via {@link FaturaService#pagarFatura}).</p>
- *
- * <p><b>DEFINIÇÃO AUTOMÁTICA DE STATUS</b> (quando o usuário não informa):</p>
- * <ul>
- *   <li>Cartão: sempre PENDENTE (forçado, mesmo que o usuário informe outro)</li>
- *   <li>PIX, DINHEIRO, CARTAO_DEBITO, VALE_ALIMENTACAO, TRANSFERENCIA → PAGO</li>
- *   <li>BOLETO, CARTAO_CREDITO, ou método não informado → PENDENTE</li>
- * </ul>
- *
- * <p>Se o usuário informar o status explicitamente, o sistema respeita a escolha
- * (exceto para cartão, que é sempre forçado PENDENTE).</p>
+ * Gerencia o impacto no saldo de contas bancárias e limite de cartões de crédito.
  */
 @Service
 public class TransacaoService {
@@ -85,27 +55,22 @@ public class TransacaoService {
     }
 
     /**
-     * Cria uma nova transação financeira (RECEITA ou DESPESA).
+     * Cria uma nova transação financeira registrando os impactos nas contas ou cartões.
      *
-     * <p><b>Fluxo:</b></p>
-     * <ol>
-     *   <li>Validações fail-fast (contaId XOR cartaoId, categoria compatível com tipo)</li>
-     *   <li>Definir status automático via {@link #definirStatus}</li>
-     *   <li>Aplicar impacto financeiro (conta ou cartão)</li>
-     *   <li>Persistir a transação</li>
-     * </ol>
-     *
-     * @param dto       Dados da transação a criar
+     * @param dto dados da transação
      * @param usuarioId ID do usuário autenticado
-     * @return TransacaoResponseDTO com os dados da transação criada
-     * @throws RegraDeNegocioException       se contaId e cartaoId forem informados ao mesmo tempo ou nenhum
-     * @throws RecursoNaoEncontradoException  se conta, cartão ou categoria não existirem
-     * @throws SaldoInsuficienteException     se o saldo da conta for insuficiente (DESPESA + conta + PAGO)
+     * @return DTO com os dados da transação criada
+     * @throws RegraDeNegocioException caso as regras de vínculo de conta/cartão sejam violadas
+     * @throws OperacaoNaoPermitidaException caso detectada transação duplicada (idempotency)
      */
     @Transactional
     public TransacaoResponseDTO criarTransacao(TransacaoRegistroRequestDTO dto, Long usuarioId) {
-
         UsuarioEntity usuario = usuarioService.buscarPorIdOuFalhar(usuarioId);
+
+        if (transacaoRepository.existsByIdempotencyKey(dto.idempotencyKey())) {
+            log.warn("Tentativa de criação de transação duplicada detectada: idempotencyKey={}", dto.idempotencyKey());
+            throw new OperacaoNaoPermitidaException("Esta transação já foi processada anteriormente.");
+        }
 
         if (dto.contaId() != null && dto.cartaoId() != null) {
             throw new RegraDeNegocioException("Não é permitido informar contaId e cartaoId ao mesmo tempo");
@@ -115,15 +80,13 @@ public class TransacaoService {
             throw new RegraDeNegocioException("Necessário informar contaId ou cartaoId para criar a transação");
         }
 
-
         CategoriaEntity categoria = null;
         if (dto.categoriaId() != null) {
             categoria = categoriaService.buscarPorIdOuFalhar(dto.categoriaId(), usuarioId);
 
             if (categoria.getTipo() != dto.tipo()) {
-                throw new RegraDeNegocioException(
-                        "Categoria do tipo " + categoria.getTipo() +
-                        " não pode ser usada em transação do tipo " + dto.tipo());
+                throw new RegraDeNegocioException("Categoria do tipo " + categoria.getTipo() +
+                                                 " não pode ser usada em transação do tipo " + dto.tipo());
             }
         }
 
@@ -147,34 +110,27 @@ public class TransacaoService {
         transacao.setNumeroParcela(dto.numeroParcela());
         transacao.setTotalParcelas(dto.totalParcelas());
         transacao.setAtivo(true);
+        transacao.setIdempotencyKey(dto.idempotencyKey());
 
         transacaoRepository.save(transacao);
-        log.info("Transação {} criada: {} R$ {} status={} usuário={}", transacao.getId(), dto.tipo(), dto.valor(), status, usuarioId);
+        log.info("Transação {} criada para usuário {}", transacao.getId(), usuarioId);
 
         return transacaoMapper.toResponse(transacao);
     }
 
     /**
-     * Atualiza uma transação existente.
-     *
-     * <p><b>Fluxo em 4 fases:</b></p>
-     * <ol>
-     *   <li>Reverter impacto financeiro da transação antiga</li>
-     *   <li>Validar os novos dados (contaId XOR cartaoId, categoria compatível)</li>
-     *   <li>Aplicar impacto financeiro dos novos dados</li>
-     *   <li>Atualizar campos da entidade e salvar</li>
-     * </ol>
+     * Atualiza os dados de uma transação existente, revertendo efeitos financeiros antigos.
      *
      * @param transacaoId ID da transação a atualizar
-     * @param dto         Novos dados da transação
-     * @param usuarioId   ID do usuário autenticado
-     * @return TransacaoResponseDTO com os dados atualizados
-     * @throws RecursoNaoEncontradoException se a transação não existir ou não pertencer ao usuário
-     * @throws RegraDeNegocioException       se os dados forem inválidos
+     * @param dto novos dados da transação
+     * @param usuarioId ID do usuário autenticado
+     * @return DTO com os dados atualizados
      */
     @Transactional
     public TransacaoResponseDTO atualizarTransacao(Long transacaoId, TransacaoRegistroRequestDTO dto, Long usuarioId) {
-
+        if (transacaoId == null || usuarioId == null) {
+            throw new RegraDeNegocioException("ID de transação ou usuário não pode ser nulo");
+        }
         TransacaoEntity transacao = transacaoRepository.findById(transacaoId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Transação não encontrada"));
 
@@ -222,18 +178,18 @@ public class TransacaoService {
     }
 
     /**
-     * Desativa (soft delete) uma transação e reverte seu impacto financeiro.
-     * Se era DESPESA+conta+PAGO, credita o valor de volta. Se era via cartão, remove da fatura.
+     * Remove uma transação (Soft Delete) e reverte seu impacto financeiro nas contas/cartões.
      *
-     * @param transacaoId ID da transação a deletar
-     * @param usuarioId   ID do usuário autenticado
-     * @throws RecursoNaoEncontradoException se a transação não existir, não pertencer ao usuário ou já estiver inativa
+     * @param transacaoId ID da transação
+     * @param usuarioId ID do usuário autenticado
      */
     @Transactional
     public void deletarTransacao(Long transacaoId, Long usuarioId) {
-        
+        if (transacaoId == null || usuarioId == null) {
+            throw new RegraDeNegocioException("ID de transação ou usuário não pode ser nulo");
+        }
         TransacaoEntity transacao = transacaoRepository.findById(transacaoId)
-            .orElseThrow(() -> new RecursoNaoEncontradoException("Transação não encontrada"));
+                .orElseThrow(() -> new RecursoNaoEncontradoException("Transação não encontrada"));
 
         if (!transacao.getUsuario().getId().equals(usuarioId)) {
             throw new RecursoNaoEncontradoException("Transação não pertence ao usuário");
@@ -247,13 +203,12 @@ public class TransacaoService {
     }
 
     /**
-     * Lista transações ativas do usuário filtradas por mês/ano.
-     * Calcula o intervalo de datas [primeiro dia, último dia] do mês informado.
+     * Busca transações ativas por período de mês e ano.
      *
-     * @param ano       Ano de referência (ex: 2026)
-     * @param mes       Mês de referência (1-12)
-     * @param usuarioId ID do usuário autenticado
-     * @return Lista de TransacaoResponseDTO (pode ser vazia)
+     * @param ano ano de referência
+     * @param mes mês de referência
+     * @param usuarioId ID do usuário
+     * @return lista de transações localizadas
      */
     public List<TransacaoResponseDTO> buscarPorMes(int ano, int mes, Long usuarioId) {
         LocalDate dataInicio = LocalDate.of(ano, mes, 1);
@@ -269,24 +224,17 @@ public class TransacaoService {
 
     /**
      * Lista transações paginadas de um usuário.
+     *
      * @param usuarioId ID do usuário
-     * @param pageable parâmetros de página e ordenação
-     * @return página de DTOs de transação
+     * @param pageable parâmetros de paginação
+     * @return página de transações processada
      */
     @Transactional(readOnly = true)
-    public org.springframework.data.domain.Page<TransacaoResponseDTO> listarPorUsuario(Long usuarioId,
-                                                                                         org.springframework.data.domain.Pageable pageable) {
+    public Page<TransacaoResponseDTO> listarPorUsuario(Long usuarioId, Pageable pageable) {
         return transacaoRepository.findByUsuarioId(usuarioId, pageable)
                 .map(transacaoMapper::toResponse);
     }
 
-    /**
-     * Valida a consistência dos campos de parcelamento.
-     * Se ambos forem informados, o número da parcela não pode ser maior que o total.
-     *
-     * @param dto Dados da transação com campos de parcelamento opcionais
-     * @throws RegraDeNegocioException se numeroParcela > totalParcelas ou totalParcelas < 1
-     */
     private void validarParcelas(TransacaoRegistroRequestDTO dto) {
         if (dto.numeroParcela() != null && dto.totalParcelas() != null) {
             if (dto.numeroParcela() > dto.totalParcelas()) {

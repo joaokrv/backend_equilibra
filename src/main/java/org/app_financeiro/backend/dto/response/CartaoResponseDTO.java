@@ -13,5 +13,7 @@ public record CartaoResponseDTO(
     BigDecimal limiteDisponivel,
     Integer diaFechamento,
     Integer diaVencimento,
-    BandeiraCartao bandeira
+    BandeiraCartao bandeira,
+    Long contaId,
+    String nomeConta
 ) {}

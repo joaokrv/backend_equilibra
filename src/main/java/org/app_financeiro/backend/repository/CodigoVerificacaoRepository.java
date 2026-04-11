@@ -12,10 +12,10 @@ public interface CodigoVerificacaoRepository extends JpaRepository<CodigoVerific
     /**
      * Busca o código de verificação mais recente para um e-mail, que ainda não foi utilizado.
      */
-    Optional<CodigoVerificacaoEntity> findTopByEmailAndUtilizadoFalseOrderByDataCriacaoDesc(String email);
+    Optional<CodigoVerificacaoEntity> findTopByEmailAndIsUtilizadoFalseOrderByDataCriacaoDesc(String email);
 
     /**
      * Busca por e-mail e código específico, que ainda não foi utilizado.
      */
-    Optional<CodigoVerificacaoEntity> findByEmailAndCodigoAndUtilizadoFalse(String email, String codigo);
+    Optional<CodigoVerificacaoEntity> findByEmailAndCodigoAndIsUtilizadoFalse(String email, String codigo);
 }

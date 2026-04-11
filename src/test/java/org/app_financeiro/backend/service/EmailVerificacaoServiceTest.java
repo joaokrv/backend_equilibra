@@ -49,10 +49,9 @@ class EmailVerificacaoServiceTest {
         when(mailSender.createMimeMessage()).thenReturn(mock(MimeMessage.class));
 
         // Act
-        String codigo = emailVerificacaoService.gerarCodigo(email);
-
+        emailVerificacaoService.gerarCodigo(email);
+ 
         // Assert
-        assertThat(codigo).hasSize(6);
         verify(codigoVerificacaoRepository).save(any(CodigoVerificacaoEntity.class));
         verify(mailSender).send(any(MimeMessage.class));
     }
@@ -74,7 +73,7 @@ class EmailVerificacaoServiceTest {
         usuario.setEmail(email);
         usuario.setEmailVerificado(false);
 
-        when(codigoVerificacaoRepository.findByEmailAndCodigoAndUtilizadoFalse(email, codigo))
+        when(codigoVerificacaoRepository.findByEmailAndCodigoAndIsUtilizadoFalse(email, codigo))
                 .thenReturn(Optional.of(entity));
         when(usuarioRepository.findByEmail(email)).thenReturn(Optional.of(usuario));
 
@@ -99,7 +98,7 @@ class EmailVerificacaoServiceTest {
         entity.setDataExpiracao(LocalDateTime.now().minusMinutes(1)); // Expirado
         entity.setUtilizado(false);
 
-        when(codigoVerificacaoRepository.findByEmailAndCodigoAndUtilizadoFalse(email, codigo))
+        when(codigoVerificacaoRepository.findByEmailAndCodigoAndIsUtilizadoFalse(email, codigo))
                 .thenReturn(Optional.of(entity));
 
         // Act & Assert
@@ -112,7 +111,7 @@ class EmailVerificacaoServiceTest {
     void deveLancarExceptionSeCodigoInexistente() {
         // Arrange
         VerificarEmailRequestDTO dto = new VerificarEmailRequestDTO("test@email.com", "000000");
-        when(codigoVerificacaoRepository.findByEmailAndCodigoAndUtilizadoFalse(any(), any()))
+        when(codigoVerificacaoRepository.findByEmailAndCodigoAndIsUtilizadoFalse(any(), any()))
                 .thenReturn(Optional.empty());
 
         // Act & Assert

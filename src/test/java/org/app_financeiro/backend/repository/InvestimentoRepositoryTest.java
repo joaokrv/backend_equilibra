@@ -3,6 +3,7 @@ package org.app_financeiro.backend.repository;
 import org.app_financeiro.backend.BaseRepositoryTest;
 import org.app_financeiro.backend.entity.InvestimentoEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
+import org.app_financeiro.backend.enums.TipoInvestimento;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,6 +41,7 @@ class InvestimentoRepositoryTest extends BaseRepositoryTest {
         novoInvestimento.setValorInicial(new BigDecimal("1000.00"));
         novoInvestimento.setValorAtual(new BigDecimal("1000.00"));
         novoInvestimento.setMetaAtual(new BigDecimal("10000.00"));
+        novoInvestimento.setTipoInvestimento(TipoInvestimento.OUTRO);
         novoInvestimento.setUsuario(usuarioSalvo);
 
         // Act

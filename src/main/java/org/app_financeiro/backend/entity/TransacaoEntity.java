@@ -103,6 +103,13 @@ public class TransacaoEntity {
     @UpdateTimestamp
     private LocalDateTime dataAtualizacao;
 
-    @Column(nullable = false)
-    private boolean ativo = true;
+    @Column(nullable = false, unique = true)
+    private String idempotencyKey;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "recorrente_id")
+    private TransacaoRecorrenteEntity recorrente;
+
+    @Column(name = "ativo", nullable = false)
+    private boolean isAtivo = true;
 }

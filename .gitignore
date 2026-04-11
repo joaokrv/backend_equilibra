@@ -36,11 +36,15 @@ build/
 ### Seguranca - Credenciais e Secrets ###
 .env
 .env.*
+.env.local
+.env.*.local
 !.env.example
 application-*.properties
 application-*.yml
 application-*.yaml
 !application.properties
+credentials/
+secrets/
 
 ### Artefatos ###
 *.jar

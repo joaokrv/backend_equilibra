@@ -27,7 +27,8 @@ import java.util.List;
  *
  *   RuntimeException
  *   ├── RecursoNaoEncontradoException .............. 404 NOT_FOUND
- *   └── RegraDeNegocioException .................... 400 BAD_REQUEST
+ *   └── RegraDeNegocioException .................... 422 UNPROCESSABLE_ENTITY
+ *       │   (requisição válida, mas viola regra de negócio do domínio)
  *       ├── EmailJaCadastradoException ............. 409 CONFLICT
  *       ├── CredenciaisInvalidasException .......... 401 UNAUTHORIZED
  *       ├── EmailNaoVerificadoException ............ 403 FORBIDDEN

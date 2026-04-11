@@ -1,5 +1,6 @@
 package org.app_financeiro.backend.service;
 
+import org.app_financeiro.backend.dto.model.ResultadoMovimentacaoCartao;
 import org.app_financeiro.backend.dto.request.TransacaoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.TransacaoResponseDTO;
 import org.app_financeiro.backend.entity.*;
@@ -77,7 +78,7 @@ class TransacaoServiceTest {
         // Ordem: descricao, valor, data, tipo, status, metodoPagamento, contaId, cartaoId, categoriaId, numParc, totParc
         TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                 "Mercado", new BigDecimal("100.00"), LocalDate.now(), TipoTransacao.DESPESA,
-                StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null);
+                StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null, "key-1");
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(categoriaService.buscarPorIdOuFalhar(5L, 1L)).thenReturn(categoriaDespesa);
@@ -88,7 +89,7 @@ class TransacaoServiceTest {
         TransacaoResponseDTO responseDTO = new TransacaoResponseDTO(
                 100L, "Mercado", new BigDecimal("100.00"), LocalDate.now(),
                 TipoTransacao.DESPESA, StatusTransacao.PAGO, MetodoPagamento.PIX,
-                "Alimentação", "Conta Principal", null);
+                "Alimentação", null, "Conta Principal", null, null, null, false);
         when(transacaoMapper.toResponse(any())).thenReturn(responseDTO);
 
         // Act
@@ -105,7 +106,7 @@ class TransacaoServiceTest {
         // Arrange
         TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                 "Netflix", new BigDecimal("55.00"), LocalDate.now(), TipoTransacao.DESPESA,
-                StatusTransacao.PAGO, MetodoPagamento.CARTAO_CREDITO, null, 20L, 5L, null, null);
+                StatusTransacao.PAGO, MetodoPagamento.CARTAO_CREDITO, null, 20L, 5L, null, null, "key-2");
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(categoriaService.buscarPorIdOuFalhar(5L, 1L)).thenReturn(categoriaDespesa);
@@ -133,7 +134,7 @@ class TransacaoServiceTest {
         // Arrange
         TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                 "Erro", BigDecimal.TEN, LocalDate.now(), TipoTransacao.DESPESA,
-                null, null, 10L, 20L, 5L, null, null);
+                null, null, 10L, 20L, 5L, null, null, "key-3");
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
 
@@ -149,7 +150,7 @@ class TransacaoServiceTest {
         categoriaDespesa.setTipo(TipoTransacao.RECEITA); // Incompatível com o tipo da transação (DESPESA)
         TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                 "Erro", BigDecimal.TEN, LocalDate.now(), TipoTransacao.DESPESA,
-                null, null, 10L, null, 5L, null, null);
+                null, null, 10L, null, 5L, null, null, "key-4");
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(categoriaService.buscarPorIdOuFalhar(5L, 1L)).thenReturn(categoriaDespesa);
@@ -188,8 +189,8 @@ class TransacaoServiceTest {
         org.springframework.data.domain.Page<TransacaoEntity> pageEnt =
                 new org.springframework.data.domain.PageImpl<>(List.of(t1, t2), pageable, 2);
         when(transacaoRepository.findByUsuarioId(1L, pageable)).thenReturn(pageEnt);
-        when(transacaoMapper.toResponse(t1)).thenReturn(new TransacaoResponseDTO(1L, "Desc1", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null));
-        when(transacaoMapper.toResponse(t2)).thenReturn(new TransacaoResponseDTO(2L, "Desc2", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null));
+        when(transacaoMapper.toResponse(t1)).thenReturn(new TransacaoResponseDTO(1L, "Desc1", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null, null, null, null, false));
+        when(transacaoMapper.toResponse(t2)).thenReturn(new TransacaoResponseDTO(2L, "Desc2", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null, null, null, null, false));
 
         // Act
         var result = transacaoService.listarPorUsuario(1L, pageable);
@@ -210,7 +211,7 @@ class TransacaoServiceTest {
 
         TransacaoRegistroRequestDTO requestNovo = new TransacaoRegistroRequestDTO(
                 "Novo", new BigDecimal("100.00"), LocalDate.now(), TipoTransacao.DESPESA,
-                StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null);
+                StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null, "key-5");
 
         when(transacaoRepository.findById(100L)).thenReturn(Optional.of(transacaoAntiga));
         when(categoriaService.buscarPorIdOuFalhar(5L, 1L)).thenReturn(categoriaDespesa);
@@ -240,5 +241,20 @@ class TransacaoServiceTest {
         assertThatThrownBy(() -> transacaoService.deletarTransacao(100L, 1L))
                 .isInstanceOf(RecursoNaoEncontradoException.class)
                 .hasMessageContaining("não pertence ao usuário");
+    }
+    @Test
+    void deveLancarExcecaoSeIdempotencyKeyJaExistir() {
+        // Arrange
+        TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
+                "Mercado", new BigDecimal("100.00"), LocalDate.now(), TipoTransacao.DESPESA,
+                StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null, "unique-key");
+
+        when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
+        when(transacaoRepository.existsByIdempotencyKey("unique-key")).thenReturn(true);
+
+        // Act & Assert
+        assertThatThrownBy(() -> transacaoService.criarTransacao(request, 1L))
+                .isInstanceOf(org.app_financeiro.backend.exception.OperacaoNaoPermitidaException.class)
+                .hasMessageContaining("Esta transação já foi processada anteriormente.");
     }
 }

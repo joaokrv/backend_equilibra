@@ -5,6 +5,7 @@ import lombok.Getter;
 import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.EqualsAndHashCode;
+import org.app_financeiro.backend.enums.TipoInvestimento;
 import java.math.BigDecimal;
 import org.hibernate.annotations.CreationTimestamp;
 import org.hibernate.annotations.SQLRestriction;
@@ -45,8 +46,23 @@ public class InvestimentoEntity {
     @Column(nullable = false, precision = 19, scale = 2)
     private BigDecimal valorAtual;
 
-    @Column(nullable = false, precision = 19, scale = 2)
+    @Column(precision = 19, scale = 2)
     private BigDecimal metaAtual;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "tipo_investimento", nullable = false, length = 40)
+    private TipoInvestimento tipoInvestimento;
+
+    @Column(name = "tipo_personalizado", length = 60)
+    private String tipoPersonalizado;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "conta_origem_id")
+    private ContaEntity contaOrigem;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "conta_destino_id")
+    private ContaEntity contaDestino;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", nullable = false)

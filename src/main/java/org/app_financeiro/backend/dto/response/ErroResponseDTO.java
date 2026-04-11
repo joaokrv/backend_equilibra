@@ -15,11 +15,8 @@ public record ErroResponseDTO(
     String code,
     String erro,
     String mensagem,
-    List<String> detalhes // Para erros de validação (múltiplos campos)
+    List<String> detalhes
 ) {
-    /**
-     * Construtor para erros simples (uma mensagem).
-     */
     public ErroResponseDTO(int status, String code, String erro, String mensagem) {
         this(LocalDateTime.now(), status, code, erro, mensagem, null);
     }

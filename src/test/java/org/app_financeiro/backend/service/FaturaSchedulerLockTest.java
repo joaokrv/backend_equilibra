@@ -44,6 +44,8 @@ class FaturaSchedulerLockTest extends org.app_financeiro.backend.AbstractIntegra
         // create a user, card and two faturas past due date
         UsuarioEntity u = new UsuarioEntity();
         u.setNome("u");
+        u.setEmail("u.scheduler@email.com");
+        u.setSenha("SenhaSegura123");
         u = usuarioRepository.save(u);
 
         CartaoEntity c = new CartaoEntity();

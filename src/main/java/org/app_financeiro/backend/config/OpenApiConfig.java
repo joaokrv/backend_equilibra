@@ -7,6 +7,8 @@ import io.swagger.v3.oas.annotations.info.Info;
 import io.swagger.v3.oas.annotations.security.SecurityRequirement;
 import io.swagger.v3.oas.annotations.security.SecurityScheme;
 import org.springframework.context.annotation.Configuration;
+import org.springdoc.core.utils.SpringDocUtils;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 
 /**
  * Configuração global do OpenAPI (Swagger).
@@ -33,4 +35,7 @@ import org.springframework.context.annotation.Configuration;
         description = "Entre com o token JWT (accessToken) recebido no login para autenticar as requisições."
 )
 public class OpenApiConfig {
+    static {
+        SpringDocUtils.getConfig().addAnnotationsToIgnore(AuthenticationPrincipal.class);
+    }
 }

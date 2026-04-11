@@ -31,5 +31,8 @@ public record CartaoRegistroRequestDTO(
     Integer diaVencimento,
 
     @NotNull(message = "A bandeira do cartão é obrigatória")
-    BandeiraCartao bandeira
+    BandeiraCartao bandeira,
+
+    /** Conta bancária vinculada para sugestão automática no pagamento da fatura. Opcional. */
+    Long contaId
 ) {}

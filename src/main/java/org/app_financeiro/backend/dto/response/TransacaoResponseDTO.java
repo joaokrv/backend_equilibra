@@ -9,7 +9,7 @@ import java.time.LocalDate;
 
 /**
  * DTO de resposta com os dados de uma transação financeira.
- * Retorna nomes descritivos no lugar dos IDs de categoria, conta e cartão.
+ * Retorna nomes descritivos e IDs de categoria, conta e cartão para suporte a edição.
  */
 public record TransacaoResponseDTO(
     Long id,
@@ -20,6 +20,10 @@ public record TransacaoResponseDTO(
     StatusTransacao status,
     MetodoPagamento metodoPagamento,
     String nomeCategoria,
+    Long categoriaId,
     String nomeConta,
-    String nomeCartao
+    Long contaId,
+    String nomeCartao,
+    Long cartaoId,
+    boolean isRecorrente
 ) {}

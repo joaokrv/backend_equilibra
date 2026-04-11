@@ -1,6 +1,7 @@
 package org.app_financeiro.backend.entity;
 
 import jakarta.persistence.*;
+import org.app_financeiro.backend.enums.MoedaEnum;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.NoArgsConstructor;
@@ -48,8 +49,8 @@ public class UsuarioEntity implements UserDetails {
     @Column(nullable = false)
     private String senha;
 
-    @Column(nullable = false)
-    private boolean emailVerificado = false;
+    @Column(name = "email_verificado", nullable = false)
+    private boolean isEmailVerificado = false;
 
     @CreationTimestamp
     @Column(updatable = false)
@@ -58,8 +59,25 @@ public class UsuarioEntity implements UserDetails {
     @UpdateTimestamp
     private LocalDateTime dataAtualizacao;
 
-    @Column(nullable = false)
-    private boolean ativo = true;
+    @Column(name = "ativo", nullable = false)
+    private boolean isAtivo = true;
+
+    @Column(name = "celular", unique = true, length = 20)
+    private String celular;
+
+    @Column(name = "foto")
+    private byte[] foto;
+
+    /**
+     * Preferência de moeda do usuário (Real, Dólar, etc).
+     * Valor padrão definido como BRL (Real).
+     */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "moeda", nullable = false)
+    private MoedaEnum moeda = MoedaEnum.BRL;
+
+    @Column(name = "chave_sessao")
+    private String chaveSessao;
 
     // Métodos da interface UserDetails
     
@@ -95,7 +113,8 @@ public class UsuarioEntity implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        // Exige email verificado e conta ativa para logar
-        return emailVerificado && ativo;
+        // Apenas o soft delete impede o login.
+        // O campo isEmailVerificado é gerenciado pelo frontend (VerifiedRoute).
+        return isAtivo;
     }
 }

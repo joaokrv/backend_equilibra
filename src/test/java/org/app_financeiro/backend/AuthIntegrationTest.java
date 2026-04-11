@@ -10,15 +10,13 @@ import org.app_financeiro.backend.repository.UsuarioRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.mail.javamail.JavaMailSenderImpl;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+
+import java.util.Map;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -38,9 +36,6 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
     private CodigoVerificacaoRepository codigoVerificacaoRepository;
-
-    @MockBean
-    private JavaMailSender mailSender;
 
     @BeforeEach
     void cleanUp() {
@@ -110,5 +105,51 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(loginReq)))
                 .andExpect(status().isForbidden()); // 403 - Conta desabilitada (e-mail não verificado)
+    }
+
+    @Test
+    void novoLoginDeveInvalidarRefreshTokenAnterior() throws Exception {
+        String email = "sessao@email.com";
+        String senha = "SenhaSegura123";
+
+        UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Usuario Sessao", email, senha);
+        mockMvc.perform(post("/api/auth/registrar")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(registroReq)))
+                .andExpect(status().isCreated());
+
+        CodigoVerificacaoEntity codigoEntity = codigoVerificacaoRepository.findAll()
+                .stream()
+                .filter(c -> c.getEmail().equals(email))
+                .findFirst()
+                .orElseThrow();
+
+        VerificarEmailRequestDTO verificarReq = new VerificarEmailRequestDTO(email, codigoEntity.getCodigo());
+        mockMvc.perform(post("/api/auth/verificar-email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(verificarReq)))
+                .andExpect(status().isOk());
+
+        UsuarioLoginRequestDTO loginReq = new UsuarioLoginRequestDTO(email, senha);
+
+        MvcResult primeiroLogin = mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginReq)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String refreshTokenAntigo = objectMapper.readTree(primeiroLogin.getResponse().getContentAsString())
+                .get("refreshToken")
+                .asText();
+
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginReq)))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/auth/refresh")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("refreshToken", refreshTokenAntigo))))
+                .andExpect(status().isUnauthorized());
     }
 }
