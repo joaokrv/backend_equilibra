@@ -82,10 +82,10 @@ Controller  →  Service  →  Repository  →  Banco de Dados
 
 ```
 src/main/java/org/app_financeiro/backend/
-├── controller/          # Endpoints REST (7 controllers)
-├── service/             # Regras de negócio (10 services)
-├── repository/          # Interfaces Spring Data JPA (8 repositórios)
-├── entity/              # Entidades JPA (8 tabelas)
+├── controller/          # Endpoints REST (11 controllers)
+├── service/             # Regras de negocio (18 services)
+├── repository/          # Interfaces Spring Data JPA (14 repositorios)
+├── entity/              # Entidades JPA (14 entidades)
 ├── dto/
 │   ├── request/         # DTOs de entrada (10 classes)
 │   └── response/        # DTOs de saída (9 classes, incluindo AuthResponseDTO)
@@ -116,15 +116,18 @@ A API usa **JWT (JSON Web Tokens)** para autenticação stateless.
 
 - `/api/auth/**` — registro, login, verificação de e-mail
 - `/swagger-ui/**`, `/v3/api-docs/**` — documentação Swagger
-- `/actuator/**` — health check e métricas
+
+### Rotas de observabilidade
+
+- `/actuator/**` exige perfil com `ROLE_ADMIN` (conforme `SecurityConfig`)
 
 ### Rotas protegidas
 
 Todas as demais rotas exigem um `accessToken` válido no header `Authorization: Bearer <token>`. O usuário autenticado é injetado automaticamente via `@AuthenticationPrincipal UsuarioEntity`.
 
-### Configuração JWT
+### Configuracao JWT
 
-As credenciais são definidas via **variáveis de ambiente** (nunca hardcoded):
+As credenciais sao definidas via **variaveis de ambiente** (nunca hardcoded):
 
 ```bash
 # Gere uma chave secreta segura:
@@ -132,19 +135,14 @@ openssl rand -hex 32
 ```
 
 ```bash
-# Defina as variáveis de ambiente (ou use um arquivo .env):
+# Defina as variaveis de ambiente (ou use um arquivo .env local):
 export JWT_SECRET=<chave-gerada>
 export CORS_ALLOWED_ORIGINS=http://localhost:3000
 ```
 
-Um template `.env.example` está disponível na raiz do projeto. Copie para `.env` e preencha os valores:
+> Atencao: atualmente nao ha `.env.example` versionado no backend. Crie o `.env` manualmente com base nas variaveis documentadas neste README e em `application.properties`.
 
-```bash
-cp .env.example .env
-# Edite o .env com seus valores reais
-```
-
-> ⚠️ **Nunca commite o arquivo `.env`** — ele está no `.gitignore`.
+> ⚠️ **Nunca commite o arquivo `.env`** - ele esta no `.gitignore`.
 
 ---
 
@@ -324,32 +322,26 @@ Todos os services utilizam logging estruturado via SLF4J:
 
 | Módulo | Status | Detalhes |
 |---|---|---|
-| Entidades (8/8) | ✅ Completo | Todas modeladas, `@SQLRestriction`, precision/scale |
-| Repositórios (8/8) | ✅ Completo | Queries customizadas + `@EntityGraph` otimizado |
-| DTOs (19/19) | ✅ Completo | 10 request + 9 response (incluindo `AuthResponseDTO`) |
-| Exceções + Handler | ✅ Completo | 9 exceções + `GlobalExceptionHandler` com `log.error` |
-| MapStruct (7/7) | ✅ Completo | Mappers para todas as entities |
-| SecurityConfig + JWT | ✅ Completo | Access/Refresh tokens, CORS, rotas públicas/protegidas |
-| Controllers (7/7) | ✅ Completo | `@AuthenticationPrincipal`, endpoints completos |
-| `UsuarioService` | ✅ Completo | Registro, login, soft delete, reativação, Argon2 + Pepper |
-| `ContaService` | ✅ Completo | CRUD, débito/crédito, bloqueio de saldo negativo |
-| `CartaoService` | ✅ Completo | CRUD, limite dinâmico, query agregada |
-| `FaturaService` | ✅ Completo | Lazy creation, ghost closing, pagamento parcial |
-| `CategoriaService` | ✅ Completo | CRUD completo |
-| `TransacaoService` | ✅ Completo | CRUD com impacto financeiro bidirecional |
-| `InvestimentoService` | ✅ Completo | Criar, depositar, resgatar, meta, deletar |
-| `EmailVerificacaoService` | ✅ Completo | OTP 6 dígitos, verificação, reenvio |
-| `MovimentacaoFinanceiraService` | ✅ Completo | Orquestrador de impactos financeiros |
-| `FaturaSchedulerService` | ✅ Completo | `@Scheduled` diário para faturas atrasadas |
-| Logging | ✅ Completo | Todos os services com `log.info`/`log.warn`/`log.error` |
-| Swagger + Actuator | ✅ Completo | Springdoc OpenAPI + Health/Info endpoints |
-| Documentação JavaDoc | ✅ Completo | Padrão `/** */` em todas as classes |
-| Testes Automatizados | ✅ Completo | 33 arquivos de teste (unit + integração + repositório). Testcontainers com PostgreSQL 16 real. |
-| Banco de dados produção | ✅ Completo | Postgres 16 oficializado. Migrations V1, V2 e V3 criadas via Flyway. |
-| Controle de concorrência | ✅ Em evolução | `@Version` nas entidades; migration V4 adicionada; testes de optimistic lock implementados |
-| Scheduler único | ✅ Em evolução | ShedLock adicionado; migration V5; teste garante execução única |
-| Mensagens de erro / i18n | ✅ Em evolução | ErrorCode enum + MessageSource; handler refatorado; testes de localization |
-| Paginação | ✅ Em evolução | Endpoint e service adicionados; testes unitários e de integração implementados |
+| Entidades | ✅ Completo | 14 entidades JPA no codigo atual |
+| Repositorios | ✅ Completo | 14 repositorios Spring Data JPA |
+| Controllers | ✅ Completo | 11 controllers REST |
+| Services | ✅ Completo | 18 services de negocio |
+| Seguranca JWT | ✅ Completo | Access/Refresh token, CORS, rotas protegidas |
+| OpenAPI/Swagger | ✅ Completo | Configurado com `OpenApiConfig` e `SpringDocUtils` |
+| Actuator | ✅ Completo | Endpoints expostos com restricao de acesso em `SecurityConfig` |
+| Flyway migrations | ✅ Completo | Versoes V1 ate V22 presentes |
+| Testes automatizados | ✅ Completo | 37 classes `*Test` (8 de integracao) |
+| CI (GitHub Actions) | ✅ Parcial | Workflow Maven roda testes unitarios explicitos |
+| Template de ambiente | ⚠️ Pendente | `.env.example` ainda nao versionado |
+| Deploy producao | ⚠️ Pendente | Nao documentado como concluido |
+
+### Checklist objetivo (auditoria)
+
+- Build backend com Maven: configurado
+- Testes backend: presentes e pipeline ativa
+- Seguranca de secrets: `.env` ignorado no git
+- Documentacao tecnica em `docs/`: presente e versionada
+- Coerencia README x codigo: atualizada nesta revisao
 
 ---
 
