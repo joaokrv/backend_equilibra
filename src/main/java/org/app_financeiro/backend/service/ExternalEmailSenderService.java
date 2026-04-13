@@ -33,6 +33,9 @@ public class ExternalEmailSenderService {
     @Value("${mail.from:${spring.mail.username:}}")
     private String mailFrom;
 
+    @Value("${mail.smtp-enabled:true}")
+    private boolean smtpEnabled;
+
     @Value("${brevo.api-key:}")
     private String brevoApiKey;
 
@@ -77,6 +80,11 @@ public class ExternalEmailSenderService {
             throw new MailSendException("MAIL_FROM ou MAIL_USERNAME não configurado.");
         }
 
+        if (!smtpEnabled) {
+            sendViaBrevoApi(destinatario, assunto, htmlContent);
+            return;
+        }
+
         try {
             MimeMessage mimeMessage = mailSender.createMimeMessage();
 
@@ -116,6 +124,13 @@ public class ExternalEmailSenderService {
     }
 
     private void sendViaBrevoApi(String destinatario, String assunto, String htmlContent) {
+        if (brevoApiKey == null || brevoApiKey.isBlank()) {
+            throw new MailSendException("BREVO_API_KEY não configurada.");
+        }
+        if (brevoApiKey.startsWith("xsmtpsib-")) {
+            throw new MailSendException("BREVO_API_KEY inválida: foi informada uma chave SMTP (xsmtpsib-...). Use a API key da aba Settings > SMTP & API > API Keys & MCP (prefixo xkeysib-...).");
+        }
+
         Map<String, Object> payload = Map.of(
                 "sender", Map.of(
                         "name", brevoFromName,
@@ -139,6 +154,9 @@ public class ExternalEmailSenderService {
             log.info("E-mail enviado via API Brevo para {}", destinatario);
         } catch (RestClientResponseException ex) {
             String resposta = ex.getResponseBodyAsString();
+            if (ex.getStatusCode().value() == 401) {
+                throw new MailSendException("Falha ao enviar e-mail via API do Brevo. Status=401 (não autorizado). Verifique se BREVO_API_KEY é uma API key válida da aba API Keys & MCP (xkeysib-...) e não uma chave SMTP.", ex);
+            }
             throw new MailSendException("Falha ao enviar e-mail via API do Brevo. Status=" + ex.getStatusCode().value() + ", body=" + resposta, ex);
         }
     }
