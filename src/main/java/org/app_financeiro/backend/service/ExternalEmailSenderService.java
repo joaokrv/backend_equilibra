@@ -1,49 +1,33 @@
 package org.app_financeiro.backend.service;
 
+import jakarta.mail.Session;
+import jakarta.mail.internet.MimeMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.mail.MailSendException;
+import org.springframework.mail.javamail.JavaMailSender;
+import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
-import org.springframework.web.client.RestClientResponseException;
 
-import java.util.List;
-import java.util.Map;
+import java.nio.charset.StandardCharsets;
 
 /**
- * Envia e-mails transacionais via API HTTP do Resend.
- * Usa HTTPS (porta 443), evitando bloqueios comuns de SMTP em ambientes cloud.
+ * Envia e-mails transacionais via SMTP usando JavaMailSender.
+ * Funciona com provedores como Brevo, Gmail e similares.
  */
 @Service
 public class ExternalEmailSenderService {
 
     private static final Logger log = LoggerFactory.getLogger(ExternalEmailSenderService.class);
 
-    @Value("${resend.api-key:}")
-    private String resendApiKey;
+    private final JavaMailSender mailSender;
 
-    @Value("${resend.from:onboarding@resend.dev}")
-    private String resendFrom;
+    @Value("${mail.from:${spring.mail.username:}}")
+    private String mailFrom;
 
-    @Value("${resend.connect-timeout-ms:10000}")
-    private int connectTimeoutMs;
-
-    @Value("${resend.read-timeout-ms:10000}")
-    private int readTimeoutMs;
-
-    private RestClient buildClient() {
-        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
-        requestFactory.setConnectTimeout(connectTimeoutMs);
-        requestFactory.setReadTimeout(readTimeoutMs);
-
-        return RestClient.builder()
-                .baseUrl("https://api.resend.com")
-                .requestFactory(requestFactory)
-                .build();
+    public ExternalEmailSenderService(JavaMailSender mailSender) {
+        this.mailSender = mailSender;
     }
 
     public void sendHtml(String destinatario, String assunto, String htmlContent) {
@@ -56,35 +40,30 @@ public class ExternalEmailSenderService {
         if (htmlContent == null || htmlContent.isBlank()) {
             throw new MailSendException("Conteúdo HTML do e-mail não informado.");
         }
-        if (resendApiKey == null || resendApiKey.isBlank()) {
-            throw new MailSendException("RESEND_API_KEY não configurada.");
+        if (mailFrom == null || mailFrom.isBlank()) {
+            throw new MailSendException("MAIL_FROM ou MAIL_USERNAME não configurado.");
         }
-        if (resendFrom == null || resendFrom.isBlank()) {
-            throw new MailSendException("RESEND_FROM não configurado.");
-        }
-
-        Map<String, Object> payload = Map.of(
-                "from", resendFrom,
-                "to", List.of(destinatario),
-                "subject", assunto,
-                "html", htmlContent
-        );
 
         try {
-            buildClient().post()
-                    .uri("/emails")
-                    .header(HttpHeaders.AUTHORIZATION, "Bearer " + resendApiKey)
-                    .contentType(MediaType.APPLICATION_JSON)
-                    .body(payload)
-                    .retrieve()
-                    .toBodilessEntity();
+            MimeMessage mimeMessage = mailSender.createMimeMessage();
 
-            log.info("E-mail enviado via Resend para {}", destinatario);
-        } catch (RestClientResponseException ex) {
-            String resposta = ex.getResponseBodyAsString();
-            throw new MailSendException("Falha ao enviar e-mail via Resend API. Status=" + ex.getStatusCode().value() + ", body=" + resposta, ex);
+            if (mimeMessage == null) {
+                log.warn("JavaMailSender retornou MimeMessage nulo. Usando fallback local para composição da mensagem.");
+                mimeMessage = new MimeMessage((Session) null);
+            }
+
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, StandardCharsets.UTF_8.name());
+            helper.setFrom(mailFrom);
+            helper.setTo(destinatario);
+            helper.setSubject(assunto);
+            helper.setText(htmlContent, true);
+
+            mailSender.send(mimeMessage);
+            log.info("E-mail enviado via SMTP para {}", destinatario);
+        } catch (MailSendException ex) {
+            throw ex;
         } catch (Exception ex) {
-            throw new MailSendException("Falha ao enviar e-mail via Resend API.", ex);
+            throw new MailSendException("Falha ao enviar e-mail via SMTP.", ex);
         }
     }
 }
