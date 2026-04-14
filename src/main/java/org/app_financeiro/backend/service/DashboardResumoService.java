@@ -4,8 +4,10 @@ import org.app_financeiro.backend.dto.response.DashboardResumoPeriodoResponseDTO
 import org.app_financeiro.backend.enums.PeriodoDashboard;
 import org.app_financeiro.backend.enums.StatusTransacao;
 import org.app_financeiro.backend.enums.TipoTransacao;
+import org.app_financeiro.backend.entity.PatrimonioHistoricoEntity;
 import org.app_financeiro.backend.repository.ContaRepository;
 import org.app_financeiro.backend.repository.InvestimentoRepository;
+import org.app_financeiro.backend.repository.PatrimonioHistoricoRepository;
 import org.app_financeiro.backend.repository.TransacaoRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,6 +16,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.YearMonth;
+import java.util.function.Function;
 
 /**
  * Consolida o resumo financeiro da dashboard em janelas de periodo.
@@ -24,13 +27,16 @@ public class DashboardResumoService {
     private final TransacaoRepository transacaoRepository;
     private final ContaRepository contaRepository;
     private final InvestimentoRepository investimentoRepository;
+    private final PatrimonioHistoricoRepository patrimonioHistoricoRepository;
 
     public DashboardResumoService(TransacaoRepository transacaoRepository,
                                   ContaRepository contaRepository,
-                                  InvestimentoRepository investimentoRepository) {
+                                  InvestimentoRepository investimentoRepository,
+                                  PatrimonioHistoricoRepository patrimonioHistoricoRepository) {
         this.transacaoRepository = transacaoRepository;
         this.contaRepository = contaRepository;
         this.investimentoRepository = investimentoRepository;
+        this.patrimonioHistoricoRepository = patrimonioHistoricoRepository;
     }
 
     @Transactional(readOnly = true)
@@ -54,6 +60,11 @@ public class DashboardResumoService {
         BigDecimal saldoContasAtual = normalizar(contaRepository.somarSaldoPorUsuario(usuarioId));
         BigDecimal totalInvestidoAtual = normalizar(investimentoRepository.somarTotalInvestidoPorUsuario(usuarioId));
 
+        Double variacaoSaldo = calcularVariacaoSnapshot(
+                usuarioId, intervalo, PatrimonioHistoricoEntity::getSaldoContas);
+        Double variacaoInvestimentos = calcularVariacaoSnapshot(
+                usuarioId, intervalo, PatrimonioHistoricoEntity::getTotalInvestido);
+
         return new DashboardResumoPeriodoResponseDTO(
                 periodo.getCodigo(),
                 intervalo.inicioAtual(),
@@ -70,8 +81,8 @@ public class DashboardResumoService {
                 calcularVariacaoPercentual(totalDespesasAtual, totalDespesasAnterior),
                 saldoContasAtual,
                 totalInvestidoAtual,
-                null,
-                null
+                variacaoSaldo,
+                variacaoInvestimentos
         );
     }
 
@@ -104,6 +115,24 @@ public class DashboardResumoService {
                 .multiply(BigDecimal.valueOf(100));
 
         return variacao.setScale(2, RoundingMode.HALF_UP).doubleValue();
+    }
+
+    private Double calcularVariacaoSnapshot(Long usuarioId,
+                                             IntervaloReferencia intervalo,
+                                             Function<PatrimonioHistoricoEntity, BigDecimal> extrator) {
+        var snapshotAtual = patrimonioHistoricoRepository.findMaisRecentePorUsuarioNoIntervalo(
+                usuarioId, intervalo.inicioAtual(), intervalo.fimAtual());
+        var snapshotAnterior = patrimonioHistoricoRepository.findMaisRecentePorUsuarioNoIntervalo(
+                usuarioId, intervalo.inicioAnterior(), intervalo.fimAnterior());
+
+        if (snapshotAtual.isEmpty() || snapshotAnterior.isEmpty()) {
+            return null;
+        }
+
+        BigDecimal atual = extrator.apply(snapshotAtual.get());
+        BigDecimal anterior = extrator.apply(snapshotAnterior.get());
+
+        return calcularVariacaoPercentual(atual, anterior);
     }
 
     private BigDecimal normalizar(BigDecimal valor) {
