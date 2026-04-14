@@ -50,36 +50,11 @@ public class PatrimonioHistoricoService {
     @Transactional
     public void executarSnapshotsDiarios() {
         log.info("Iniciando motor de snapshots diários de patrimônio...");
-        LocalDate hoje = LocalDate.now();
-        
+
         // Buscamos todos os usuários ativos (filtrados automaticamente pelo @SQLRestriction)
         usuarioRepository.findAll().forEach(usuario -> {
             try {
-                BigDecimal saldoContas = contaRepository.somarSaldoPorUsuario(usuario.getId());
-                BigDecimal valorInvestido = investimentoRepository.somarTotalInvestidoPorUsuario(usuario.getId());
-
-                BigDecimal saldoContasNorm = saldoContas != null ? saldoContas : BigDecimal.ZERO;
-                BigDecimal valorInvestidoNorm = valorInvestido != null ? valorInvestido : BigDecimal.ZERO;
-                BigDecimal total = saldoContasNorm.add(valorInvestidoNorm);
-
-                PatrimonioHistoricoEntity snapshot = patrimonioHistoricoRepository
-                        .findByUsuarioIdAndDataReferencia(usuario.getId(), hoje)
-                        .orElse(new PatrimonioHistoricoEntity());
-
-                if (snapshot.getId() == null) {
-                    snapshot.setId(patrimonioHistoricoRepository.nextId());
-                }
-
-                snapshot.setUsuario(usuario);
-                snapshot.setDataReferencia(hoje);
-                snapshot.setValorTotal(total);
-                snapshot.setSaldoContas(saldoContasNorm);
-                snapshot.setTotalInvestido(valorInvestidoNorm);
-
-                patrimonioHistoricoRepository.save(snapshot);
-                log.debug("Snapshot gerado para usuario {}: total={}, contas={}, investido={}",
-                        usuario.getId(), total, saldoContasNorm, valorInvestidoNorm);
-
+                atualizarSnapshotUsuarioHoje(usuario.getId());
             } catch (Exception e) {
                 log.error("Falha ao gerar snapshot para usuario {}: {}", usuario.getId(), e.getMessage());
             }
@@ -92,10 +67,46 @@ public class PatrimonioHistoricoService {
      * Busca dados para o gráfico de evolução patrimonial.
      * @param dias quantidade de dias passados a recuperar (ex: 30)
      */
+    @Transactional
     public List<PatrimonioHistoricoEntity> buscarEvolucao(Long usuarioId, int dias) {
+        atualizarSnapshotUsuarioHoje(usuarioId);
         LocalDate fim = LocalDate.now();
         LocalDate inicio = fim.minusDays(dias);
         return patrimonioHistoricoRepository.findByUsuarioIdAndDataReferenciaBetweenOrderByDataReferenciaAsc(
                 usuarioId, inicio, fim);
+    }
+
+    @Transactional
+    public void atualizarSnapshotUsuarioHoje(Long usuarioId) {
+        var usuarioOpt = usuarioRepository.findById(usuarioId);
+        if (usuarioOpt.isEmpty()) {
+            return;
+        }
+
+        LocalDate hoje = LocalDate.now();
+        BigDecimal saldoContas = contaRepository.somarSaldoPorUsuario(usuarioId);
+        BigDecimal valorInvestido = investimentoRepository.somarTotalInvestidoPorUsuario(usuarioId);
+
+        BigDecimal saldoContasNorm = saldoContas != null ? saldoContas : BigDecimal.ZERO;
+        BigDecimal valorInvestidoNorm = valorInvestido != null ? valorInvestido : BigDecimal.ZERO;
+        BigDecimal total = saldoContasNorm.add(valorInvestidoNorm);
+
+        PatrimonioHistoricoEntity snapshot = patrimonioHistoricoRepository
+                .findByUsuarioIdAndDataReferencia(usuarioId, hoje)
+                .orElse(new PatrimonioHistoricoEntity());
+
+        if (snapshot.getId() == null) {
+            snapshot.setId(patrimonioHistoricoRepository.nextId());
+        }
+
+        snapshot.setUsuario(usuarioOpt.get());
+        snapshot.setDataReferencia(hoje);
+        snapshot.setValorTotal(total);
+        snapshot.setSaldoContas(saldoContasNorm);
+        snapshot.setTotalInvestido(valorInvestidoNorm);
+
+        patrimonioHistoricoRepository.save(snapshot);
+        log.debug("Snapshot atualizado para usuario {}: total={}, contas={}, investido={}",
+                usuarioId, total, saldoContasNorm, valorInvestidoNorm);
     }
 }

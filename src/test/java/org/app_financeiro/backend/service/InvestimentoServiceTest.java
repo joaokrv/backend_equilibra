@@ -1,6 +1,7 @@
 package org.app_financeiro.backend.service;
 
 import org.app_financeiro.backend.dto.request.InvestimentoRegistroRequestDTO;
+import org.app_financeiro.backend.dto.request.TransacaoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.InvestimentoResponseDTO;
 import org.app_financeiro.backend.enums.TipoInvestimento;
 import org.app_financeiro.backend.entity.ContaEntity;
@@ -24,6 +25,7 @@ import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -41,6 +43,12 @@ class InvestimentoServiceTest {
 
     @Mock
     private InvestimentoMapper investimentoMapper;
+
+    @Mock
+    private TransacaoService transacaoService;
+
+    @Mock
+    private PatrimonioHistoricoService patrimonioHistoricoService;
 
     @InjectMocks
     private InvestimentoService investimentoService;
@@ -81,7 +89,7 @@ class InvestimentoServiceTest {
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(contaService.buscarContaValidada(1L, 1L)).thenReturn(contaMock);
-        when(contaService.debitarSaldo(1L, new BigDecimal("500.00"), 1L)).thenReturn(null);
+        when(transacaoService.criarTransacao(any(TransacaoRegistroRequestDTO.class), eq(1L))).thenReturn(null);
         when(investimentoRepository.save(any())).thenAnswer(i -> {
             InvestimentoEntity inv = i.getArgument(0);
             inv.setId(10L);
@@ -97,7 +105,8 @@ class InvestimentoServiceTest {
         assertThat(result.descricao()).isEqualTo("Viagem Japão");
         assertThat(result.valorAtual()).isEqualTo(new BigDecimal("500.00"));
         verify(investimentoRepository).save(any());
-        verify(contaService).debitarSaldo(1L, new BigDecimal("500.00"), 1L);
+        verify(transacaoService).criarTransacao(any(TransacaoRegistroRequestDTO.class), eq(1L));
+        verify(patrimonioHistoricoService).atualizarSnapshotUsuarioHoje(1L);
     }
 
     @Test
@@ -105,7 +114,7 @@ class InvestimentoServiceTest {
         // Arrange
         BigDecimal deposito = new BigDecimal("200.00");
         when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao)); // Valor Atual: 1500
-        when(contaService.debitarSaldo(5L, deposito, 1L)).thenReturn(null); // Mock que a conta tem saldo
+        when(transacaoService.criarTransacao(any(TransacaoRegistroRequestDTO.class), eq(1L))).thenReturn(null);
 
         when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
@@ -120,8 +129,9 @@ class InvestimentoServiceTest {
         assertThat(result.valorAtual()).isEqualTo(new BigDecimal("1700.00"));
         assertThat(investimentoPadrao.getValorAtual()).isEqualByComparingTo(new BigDecimal("1700.00"));
 
-        verify(contaService).debitarSaldo(5L, deposito, 1L); // Verifica a transferência
+        verify(transacaoService).criarTransacao(any(TransacaoRegistroRequestDTO.class), eq(1L));
         verify(investimentoRepository).save(investimentoPadrao);
+        verify(patrimonioHistoricoService).atualizarSnapshotUsuarioHoje(1L);
     }
 
     @Test
@@ -129,7 +139,7 @@ class InvestimentoServiceTest {
         // Arrange
         BigDecimal deposito = new BigDecimal("20000.00");
         when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
-        when(contaService.debitarSaldo(5L, deposito, 1L))
+        when(transacaoService.criarTransacao(any(TransacaoRegistroRequestDTO.class), eq(1L)))
                 .thenThrow(new SaldoInsuficienteException("Saldo INSUFICIENTE"));
 
         // Act & Assert
@@ -146,7 +156,7 @@ class InvestimentoServiceTest {
         // Investimento tem 1500 de ValorAtual
         BigDecimal resgate = new BigDecimal("500.00");
         when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
-        when(contaService.creditarSaldo(5L, resgate, 1L)).thenReturn(null);
+        when(transacaoService.criarTransacao(any(TransacaoRegistroRequestDTO.class), eq(1L))).thenReturn(null);
 
         when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         // Esperamos 1500 - 500 = 1000
@@ -159,8 +169,9 @@ class InvestimentoServiceTest {
 
         // Assert
         assertThat(result.valorAtual()).isEqualTo(new BigDecimal("1000.00"));
-        verify(contaService).creditarSaldo(5L, resgate, 1L);
+        verify(transacaoService).criarTransacao(any(TransacaoRegistroRequestDTO.class), eq(1L));
         verify(investimentoRepository).save(investimentoPadrao);
+        verify(patrimonioHistoricoService).atualizarSnapshotUsuarioHoje(1L);
     }
 
     @Test
@@ -174,7 +185,7 @@ class InvestimentoServiceTest {
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("excede o saldo do investimento");
 
-        verify(contaService, never()).creditarSaldo(any(), any(), any());
+        verify(transacaoService, never()).criarTransacao(any(TransacaoRegistroRequestDTO.class), anyLong());
         verify(investimentoRepository, never()).save(any());
     }
 

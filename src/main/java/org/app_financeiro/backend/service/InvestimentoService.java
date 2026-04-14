@@ -2,8 +2,11 @@ package org.app_financeiro.backend.service;
 
 import org.app_financeiro.backend.dto.request.InvestimentoAtualizacaoRequestDTO;
 import org.app_financeiro.backend.dto.request.InvestimentoRegistroRequestDTO;
+import org.app_financeiro.backend.dto.request.TransacaoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.InvestimentoResponseDTO;
+import org.app_financeiro.backend.enums.MetodoPagamento;
 import org.app_financeiro.backend.enums.TipoInvestimento;
+import org.app_financeiro.backend.enums.TipoTransacao;
 import org.app_financeiro.backend.mapper.InvestimentoMapper;
 import org.app_financeiro.backend.entity.ContaEntity;
 import org.app_financeiro.backend.entity.InvestimentoEntity;
@@ -17,7 +20,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 /**
  * Serviço responsável pelo gerenciamento de investimentos e metas de poupança.
@@ -46,15 +51,21 @@ public class InvestimentoService {
     private final ContaService contaService;
     private final UsuarioService usuarioService;
     private final InvestimentoMapper investimentoMapper;
+    private final TransacaoService transacaoService;
+    private final PatrimonioHistoricoService patrimonioHistoricoService;
 
     public InvestimentoService(InvestimentoRepository investimentoRepository,
                                ContaService contaService,
                                UsuarioService usuarioService,
-                               InvestimentoMapper investimentoMapper) {
+                               InvestimentoMapper investimentoMapper,
+                               TransacaoService transacaoService,
+                               PatrimonioHistoricoService patrimonioHistoricoService) {
         this.investimentoRepository = investimentoRepository;
         this.contaService = contaService;
         this.usuarioService = usuarioService;
         this.investimentoMapper = investimentoMapper;
+        this.transacaoService = transacaoService;
+        this.patrimonioHistoricoService = patrimonioHistoricoService;
     }
 
     /**
@@ -77,7 +88,15 @@ public class InvestimentoService {
 
         // Se o valor inicial é maior que zero, debitar da conta de origem
         if (dto.valorInicial().compareTo(BigDecimal.ZERO) > 0) {
-            contaService.debitarSaldo(dto.contaId(), dto.valorInicial(), usuarioId);
+            registrarMovimentacaoInvestimento(
+                    null,
+                    dto.descricao(),
+                    dto.valorInicial(),
+                    dto.contaId(),
+                    usuarioId,
+                    TipoTransacao.DESPESA,
+                    "Aporte inicial em investimento"
+            );
         }
 
         InvestimentoEntity investimento = new InvestimentoEntity();
@@ -97,6 +116,7 @@ public class InvestimentoService {
         }
 
         investimento = investimentoRepository.save(investimento);
+        patrimonioHistoricoService.atualizarSnapshotUsuarioHoje(usuarioId);
         log.info("Investimento {} '{}' criado para usuário {}. Valor inicial: R$ {}, Meta: {}", investimento.getId(), dto.descricao(), usuarioId, dto.valorInicial(), dto.meta() != null ? "R$ " + dto.meta() : "não definida");
         return investimentoMapper.toResponse(investimento);
     }
@@ -115,11 +135,20 @@ public class InvestimentoService {
     @Transactional
     public InvestimentoResponseDTO adicionarDeposito(Long investimentoId, BigDecimal valor, Long contaId, Long usuarioId) {
         InvestimentoEntity investimento = buscarInvestimentoValidado(investimentoId, usuarioId);
-        
-        contaService.debitarSaldo(contaId, valor, usuarioId);
+
+        registrarMovimentacaoInvestimento(
+            investimento,
+            investimento.getDescricao(),
+            valor,
+            contaId,
+            usuarioId,
+            TipoTransacao.DESPESA,
+            "Aporte em investimento"
+        );
         
         investimento.setValorAtual(investimento.getValorAtual().add(valor));
         investimento = investimentoRepository.save(investimento);
+        patrimonioHistoricoService.atualizarSnapshotUsuarioHoje(usuarioId);
         log.info("Depósito de R$ {} no investimento {}. Novo valor: R$ {}", valor, investimentoId, investimento.getValorAtual());
         
         return investimentoMapper.toResponse(investimento);
@@ -146,9 +175,18 @@ public class InvestimentoService {
         }
         
         investimento.setValorAtual(investimento.getValorAtual().subtract(valor));
-        contaService.creditarSaldo(contaId, valor, usuarioId);
+        registrarMovimentacaoInvestimento(
+                investimento,
+            investimento.getDescricao(),
+                valor,
+                contaId,
+                usuarioId,
+                TipoTransacao.RECEITA,
+                "Resgate de investimento"
+        );
         
         investimento = investimentoRepository.save(investimento);
+        patrimonioHistoricoService.atualizarSnapshotUsuarioHoje(usuarioId);
         log.info("Resgate de R$ {} do investimento {}. Novo valor: R$ {}", valor, investimentoId, investimento.getValorAtual());
         return investimentoMapper.toResponse(investimento);
     }
@@ -272,5 +310,34 @@ public class InvestimentoService {
         }
 
         return tipoPersonalizado.trim();
+    }
+
+    private void registrarMovimentacaoInvestimento(InvestimentoEntity investimento,
+                                                   String descricaoInvestimento,
+                                                   BigDecimal valor,
+                                                   Long contaId,
+                                                   Long usuarioId,
+                                                   TipoTransacao tipo,
+                                                   String prefixoDescricao) {
+        String descricao = prefixoDescricao + ": " + descricaoInvestimento;
+        String investimentoIdPrefix = investimento != null ? investimento.getId().toString() : "novo";
+        String idempotencyKey = "inv-" + investimentoIdPrefix + "-" + UUID.randomUUID();
+
+        TransacaoRegistroRequestDTO registroDTO = new TransacaoRegistroRequestDTO(
+                descricao,
+                valor,
+                LocalDate.now(),
+                tipo,
+                null,
+                MetodoPagamento.TRANSFERENCIA,
+                contaId,
+                null,
+                null,
+                null,
+                null,
+                idempotencyKey
+        );
+
+        transacaoService.criarTransacao(registroDTO, usuarioId);
     }
 }

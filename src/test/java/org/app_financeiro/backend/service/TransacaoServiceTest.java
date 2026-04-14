@@ -257,4 +257,50 @@ class TransacaoServiceTest {
                 .isInstanceOf(org.app_financeiro.backend.exception.OperacaoNaoPermitidaException.class)
                 .hasMessageContaining("Esta transação já foi processada anteriormente.");
     }
+
+        @Test
+        void deveListarPorIntervaloComSucesso() {
+                LocalDate inicio = LocalDate.of(2026, 1, 1);
+                LocalDate fim = LocalDate.of(2026, 3, 31);
+
+                TransacaoEntity t1 = new TransacaoEntity();
+                t1.setId(1L);
+                t1.setData(LocalDate.of(2026, 3, 15));
+
+                TransacaoEntity t2 = new TransacaoEntity();
+                t2.setId(2L);
+                t2.setData(LocalDate.of(2026, 1, 10));
+
+                when(transacaoRepository.findByUsuarioIdAndDataBetween(1L, inicio, fim))
+                                .thenReturn(List.of(t1, t2));
+                when(transacaoMapper.toResponse(any(TransacaoEntity.class))).thenReturn(
+                                new TransacaoResponseDTO(1L, "D1", BigDecimal.ZERO, LocalDate.of(2026, 3, 15),
+                                                TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX,
+                                                null, null, null, null, null, null, false));
+
+                List<TransacaoResponseDTO> resultado = transacaoService.listarPorIntervalo(inicio, fim, 1L);
+
+                assertThat(resultado).hasSize(2);
+                verify(transacaoRepository).findByUsuarioIdAndDataBetween(1L, inicio, fim);
+        }
+
+        @Test
+        void deveLancarExcecaoSeDataFimAnteriorADataInicio() {
+                LocalDate inicio = LocalDate.of(2026, 3, 1);
+                LocalDate fim = LocalDate.of(2026, 1, 1);
+
+                assertThatThrownBy(() -> transacaoService.listarPorIntervalo(inicio, fim, 1L))
+                                .isInstanceOf(RegraDeNegocioException.class)
+                                .hasMessageContaining("dataFim nao pode ser anterior");
+        }
+
+        @Test
+        void deveLancarExcecaoSeIntervaloMaiorQue12Meses() {
+                LocalDate inicio = LocalDate.of(2024, 1, 1);
+                LocalDate fim = LocalDate.of(2026, 3, 1);
+
+                assertThatThrownBy(() -> transacaoService.listarPorIntervalo(inicio, fim, 1L))
+                                .isInstanceOf(RegraDeNegocioException.class)
+                                .hasMessageContaining("Intervalo maximo");
+        }
 }

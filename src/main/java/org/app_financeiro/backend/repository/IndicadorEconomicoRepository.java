@@ -45,12 +45,16 @@ public interface IndicadorEconomicoRepository extends JpaRepository<IndicadorEco
     List<IndicadorEconomicoEntity> buscarUltimosIndicadores();
 
     /**
-     * Insere um indicador via native query, delegando a geração do ID ao BIGSERIAL do PostgreSQL.
-     * Contorna a limitação do Hibernate que não suporta @GeneratedValue(IDENTITY) com @IdClass.
+     * Insere um indicador via native query.
+     *
+     * Gera o ID como MAX(id)+1 para manter compatibilidade entre PostgreSQL
+     * e H2 (usado em testes com ddl-auto=create-drop), onde a coluna pode
+     * não receber auto incremento automaticamente em PK composta.
      */
     @Modifying
-    @Query(value = "INSERT INTO indicador_economico (nome, valor, variacao, data_atualizacao, provedor) " +
-                   "VALUES (:nome, :valor, :variacao, :dataAtualizacao, :provedor)",
+    @Query(value = "INSERT INTO indicador_economico (id, nome, valor, variacao, data_atualizacao, provedor) " +
+                   "VALUES ((SELECT COALESCE(MAX(i.id), 0) + 1 FROM indicador_economico i), " +
+                   ":nome, :valor, :variacao, :dataAtualizacao, :provedor)",
            nativeQuery = true)
     void insertIndicador(@Param("nome") String nome,
                          @Param("valor") BigDecimal valor,

@@ -1,12 +1,10 @@
 package org.app_financeiro.backend.service;
 
 import org.app_financeiro.backend.dto.response.HgFinanceResponseDTO;
-import org.app_financeiro.backend.entity.IndicadorEconomicoEntity;
 import org.app_financeiro.backend.repository.IndicadorEconomicoRepository;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -17,7 +15,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 /**
@@ -57,13 +58,26 @@ class MarketDataServiceTest {
         marketDataService.syncIndicadoresMacro();
 
         // THEN
-        ArgumentCaptor<IndicadorEconomicoEntity> captor = ArgumentCaptor.forClass(IndicadorEconomicoEntity.class);
-        verify(indicadorRepository, atLeast(3)).save(captor.capture());
-
-        List<IndicadorEconomicoEntity> salvos = captor.getAllValues();
-        
-        assertTrue(salvos.stream().anyMatch(i -> i.getNome().equals("SELIC") && i.getValor().equals(new BigDecimal("10.75"))));
-        assertTrue(salvos.stream().anyMatch(i -> i.getNome().equals("CDI") && i.getValor().equals(new BigDecimal("10.65"))));
-        assertTrue(salvos.stream().anyMatch(i -> i.getNome().equals("USD") && i.getValor().equals(new BigDecimal("5.48"))));
+        verify(indicadorRepository).insertIndicador(
+            eq("SELIC"),
+            argThat(valor -> valor != null && valor.compareTo(new BigDecimal("10.75")) == 0),
+            isNull(),
+            any(),
+            eq("HG_BRASIL")
+        );
+        verify(indicadorRepository).insertIndicador(
+            eq("CDI"),
+            argThat(valor -> valor != null && valor.compareTo(new BigDecimal("10.65")) == 0),
+            isNull(),
+            any(),
+            eq("HG_BRASIL")
+        );
+        verify(indicadorRepository).insertIndicador(
+            eq("USD"),
+            argThat(valor -> valor != null && valor.compareTo(new BigDecimal("5.48")) == 0),
+            argThat(variacao -> variacao != null && variacao.compareTo(new BigDecimal("0.12")) == 0),
+            any(),
+            eq("HG_BRASIL")
+        );
     }
 }

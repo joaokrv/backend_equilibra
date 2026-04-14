@@ -3,7 +3,9 @@ package org.app_financeiro.backend.service;
 import org.app_financeiro.backend.dto.request.AlterarSenhaRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.UsuarioResponseDTO;
+import org.app_financeiro.backend.entity.CategoriaEntity;
 import org.app_financeiro.backend.enums.MoedaEnum;
+import org.app_financeiro.backend.enums.TipoTransacao;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.exception.CredenciaisInvalidasException;
 import org.app_financeiro.backend.exception.EmailJaCadastradoException;
@@ -17,12 +19,14 @@ import org.app_financeiro.backend.repository.UsuarioRepository;
 import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -90,6 +94,38 @@ class UsuarioServiceTest {
         // Assert
         verify(passwordEncoder).encode("senha123");
         verify(usuarioRepository).save(any(UsuarioEntity.class));
+    }
+
+    @Test
+    void deveCriarCategoriaPadraoInvestimentoComoDespesaAoRegistrarUsuario() {
+        // Arrange
+        UsuarioRegistroRequestDTO request = new UsuarioRegistroRequestDTO("Joao", "joao@email.com", "senha123");
+        when(usuarioRepository.existsByEmailIncludingInactive("joao@email.com")).thenReturn(false);
+        when(passwordEncoder.encode("senha123")).thenReturn("senha_hash");
+
+        when(usuarioRepository.save(any(UsuarioEntity.class))).thenAnswer(i -> {
+            UsuarioEntity u = i.getArgument(0);
+            u.setId(1L);
+            return u;
+        });
+
+        UsuarioResponseDTO responseDTO = new UsuarioResponseDTO(1L, "Joao", "joao@email.com", false, null, null, MoedaEnum.BRL);
+        when(usuarioMapper.toResponse(any())).thenReturn(responseDTO);
+
+        // Act
+        usuarioService.registrarUsuario(request);
+
+        // Assert
+        ArgumentCaptor<CategoriaEntity> categoriaCaptor = ArgumentCaptor.forClass(CategoriaEntity.class);
+        verify(categoriaRepository, times(16)).save(categoriaCaptor.capture());
+
+        List<CategoriaEntity> categoriasCriadas = categoriaCaptor.getAllValues();
+        boolean possuiCategoriaInvestimentoDespesaPadrao = categoriasCriadas.stream()
+                .anyMatch(categoria -> "Investimento".equals(categoria.getNome())
+                        && categoria.getTipo() == TipoTransacao.DESPESA
+                && categoria.isPadrao());
+
+        assertThat(possuiCategoriaInvestimentoDespesaPadrao).isTrue();
     }
 
     @Test

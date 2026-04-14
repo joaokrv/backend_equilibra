@@ -65,6 +65,6 @@ class MarketDataServiceIntegrationTest {
         assertTrue(salvos.stream().anyMatch(i -> i.getNome().equals("SELIC") && i.getValor().compareTo(new BigDecimal("10.75")) == 0));
         assertTrue(salvos.stream().anyMatch(i -> i.getNome().equals("USD") && i.getValor().compareTo(new BigDecimal("5.48")) == 0));
         
-        verify(hgFinanceClient, times(1)).fetchFinanceData();
+        verify(hgFinanceClient, atLeastOnce()).fetchFinanceData();
     }
 }

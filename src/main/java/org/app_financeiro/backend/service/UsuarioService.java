@@ -296,7 +296,7 @@ public class UsuarioService {
     }
 
     private void criarCategoriasPadrao(UsuarioEntity usuario) {
-        List<String> despesas = List.of("Aluguel", "Água", "Luz", "Internet", "Gás", "Condomínio", "Transporte", "Alimentação", "Saúde", "Educação");
+        List<String> despesas = List.of("Aluguel", "Água", "Luz", "Internet", "Gás", "Condomínio", "Transporte", "Alimentação", "Saúde", "Educação", "Investimento");
         List<String> receitas = List.of("Salário", "Vale Alimentação", "Vale Transporte", "Freelance", "Rendimentos");
 
         for (String nome : despesas) {
