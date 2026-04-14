@@ -4,6 +4,7 @@ import org.app_financeiro.backend.entity.ContaEntity;
 import org.app_financeiro.backend.entity.CartaoEntity;
 import org.app_financeiro.backend.entity.CategoriaEntity;
 import org.app_financeiro.backend.entity.TransacaoEntity;
+import org.app_financeiro.backend.enums.StatusTransacao;
 import org.app_financeiro.backend.enums.TipoTransacao;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -52,6 +53,28 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
      */
     @EntityGraph(attributePaths = {"categoria", "conta", "cartao"})
     List<TransacaoEntity> findByUsuarioIdAndDataBetween(Long usuarioId, LocalDate start, LocalDate end);
+
+    /**
+     * Soma o valor de transacoes por tipo (RECEITA/DESPESA) em um intervalo de datas.
+     */
+    @Query("SELECT COALESCE(SUM(t.valor), 0) FROM TransacaoEntity t " +
+           "WHERE t.usuario.id = :uid AND t.data BETWEEN :ini AND :fim AND t.tipo = :tipo")
+    BigDecimal somarPorTipoNoPeriodo(@Param("uid") Long uid,
+                                      @Param("ini") LocalDate ini,
+                                      @Param("fim") LocalDate fim,
+                                      @Param("tipo") TipoTransacao tipo);
+
+    /**
+     * Soma o valor de transacoes por tipo e status em um intervalo de datas.
+     */
+    @Query("SELECT COALESCE(SUM(t.valor), 0) FROM TransacaoEntity t " +
+           "WHERE t.usuario.id = :uid AND t.data BETWEEN :ini AND :fim " +
+           "AND t.tipo = :tipo AND t.status = :status")
+    BigDecimal somarPorTipoEStatusNoPeriodo(@Param("uid") Long uid,
+                                             @Param("ini") LocalDate ini,
+                                             @Param("fim") LocalDate fim,
+                                             @Param("tipo") TipoTransacao tipo,
+                                             @Param("status") StatusTransacao status);
 
     /**
      * Retorna transações (ativas) de um usuário filtradas por tipo (RECEITA ou DESPESA).
