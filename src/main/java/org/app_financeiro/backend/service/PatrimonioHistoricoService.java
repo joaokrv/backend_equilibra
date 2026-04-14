@@ -58,8 +58,9 @@ public class PatrimonioHistoricoService {
                 BigDecimal saldoContas = contaRepository.somarSaldoPorUsuario(usuario.getId());
                 BigDecimal valorInvestido = investimentoRepository.somarTotalInvestidoPorUsuario(usuario.getId());
 
-                BigDecimal total = (saldoContas != null ? saldoContas : BigDecimal.ZERO)
-                        .add(valorInvestido != null ? valorInvestido : BigDecimal.ZERO);
+                BigDecimal saldoContasNorm = saldoContas != null ? saldoContas : BigDecimal.ZERO;
+                BigDecimal valorInvestidoNorm = valorInvestido != null ? valorInvestido : BigDecimal.ZERO;
+                BigDecimal total = saldoContasNorm.add(valorInvestidoNorm);
 
                 PatrimonioHistoricoEntity snapshot = patrimonioHistoricoRepository
                         .findByUsuarioIdAndDataReferencia(usuario.getId(), hoje)
@@ -72,12 +73,15 @@ public class PatrimonioHistoricoService {
                 snapshot.setUsuario(usuario);
                 snapshot.setDataReferencia(hoje);
                 snapshot.setValorTotal(total);
+                snapshot.setSaldoContas(saldoContasNorm);
+                snapshot.setTotalInvestido(valorInvestidoNorm);
 
                 patrimonioHistoricoRepository.save(snapshot);
-                log.debug("Snapshot gerado para usuário {}: R$ {}", usuario.getId(), total);
+                log.debug("Snapshot gerado para usuario {}: total={}, contas={}, investido={}",
+                        usuario.getId(), total, saldoContasNorm, valorInvestidoNorm);
 
             } catch (Exception e) {
-                log.error("Falha ao gerar snapshot para usuário {}: {}", usuario.getId(), e.getMessage());
+                log.error("Falha ao gerar snapshot para usuario {}: {}", usuario.getId(), e.getMessage());
             }
         });
 
