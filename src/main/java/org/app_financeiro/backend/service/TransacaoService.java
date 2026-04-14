@@ -223,6 +223,32 @@ public class TransacaoService {
     }
 
     /**
+     * Lista transacoes de um usuario em um intervalo de datas.
+     *
+     * @param dataInicio inicio do intervalo (inclusivo)
+     * @param dataFim fim do intervalo (inclusivo)
+     * @param usuarioId ID do usuario
+     * @return lista de transacoes ordenadas por data desc
+     */
+    @Transactional(readOnly = true)
+    public List<TransacaoResponseDTO> listarPorIntervalo(LocalDate dataInicio, LocalDate dataFim, Long usuarioId) {
+        if (dataFim.isBefore(dataInicio)) {
+            throw new RegraDeNegocioException("dataFim nao pode ser anterior a dataInicio");
+        }
+        if (dataInicio.until(dataFim).toTotalMonths() > 12) {
+            throw new RegraDeNegocioException("Intervalo maximo permitido e de 12 meses");
+        }
+
+        List<TransacaoEntity> transacoes =
+                transacaoRepository.findByUsuarioIdAndDataBetween(usuarioId, dataInicio, dataFim);
+
+        return transacoes.stream()
+                .sorted((a, b) -> b.getData().compareTo(a.getData()))
+                .map(transacaoMapper::toResponse)
+                .toList();
+    }
+
+    /**
      * Lista transações paginadas de um usuário.
      *
      * @param usuarioId ID do usuário

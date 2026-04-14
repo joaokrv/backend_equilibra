@@ -23,7 +23,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDate;
 import java.util.List;
+
+import org.springframework.format.annotation.DateTimeFormat;
 
 /**
  * Controller responsável pelo CRUD de transações financeiras.
@@ -87,6 +90,22 @@ public class TransacaoController {
             @AuthenticationPrincipal UsuarioEntity usuario) {
 
         List<TransacaoResponseDTO> transacoes = transacaoService.buscarPorMes(ano, mes, usuario.getId());
+        return ResponseEntity.ok(transacoes);
+    }
+
+    /**
+     * Lista transacoes do usuario em um intervalo de datas.
+     */
+    @GetMapping("/intervalo")
+    @Operation(summary = "Listar transacoes por intervalo",
+               description = "Retorna transacoes entre dataInicio e dataFim. Intervalo maximo de 12 meses.")
+    public ResponseEntity<List<TransacaoResponseDTO>> listarPorIntervalo(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataInicio,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate dataFim,
+            @AuthenticationPrincipal UsuarioEntity usuario) {
+
+        List<TransacaoResponseDTO> transacoes =
+                transacaoService.listarPorIntervalo(dataInicio, dataFim, usuario.getId());
         return ResponseEntity.ok(transacoes);
     }
 
