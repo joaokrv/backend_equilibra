@@ -28,7 +28,7 @@ public class MarketDataScheduler {
     @EventListener(ApplicationReadyEvent.class)
     public void sincronizarAoIniciar() {
         if (indicadorRepository.count() == 0) {
-            log.debug("Banco de indicadores vazio — executando sincronização inicial...");
+            log.debug("Banco de indicadores vazio — executando sincronização inicial completa...");
 
             try {
                 marketDataService.syncIndicadoresMacro();
@@ -42,6 +42,12 @@ public class MarketDataScheduler {
                 log.warn("Falha na sincronização inicial do IPCA. A aplicação continuará normalmente: {}", e.getMessage());
             }
         }
+
+        try {
+            marketDataService.syncSelicBCB();
+        } catch (Exception e) {
+            log.warn("Falha na sincronização inicial da SELIC. A aplicação continuará normalmente: {}", e.getMessage());
+        }
     }
 
     /**
@@ -52,6 +58,7 @@ public class MarketDataScheduler {
     public void agendarSincronizacaoDiaria() {
         log.debug("Iniciando agendamento de indicadores macro...");
         marketDataService.syncIndicadoresMacro();
+        marketDataService.syncSelicBCB();
     }
 
     /**

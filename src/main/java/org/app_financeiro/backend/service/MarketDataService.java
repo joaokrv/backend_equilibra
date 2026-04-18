@@ -191,6 +191,24 @@ public class MarketDataService {
         }
     }
 
+    @Transactional
+    public void syncSelicBCB() {
+        log.debug("Buscando meta SELIC na API do Banco Central (SGS série 1178)...");
+        try {
+            String url = "https://api.bcb.gov.br/dados/serie/bcdata.sgs.1178/dados/ultimos/1?formato=json";
+            List<?> response = restTemplate.getForObject(url, List.class);
+
+            if (response != null && !response.isEmpty()) {
+                @SuppressWarnings("unchecked")
+                Map<String, String> dado = (Map<String, String>) response.get(0);
+                BigDecimal valor = new BigDecimal(dado.get("valor"));
+                salvarIndicador("SELIC", valor, null, LocalDate.now(), "BCB_SGS");
+            }
+        } catch (Exception e) {
+            log.warn("Falha ao buscar meta SELIC no BCB SGS: {}", e.getMessage());
+        }
+    }
+
     private void salvarIndicador(String nome, BigDecimal valor, BigDecimal variacao, LocalDate data, String provedor) {
         // JPA save() usa a sequência BIGSERIAL — elimina race condition do MAX(id)+1 (B4-A1)
         IndicadorEconomicoEntity indicador = new IndicadorEconomicoEntity(nome, valor, variacao, data, provedor);
