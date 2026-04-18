@@ -12,9 +12,11 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.List;
 
+/** @SQLRestriction("ativo = true") filtra automaticamente em todas as queries derivadas. */
 @Repository
 public interface TransacaoRecorrenteRepository extends JpaRepository<TransacaoRecorrenteEntity, Long> {
 
+    /** @EntityGraph evita N+1 ao carregar conta, cartão e categoria. */
     @EntityGraph(attributePaths = {"conta", "cartao", "categoria"})
     List<TransacaoRecorrenteEntity> findByUsuarioId(Long usuarioId);
 

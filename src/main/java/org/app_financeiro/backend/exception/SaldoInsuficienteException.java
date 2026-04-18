@@ -1,11 +1,6 @@
 package org.app_financeiro.backend.exception;
 
-/**
- * Exceção lançada quando uma operação tenta deduzir mais fundos
- * do que o saldo disponível na conta.
- *
- * HTTP Status: 422 UNPROCESSABLE_ENTITY (tratado no GlobalExceptionHandler).
- */
+/** Débito maior que saldo disponível. → 422 UNPROCESSABLE_ENTITY. */
 public class SaldoInsuficienteException extends RegraDeNegocioException {
 
     public SaldoInsuficienteException(String mensagem) {

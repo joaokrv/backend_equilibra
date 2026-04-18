@@ -22,22 +22,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
-/**
- * Serviço responsável pelo fluxo de recuperação de senha.
- *
- * FLUXO COMPLETO:
- * 1. Usuário solicita recuperação via e-mail
- * 2. Sistema gera um token UUID, salva no banco e envia link por e-mail
- * 3. Usuário clica no link e é redirecionado para o frontend com o token na URL
- * 4. Frontend extrai o token, valida com o backend e exibe formulário de nova senha
- * 5. Usuário envia nova senha + token, backend valida e persiste a troca
- *
- * SEGURANÇA:
- * - Tokens têm validade de 30 minutos
- * - Solicitar novo token invalida automaticamente o anterior
- * - Token é UUID v4 (imprevisível)
- * - Rate Limiting é aplicado no Controller
- */
+/** Fluxo de recuperação de senha via token UUID (30 min) enviado por e-mail. */
 @Service
 public class RecuperacaoSenhaService {
 
@@ -62,12 +47,6 @@ public class RecuperacaoSenhaService {
         this.externalEmailSenderService = externalEmailSenderService;
     }
 
-    /**
-     * Inicia o processo de recuperação de senha gerando um token único.
-     * O processo utiliza throttle de 5 minutos por e-mail para evitar abusos.
-     *
-     * @param dto dados contendo o e-mail do usuário
-     */
     @Transactional
     public void solicitarRecuperacao(SolicitarRecuperacaoSenhaRequestDTO dto) {
         var usuarioOpt = usuarioRepository.findByEmail(dto.email());
@@ -102,13 +81,6 @@ public class RecuperacaoSenhaService {
         enviarEmailRecuperacao(dto.email(), token);
     }
 
-    /**
-     * Valida a integridade e expiração de um token de recuperação.
-     *
-     * @param token UUID do token a ser validado
-     * @return e-mail associado ao token válido
-     * @throws RegraDeNegocioException caso o token seja inválido ou esteja expirado
-     */
     public String validarToken(String token) {
         TokenRecuperacaoSenhaEntity tokenEntity = tokenRepository.findByTokenAndIsUtilizadoFalse(token)
                 .orElseThrow(() -> new RegraDeNegocioException("Token de recuperação inválido ou já utilizado."));
@@ -121,14 +93,7 @@ public class RecuperacaoSenhaService {
         return tokenEntity.getEmail();
     }
 
-    /**
-     * Realiza a alteração da senha do usuário utilizando um token de recuperação válido.
-     * Ao resetar, as sessões ativas do usuário são invalidadas para segurança.
-     *
-     * @param dto dados contendo o token e a nova senha
-     * @throws RegraDeNegocioException caso o token seja inválido
-     * @throws RecursoNaoEncontradoException caso o usuário não seja localizado
-     */
+    /** Invalida sessões ativas ao limpar chaveSessao após reset de senha. */
     @Transactional
     public void resetarSenha(ResetarSenhaRequestDTO dto) {
         TokenRecuperacaoSenhaEntity tokenEntity = tokenRepository.findByTokenAndIsUtilizadoFalse(dto.token())
@@ -151,12 +116,6 @@ public class RecuperacaoSenhaService {
         log.info("Senha resetada com sucesso para e-mail: {}", tokenEntity.getEmail());
     }
 
-    /**
-     * Envia o e-mail de recuperação utilizando template HTML e URL base configurada.
-     *
-     * @param destinatario e-mail do usuário
-     * @param token token gerado para o link
-     */
     private void enviarEmailRecuperacao(String destinatario, String token) {
         try {
             if (allowedOrigins == null) {

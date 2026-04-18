@@ -8,7 +8,6 @@ import org.app_financeiro.backend.enums.MoedaEnum;
 import org.app_financeiro.backend.enums.TipoTransacao;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.exception.CredenciaisInvalidasException;
-import org.app_financeiro.backend.exception.EmailJaCadastradoException;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.mapper.UsuarioMapper;
 import org.app_financeiro.backend.repository.CategoriaRepository;
@@ -84,10 +83,6 @@ class UsuarioServiceTest {
             return u;
         });
 
-        UsuarioResponseDTO responseDTO = new UsuarioResponseDTO(1L, "Joao",
-                "joao@email.com", false, null, null, MoedaEnum.BRL);
-        when(usuarioMapper.toResponse(any())).thenReturn(responseDTO);
-
         // Act
         usuarioService.registrarUsuario(request);
 
@@ -109,9 +104,6 @@ class UsuarioServiceTest {
             return u;
         });
 
-        UsuarioResponseDTO responseDTO = new UsuarioResponseDTO(1L, "Joao", "joao@email.com", false, null, null, MoedaEnum.BRL);
-        when(usuarioMapper.toResponse(any())).thenReturn(responseDTO);
-
         // Act
         usuarioService.registrarUsuario(request);
 
@@ -129,14 +121,15 @@ class UsuarioServiceTest {
     }
 
     @Test
-    void deveLancarExceptionAoRegistrarEmailJaExistente() {
-        // Arrange
+    void deveRetornarFalseAoRegistrarEmailJaExistente() {
+        // Anti-enumeração (B1-A2): email duplicado retorna false silenciosamente
         UsuarioRegistroRequestDTO request = new UsuarioRegistroRequestDTO("Joao", "joao@email.com", "senha123");
         when(usuarioRepository.existsByEmailIncludingInactive("joao@email.com")).thenReturn(true);
 
-        // Act & Assert
-        assertThatThrownBy(() -> usuarioService.registrarUsuario(request))
-                .isInstanceOf(EmailJaCadastradoException.class);
+        boolean result = usuarioService.registrarUsuario(request);
+
+        assertThat(result).isFalse();
+        verify(usuarioRepository, never()).save(any());
     }
 
     // ─── Login ─────────────────────────────────────────────────

@@ -5,20 +5,16 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
-/**
- * Registra interceptadores na cadência global do Servidor Spring WebMVC.
- */
 @Configuration
 @RequiredArgsConstructor
 public class WebMvcConfig implements WebMvcConfigurer {
 
     private final RateLimitInterceptor rateLimitInterceptor;
+    private final CsrfOriginInterceptor csrfOriginInterceptor;
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // Protege apenas endpoints sensíveis de autenticação e segurança de conta.
-        // Endpoints de mercado foram removidos daqui para não consumir o mesmo bucket por IP
-        // e causar 429 indevido durante cadastro/verificação.
+        // Rate limit apenas em endpoints sensíveis — mercado excluído para evitar 429 indevido em cadastro/verificação.
         registry.addInterceptor(rateLimitInterceptor)
                 .addPathPatterns(
                         "/api/auth/login",
@@ -34,6 +30,13 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/usuarios/perfil/me/solicitar-alteracao-email",
                         "/api/market/**",
                         "/api/mercado/**"
+                );
+
+        // CSRF por Origin em endpoints que lêem cookie HttpOnly (SameSite=None não protege cross-origin).
+        registry.addInterceptor(csrfOriginInterceptor)
+                .addPathPatterns(
+                        "/api/auth/refresh",
+                        "/api/auth/logout"
                 );
     }
 }

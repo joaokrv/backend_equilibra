@@ -98,7 +98,7 @@ public ContaEntity buscarContaValidada(Long contaId, Long usuarioId) {
 
 ### Entities que usam @SQLRestriction
 
-Todas as 7 entities principais do sistema:
+Todas as 8 entities principais do sistema:
 
 | Entity | Tabela |
 |---|---|
@@ -107,6 +107,7 @@ Todas as 7 entities principais do sistema:
 | `CartaoEntity` | `cartoes` |
 | `FaturaEntity` | `faturas` |
 | `TransacaoEntity` | `transacoes` |
+| `TransacaoRecorrenteEntity` | `transacoes_recorrentes` |
 | `CategoriaEntity` | `categorias` |
 | `InvestimentoEntity` | `investimentos` |
 

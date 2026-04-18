@@ -12,17 +12,7 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
-/**
- * Entidade que representa uma Meta de Investimento/Poupança do usuário.
- *
- * Registra o progresso de uma meta financeira ao longo do tempo.
- * O "valorInicial" é o ponto de partida definido na criação.
- * O "valorAtual" é incrementado a cada depósito realizado via InvestimentoService.
- * O "metaAtual" é o valor-alvo que o usuário deseja atingir.
- *
- * Cada depósito debita o valor de uma conta bancária do usuário
- * e incrementa o valorAtual do investimento.
- */
+/** Meta de poupança. Cada depósito debita conta e incrementa valorAtual. */
 @Getter
 @Setter
 @NoArgsConstructor

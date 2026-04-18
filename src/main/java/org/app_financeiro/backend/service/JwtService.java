@@ -17,15 +17,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.regex.Pattern;
 
-/**
- * Serviço responsável pela geração e validação de tokens JWT.
- *
- * Gera dois tipos de token:
- * - Access Token: curta duração (configurável via jwt.access-token-expiration)
- * - Refresh Token: longa duração (configurável via jwt.refresh-token-expiration)
- *
- * Ambos os tokens incluem o usuarioId como claim extra para fácil extração.
- */
+/** Geração e validação de JWT (access + refresh token HS256). */
 @Service
 public class JwtService {
 
@@ -57,9 +49,6 @@ public class JwtService {
         return claimsResolver.apply(claims);
     }
 
-    /**
-     * Gera um Access Token (curta duração) para o usuário autenticado.
-     */
     public String generateAccessToken(UserDetails userDetails) {
         Map<String, Object> extraClaims = new HashMap<>();
         if (userDetails instanceof UsuarioEntity usuario) {
@@ -71,9 +60,6 @@ public class JwtService {
         return buildToken(extraClaims, userDetails, accessTokenExpiration);
     }
 
-    /**
-     * Gera um Refresh Token (longa duração) para o usuário autenticado.
-     */
     public String generateRefreshToken(UserDetails userDetails) {
         Map<String, Object> extraClaims = new HashMap<>();
         if (userDetails instanceof UsuarioEntity usuario) {

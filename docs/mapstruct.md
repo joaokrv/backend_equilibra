@@ -63,7 +63,7 @@ O MapStruct gera automaticamente a implementação do `toResponse()` com todos o
 
 ---
 
-## Os 7 Mappers do Projeto
+## Os 8 Mappers do Projeto
 
 | Mapper | Entity → DTO |
 |---|---|
@@ -71,6 +71,7 @@ O MapStruct gera automaticamente a implementação do `toResponse()` com todos o
 | `CartaoMapper` | `CartaoEntity` → `CartaoResponseDTO` |
 | `CategoriaMapper` | `CategoriaEntity` → `CategoriaResponseDTO` |
 | `TransacaoMapper` | `TransacaoEntity` → `TransacaoResponseDTO` |
+| `TransacaoRecorrenteMapper` | `TransacaoRecorrenteEntity` → `TransacaoRecorrenteResponseDTO` |
 | `FaturaMapper` | `FaturaEntity` → `FaturaResponseDTO` |
 | `InvestimentoMapper` | `InvestimentoEntity` → `InvestimentoResponseDTO` |
 | `UsuarioMapper` | `UsuarioEntity` → `UsuarioResponseDTO` |

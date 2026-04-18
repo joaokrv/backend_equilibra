@@ -12,36 +12,18 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 
-/**
- * Repositório JPA para operações de persistência de InvestimentoEntity.
- *
- * NOTA: A entidade InvestimentoEntity possui @SQLRestriction("ativo = true"),
- * portanto todas as queries derivadas filtram automaticamente por ativo = true.
- */
+/** @SQLRestriction("ativo = true") filtra automaticamente em todas as queries derivadas. */
 @Repository
 public interface InvestimentoRepository extends JpaRepository<InvestimentoEntity, Long> {
 
-    /**
-     * Soma o valor total acumulado de todos os investimentos ativos de um usuário.
-     */
     @Query("SELECT SUM(i.valorAtual) FROM InvestimentoEntity i WHERE i.usuario.id = :usuarioId")
     BigDecimal somarTotalInvestidoPorUsuario(@Param("usuarioId") Long usuarioId);
 
-    /**
-     * Retorna todos os investimentos (ativos) de um usuário.
-     * Filtro ativo = true aplicado automaticamente via @SQLRestriction.
-     *
-     * @param usuarioId ID do usuário
-     * @return Lista de investimentos ativos
-     */
+    /** @EntityGraph evita N+1 ao carregar contaOrigem e contaDestino. */
     @EntityGraph(attributePaths = {"contaOrigem", "contaDestino"})
     List<InvestimentoEntity> findByUsuarioId(Long usuarioId);
 
-        /**
-         * Conta quantos investimentos ativos do usuário ainda referenciam uma conta
-         * como origem ou destino. Usado para proteger a exclusão de contas e evitar
-         * vínculos órfãos no patrimônio.
-         */
+        /** Protege exclusão de conta — bloqueia se houver vínculos ativos como origem ou destino. */
         @Query("""
                         SELECT COUNT(i) FROM InvestimentoEntity i
                         WHERE i.usuario.id = :usuarioId

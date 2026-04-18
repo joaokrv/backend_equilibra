@@ -17,11 +17,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
 
-/**
- * Interceptador para Rate Limiting na camada Web, utilizando algoritimo Token Bucket.
- * Registra as tentativas por Endereço IP usando Memória em runtime (ConcurrentHashMap).
- * As políticas são cumulativas de proteção a força-bruta e picos.
- */
+/** Token Bucket por IP (ConcurrentHashMap in-memory). Proteção cumulativa força-bruta + picos. */
 @Component
 public class RateLimitInterceptor implements HandlerInterceptor {
 

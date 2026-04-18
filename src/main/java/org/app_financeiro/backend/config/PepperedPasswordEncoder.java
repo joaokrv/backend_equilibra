@@ -2,12 +2,7 @@ package org.app_financeiro.backend.config;
 
 import org.springframework.security.crypto.password.PasswordEncoder;
 
-/**
- * Decorator para PasswordEncoder que adiciona um pepper à senha bruta
- * antes de realizar as operações de encode ou matches.
- * Isso garante que a lógica de pepper seja aplicada uniformemente
- * tanto no registro (Service) quanto na autenticação (AuthenticationManager).
- */
+/** Decorator que aplica pepper antes de encode/matches — uniforme em registro e auth. */
 public class PepperedPasswordEncoder implements PasswordEncoder {
 
     private final PasswordEncoder delegate;

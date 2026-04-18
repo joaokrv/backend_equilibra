@@ -1,10 +1,6 @@
 package org.app_financeiro.backend.exception;
 
-/**
- * Exceção lançada ao tentar cadastrar um usuário com um e-mail que já existe no sistema.
- *
- * HTTP Status: 409 CONFLICT (tratado no GlobalExceptionHandler).
- */
+/** E-mail duplicado. → 409 CONFLICT. */
 public class EmailJaCadastradoException extends RegraDeNegocioException {
 
     public EmailJaCadastradoException() {

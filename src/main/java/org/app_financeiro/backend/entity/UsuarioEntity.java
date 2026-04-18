@@ -17,15 +17,7 @@ import java.time.LocalDateTime;
 import java.util.Collection;
 import java.util.List;
 
-/**
- * Entidade que representa um Usuário do sistema.
- * É a raiz de toda a hierarquia de dados: contas, cartões, faturas e transações
- * são sempre vinculados a um usuário específico.
- *
- * O campo "ativo" controla o Soft Delete — ao invés de apagar o registro,
- * ele é desativado para preservar o histórico financeiro.
- * O campo "emailVerificado" exige confirmação via código OTP antes de permitir login.
- */
+/** Raiz da hierarquia de dados. Soft delete via ativo=false preserva histórico. */
 @Getter
 @Setter
 @NoArgsConstructor

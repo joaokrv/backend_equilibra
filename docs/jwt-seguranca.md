@@ -87,7 +87,8 @@ eyJhbGciOiJIUzI1NiJ9.eyJ1c3VhcmlvSWQiOjEsInN1YiI6InVzZXJAZW1haWwuY29tIiwiZXhwIjo
 │     POST /api/auth/login  { email, senha }                            │
 │     → Valida credenciais                                              │
 │     → Verifica emailVerificado == true                                │
-│     → Retorna: { accessToken, refreshToken, expiresIn }               │
+│     → Retorna: { accessToken, expiresIn }  (refreshToken = null)      │
+│     → refreshToken enviado apenas via cookie HttpOnly "refreshToken"  │
 │                                                                       │
 │  4. REQUISIÇÕES PROTEGIDAS                                            │
 │     GET /api/contas  (Header: Authorization: Bearer <accessToken>)    │
@@ -95,9 +96,10 @@ eyJhbGciOiJIUzI1NiJ9.eyJ1c3VhcmlvSWQiOjEsInN1YiI6InVzZXJAZW1haWwuY29tIiwiZXhwIjo
 │     → Controller recebe @AuthenticationPrincipal UsuarioEntity        │
 │                                                                       │
 │  5. RENOVAÇÃO                                                         │
-│     POST /api/auth/refresh  (Header: Authorization: Bearer <refresh>) │
-│     → Valida refresh token                                            │
-│     → Retorna novo { accessToken, refreshToken, expiresIn }           │
+│     POST /api/auth/refresh  (Cookie: refreshToken=<rt>)               │
+│     → Lê refresh token via @CookieValue — não aceita no body          │
+│     → Rotaciona: invalida RT antigo, emite novo RT via cookie HttpOnly │
+│     → Retorna novo { accessToken, expiresIn }                         │
 │                                                                       │
 └─────────────────────────────────────────────────────────────────────────┘
 ```
@@ -118,7 +120,7 @@ public class JwtService {
     private String secretKey;
 
     @Value("${jwt.access-token-expiration}")
-    private long accessTokenExpiration;       // 15 minutos
+    private long accessTokenExpiration;       // 1 hora (3600000 ms)
 
     @Value("${jwt.refresh-token-expiration}")
     private long refreshTokenExpiration;      // 7 dias
@@ -231,24 +233,25 @@ public class SecurityConfig {
         "/api/auth/**",
         "/v3/api-docs/**",
         "/swagger-ui/**",
-        "/actuator/**"
+        "/swagger-ui.html"
     };
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
-            .cors(cors -> cors.configurationSource(corsConfigurationSource()))
+            .cors(Customizer.withDefaults())
             .csrf(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(req ->
                 req.requestMatchers(WHITE_LIST_URL)
                     .permitAll()
+                    .requestMatchers("/actuator/**").hasRole("ADMIN")  // ← protegido
                     .anyRequest()
                     .authenticated()
             )
             .sessionManagement(session ->
                 session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             )
-            .authenticationProvider(authenticationProvider())
+            .authenticationProvider(authenticationProvider)
             .addFilterBefore(jwtAuthFilter,
                 UsernamePasswordAuthenticationFilter.class);
 
@@ -310,8 +313,8 @@ public ResponseEntity<ContaResponseDTO> criarConta(
 # Chave secreta para assinar os tokens (Base64 de 256 bits)
 jwt.secret=SuaChaveSecretaBase64Aqui
 
-# Access token expira em 15 minutos (em milissegundos)
-jwt.access-token-expiration=900000
+# Access token expira em 1 hora (em milissegundos)
+jwt.access-token-expiration=3600000
 
 # Refresh token expira em 7 dias (em milissegundos)
 jwt.refresh-token-expiration=604800000

@@ -11,14 +11,7 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
-/**
- * Entidade que representa uma Conta Bancária ou Carteira física do usuário.
- *
- * O saldo é modificado automaticamente pelo ContaService toda vez que
- * uma transação de RECEITA ou DESPESA é registrada.
- * Saldo negativo é bloqueado por regra de negócio — qualquer operação que
- * resultaria em saldo negativo lança SaldoInsuficienteException.
- */
+/** Saldo negativo bloqueado — operação que resultaria em negativo lança SaldoInsuficienteException. */
 @Getter
 @Setter
 @NoArgsConstructor

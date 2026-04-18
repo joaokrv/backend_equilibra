@@ -1,11 +1,6 @@
 package org.app_financeiro.backend.exception;
 
-/**
- * Exceção lançada quando uma despesa no cartão de crédito excede
- * o limite disponível do cartão.
- *
- * HTTP Status: 422 UNPROCESSABLE_ENTITY (tratado no GlobalExceptionHandler).
- */
+/** Despesa excede limite disponível do cartão. → 422 UNPROCESSABLE_ENTITY. */
 public class LimiteInsuficienteException extends RegraDeNegocioException {
 
     public LimiteInsuficienteException(String mensagem) {

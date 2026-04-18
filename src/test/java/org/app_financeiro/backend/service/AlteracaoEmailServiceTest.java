@@ -16,10 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mail.javamail.JavaMailSender;
 import org.springframework.security.crypto.password.PasswordEncoder;
-
-import jakarta.mail.internet.MimeMessage;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -42,7 +39,7 @@ class AlteracaoEmailServiceTest {
     private PasswordEncoder passwordEncoder;
 
     @Mock
-    private JavaMailSender mailSender;
+    private ExternalEmailSenderService externalEmailSenderService;
 
     @InjectMocks
     private AlteracaoEmailService alteracaoEmailService;
@@ -67,7 +64,6 @@ class AlteracaoEmailServiceTest {
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("Senha1!", "hash_senha")).thenReturn(true);
         when(usuarioRepository.existsByEmailIncludingInactive("novo@email.com")).thenReturn(false);
-        when(mailSender.createMimeMessage()).thenReturn(mock(MimeMessage.class));
 
         // Act
         alteracaoEmailService.solicitarAlteracao(1L,
@@ -131,7 +127,7 @@ class AlteracaoEmailServiceTest {
         solicitacao.setCodigo("123456");
         solicitacao.setDataExpiracao(LocalDateTime.now().plusMinutes(10));
 
-        when(solicitacaoRepository.findByUsuarioIdAndCodigoAndIsUtilizadoFalse(1L, "123456"))
+        when(solicitacaoRepository.findTopByUsuarioIdAndIsUtilizadoFalseOrderByDataCriacaoDesc(1L))
                 .thenReturn(Optional.of(solicitacao));
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
 
@@ -148,8 +144,12 @@ class AlteracaoEmailServiceTest {
 
     @Test
     void deveLancarExceptionAoConfirmarComCodigoInvalido() {
-        when(solicitacaoRepository.findByUsuarioIdAndCodigoAndIsUtilizadoFalse(1L, "000000"))
-                .thenReturn(Optional.empty());
+        SolicitacaoAlteracaoEmailEntity solicitacao = new SolicitacaoAlteracaoEmailEntity();
+        solicitacao.setCodigo("999999");
+        solicitacao.setDataExpiracao(LocalDateTime.now().plusMinutes(10));
+
+        when(solicitacaoRepository.findTopByUsuarioIdAndIsUtilizadoFalseOrderByDataCriacaoDesc(1L))
+                .thenReturn(Optional.of(solicitacao));
 
         assertThatThrownBy(() -> alteracaoEmailService.confirmarAlteracao(1L,
                 new ConfirmarAlteracaoEmailRequestDTO("000000")))
@@ -160,9 +160,10 @@ class AlteracaoEmailServiceTest {
     @Test
     void deveLancarExceptionAoConfirmarComCodigoExpirado() {
         SolicitacaoAlteracaoEmailEntity solicitacao = new SolicitacaoAlteracaoEmailEntity();
+        solicitacao.setCodigo("123456");
         solicitacao.setDataExpiracao(LocalDateTime.now().minusMinutes(1));
 
-        when(solicitacaoRepository.findByUsuarioIdAndCodigoAndIsUtilizadoFalse(1L, "123456"))
+        when(solicitacaoRepository.findTopByUsuarioIdAndIsUtilizadoFalseOrderByDataCriacaoDesc(1L))
                 .thenReturn(Optional.of(solicitacao));
 
         assertThatThrownBy(() -> alteracaoEmailService.confirmarAlteracao(1L,

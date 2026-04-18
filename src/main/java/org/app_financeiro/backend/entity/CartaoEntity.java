@@ -12,16 +12,7 @@ import org.hibernate.annotations.SQLRestriction;
 import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDateTime;
 
-/**
- * Entidade que representa um Cartão de Crédito do usuário.
- *
- * O campo "limite" armazena o limite total contratado do cartão.
- * O limite disponível NÃO é armazenado aqui — ele é calculado dinamicamente
- * pelo CartaoService com base nas faturas pendentes (não PAGAS).
- *
- * Os dias de fechamento e vencimento são usados pelo FaturaService
- * para determinar a qual fatura uma transação pertence e calcular as datas corretas.
- */
+/** Limite disponível não é persistido — calculado em runtime via faturas não PAGAS. */
 @Getter
 @Setter
 @NoArgsConstructor

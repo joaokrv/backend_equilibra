@@ -27,10 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * Service responsável pelas transações financeiras (RECEITA e DESPESA).
- * Gerencia o impacto no saldo de contas bancárias e limite de cartões de crédito.
- */
+/** Gerencia transações financeiras e seus impactos em contas e cartões. */
 @Service
 public class TransacaoService {
 
@@ -54,15 +51,6 @@ public class TransacaoService {
         this.transacaoMapper = transacaoMapper;
     }
 
-    /**
-     * Cria uma nova transação financeira registrando os impactos nas contas ou cartões.
-     *
-     * @param dto dados da transação
-     * @param usuarioId ID do usuário autenticado
-     * @return DTO com os dados da transação criada
-     * @throws RegraDeNegocioException caso as regras de vínculo de conta/cartão sejam violadas
-     * @throws OperacaoNaoPermitidaException caso detectada transação duplicada (idempotency)
-     */
     @Transactional
     public TransacaoResponseDTO criarTransacao(TransacaoRegistroRequestDTO dto, Long usuarioId) {
         UsuarioEntity usuario = usuarioService.buscarPorIdOuFalhar(usuarioId);
@@ -118,14 +106,6 @@ public class TransacaoService {
         return transacaoMapper.toResponse(transacao);
     }
 
-    /**
-     * Atualiza os dados de uma transação existente, revertendo efeitos financeiros antigos.
-     *
-     * @param transacaoId ID da transação a atualizar
-     * @param dto novos dados da transação
-     * @param usuarioId ID do usuário autenticado
-     * @return DTO com os dados atualizados
-     */
     @Transactional
     public TransacaoResponseDTO atualizarTransacao(Long transacaoId, TransacaoRegistroRequestDTO dto, Long usuarioId) {
         if (transacaoId == null || usuarioId == null) {
@@ -177,12 +157,6 @@ public class TransacaoService {
         return transacaoMapper.toResponse(transacao);
     }
 
-    /**
-     * Remove uma transação (Soft Delete) e reverte seu impacto financeiro nas contas/cartões.
-     *
-     * @param transacaoId ID da transação
-     * @param usuarioId ID do usuário autenticado
-     */
     @Transactional
     public void deletarTransacao(Long transacaoId, Long usuarioId) {
         if (transacaoId == null || usuarioId == null) {
@@ -202,14 +176,6 @@ public class TransacaoService {
         log.info("Transação {} desativada (soft delete) para usuário {}", transacaoId, usuarioId);
     }
 
-    /**
-     * Busca transações ativas por período de mês e ano.
-     *
-     * @param ano ano de referência
-     * @param mes mês de referência
-     * @param usuarioId ID do usuário
-     * @return lista de transações localizadas
-     */
     public List<TransacaoResponseDTO> buscarPorMes(int ano, int mes, Long usuarioId) {
         LocalDate dataInicio = LocalDate.of(ano, mes, 1);
         LocalDate dataFim = dataInicio.withDayOfMonth(dataInicio.lengthOfMonth());
@@ -222,14 +188,6 @@ public class TransacaoService {
                 .toList();
     }
 
-    /**
-     * Lista transacoes de um usuario em um intervalo de datas.
-     *
-     * @param dataInicio inicio do intervalo (inclusivo)
-     * @param dataFim fim do intervalo (inclusivo)
-     * @param usuarioId ID do usuario
-     * @return lista de transacoes ordenadas por data desc
-     */
     @Transactional(readOnly = true)
     public List<TransacaoResponseDTO> listarPorIntervalo(LocalDate dataInicio, LocalDate dataFim, Long usuarioId) {
         if (dataFim.isBefore(dataInicio)) {
@@ -248,13 +206,6 @@ public class TransacaoService {
                 .toList();
     }
 
-    /**
-     * Lista transações paginadas de um usuário.
-     *
-     * @param usuarioId ID do usuário
-     * @param pageable parâmetros de paginação
-     * @return página de transações processada
-     */
     @Transactional(readOnly = true)
     public Page<TransacaoResponseDTO> listarPorUsuario(Long usuarioId, Pageable pageable) {
         return transacaoRepository.findByUsuarioId(usuarioId, pageable)

@@ -1,22 +1,8 @@
 package org.app_financeiro.backend.dto.response;
 
-/**
- * Retorno do processo de login, contendo os tokens de autenticação JWT.
- *
- * @param accessToken   Token de acesso (curta duração) para uso em cada request
- * @param refreshToken  Token de renovação (longa duração) para obter novo accessToken
- * @param expiresIn     Tempo de expiração do accessToken em milissegundos
- */
 import org.app_financeiro.backend.dto.response.UsuarioResponseDTO;
 
-/**
- * Retorno do processo de login, contendo os tokens de autenticação JWT e os dados do usuário.
- *
- * @param accessToken   Token de acesso (curta duração) para uso em cada request
- * @param refreshToken  Token de renovação (longa duração) para obter novo accessToken
- * @param expiresIn     Tempo de expiração do accessToken em milissegundos
- * @param user          Dados resumidos do usuário autenticado
- */
+/** refreshToken sempre null no body — enviado via cookie HttpOnly (G5-A1). */
 public record AuthResponseDTO(
         String accessToken,
         String refreshToken,

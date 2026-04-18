@@ -9,9 +9,7 @@ import org.springframework.stereotype.Service;
 
 import java.time.LocalDate;
 
-/**
- * Serviço responsável por tarefas agendadas relacionadas a Faturas.
- */
+/** Scheduler diário (ShedLock) que marca faturas vencidas como ATRASADA. */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -19,11 +17,6 @@ public class FaturaSchedulerService {
 
     private final FaturaRepository faturaRepository;
 
-    /**
-     * Executa diariamente à meia-noite (00:00:00).
-     * Verifica faturas ABERTAS ou FECHADAS cuja data de vencimento é anterior a hoje
-     * e altera o status para ATRASADA.
-     */
     @Scheduled(cron = "0 0 0 * * ?")
     @net.javacrumbs.shedlock.spring.annotation.SchedulerLock(name = "atualizarFaturasAtrasadas", lockAtMostFor = "PT5M")
     public void atualizarFaturasAtrasadas() {

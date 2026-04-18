@@ -28,10 +28,7 @@ public class PatrimonioHistoricoService {
     private final ContaRepository contaRepository;
     private final InvestimentoRepository investimentoRepository;
 
-    /**
-     * Popula snapshots no boot quando a base ainda está vazia,
-     * evitando dashboard sem histórico até o primeiro cron diário.
-     */
+    /** Sincronização no boot: evita dashboard vazio até o primeiro tick do cron diário. */
     @EventListener(ApplicationReadyEvent.class)
     public void sincronizacaoInicialSeNecessario() {
         if (patrimonioHistoricoRepository.count() == 0) {
@@ -40,11 +37,6 @@ public class PatrimonioHistoricoService {
         }
     }
 
-    /**
-     * Motor de Snapshots Diários.
-     * Executa todo dia à meia-noite (00:00).
-     * Referencia o patrimônio consolidado do dia que se encerrou.
-     */
     @Scheduled(cron = "0 0 0 * * *")
     @SchedulerLock(name = "SnapshotPatrimonioDiario", lockAtMostFor = "10m", lockAtLeastFor = "1m")
     @Transactional
@@ -63,10 +55,6 @@ public class PatrimonioHistoricoService {
         log.info("Motor de snapshots diários concluído com sucesso.");
     }
 
-    /**
-     * Busca dados para o gráfico de evolução patrimonial.
-     * @param dias quantidade de dias passados a recuperar (ex: 30)
-     */
     @Transactional
     public List<PatrimonioHistoricoEntity> buscarEvolucao(Long usuarioId, int dias) {
         atualizarSnapshotUsuarioHoje(usuarioId);

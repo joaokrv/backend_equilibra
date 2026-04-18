@@ -97,6 +97,10 @@ public class RecorrenciaSchedulerService {
                 int diaLancamento = Math.min(rec.getDiaLancamento(), ultimoDiaMes);
                 LocalDate dataTransacao = LocalDate.of(ano, mes, diaLancamento);
 
+                // Se vinculada a cartão: contaId deve ser null (regra: não aceita ambos)
+                Long contaId = rec.getCartao() != null ? null : rec.getConta().getId();
+                Long cartaoId = rec.getCartao() != null ? rec.getCartao().getId() : null;
+
                 TransacaoRegistroRequestDTO dto = new TransacaoRegistroRequestDTO(
                         rec.getDescricao(),
                         rec.getValor(),
@@ -104,8 +108,8 @@ public class RecorrenciaSchedulerService {
                         rec.getTipo(),
                         StatusTransacao.PENDENTE,
                         rec.getMetodoPagamento(),
-                        rec.getConta().getId(),
-                        rec.getCartao() != null ? rec.getCartao().getId() : null,
+                        contaId,
+                        cartaoId,
                         rec.getCategoria() != null ? rec.getCategoria().getId() : null,
                         null, // numeroParcela
                         null, // totalParcelas

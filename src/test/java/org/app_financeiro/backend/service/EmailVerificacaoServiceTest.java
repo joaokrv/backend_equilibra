@@ -1,6 +1,5 @@
 package org.app_financeiro.backend.service;
 
-import jakarta.mail.internet.MimeMessage;
 import org.app_financeiro.backend.dto.request.VerificarEmailRequestDTO;
 import org.app_financeiro.backend.entity.CodigoVerificacaoEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
@@ -13,7 +12,6 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.mail.javamail.JavaMailSender;
 
 import java.time.LocalDateTime;
 import java.util.Optional;
@@ -21,6 +19,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -33,7 +32,7 @@ class EmailVerificacaoServiceTest {
     private UsuarioRepository usuarioRepository;
 
     @Mock
-    private JavaMailSender mailSender;
+    private ExternalEmailSenderService externalEmailSenderService;
 
     @InjectMocks
     private EmailVerificacaoService emailVerificacaoService;
@@ -46,14 +45,13 @@ class EmailVerificacaoServiceTest {
     void deveGerarCodigoESalvarNoBanco() {
         // Arrange
         String email = "test@email.com";
-        when(mailSender.createMimeMessage()).thenReturn(mock(MimeMessage.class));
 
         // Act
         emailVerificacaoService.gerarCodigo(email);
- 
+
         // Assert
         verify(codigoVerificacaoRepository).save(any(CodigoVerificacaoEntity.class));
-        verify(mailSender).send(any(MimeMessage.class));
+        verify(externalEmailSenderService).sendHtml(eq(email), any(), any());
     }
 
     @Test
@@ -73,7 +71,7 @@ class EmailVerificacaoServiceTest {
         usuario.setEmail(email);
         usuario.setEmailVerificado(false);
 
-        when(codigoVerificacaoRepository.findByEmailAndCodigoAndIsUtilizadoFalse(email, codigo))
+        when(codigoVerificacaoRepository.findTopByEmailAndIsUtilizadoFalseOrderByDataCriacaoDesc(email))
                 .thenReturn(Optional.of(entity));
         when(usuarioRepository.findByEmail(email)).thenReturn(Optional.of(usuario));
 
@@ -98,7 +96,7 @@ class EmailVerificacaoServiceTest {
         entity.setDataExpiracao(LocalDateTime.now().minusMinutes(1)); // Expirado
         entity.setUtilizado(false);
 
-        when(codigoVerificacaoRepository.findByEmailAndCodigoAndIsUtilizadoFalse(email, codigo))
+        when(codigoVerificacaoRepository.findTopByEmailAndIsUtilizadoFalseOrderByDataCriacaoDesc(email))
                 .thenReturn(Optional.of(entity));
 
         // Act & Assert
@@ -109,10 +107,15 @@ class EmailVerificacaoServiceTest {
 
     @Test
     void deveLancarExceptionSeCodigoInexistente() {
-        // Arrange
+        // Arrange — código ativo existe mas com código diferente → "inválido"
         VerificarEmailRequestDTO dto = new VerificarEmailRequestDTO("test@email.com", "000000");
-        when(codigoVerificacaoRepository.findByEmailAndCodigoAndIsUtilizadoFalse(any(), any()))
-                .thenReturn(Optional.empty());
+        CodigoVerificacaoEntity entity = new CodigoVerificacaoEntity();
+        entity.setCodigo("999999");
+        entity.setDataExpiracao(LocalDateTime.now().plusMinutes(10));
+        entity.setUtilizado(false);
+
+        when(codigoVerificacaoRepository.findTopByEmailAndIsUtilizadoFalseOrderByDataCriacaoDesc(any()))
+                .thenReturn(Optional.of(entity));
 
         // Act & Assert
         assertThatThrownBy(() -> emailVerificacaoService.verificarEmail(dto))

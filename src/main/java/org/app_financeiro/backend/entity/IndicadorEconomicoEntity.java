@@ -21,6 +21,8 @@ import java.time.LocalDate;
 public class IndicadorEconomicoEntity {
 
     @Id
+    @GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "indicador_seq")
+    @SequenceGenerator(name = "indicador_seq", sequenceName = "indicador_economico_id_seq", allocationSize = 1)
     private Long id;
 
     @Column(name = "nome", nullable = false, length = 50)

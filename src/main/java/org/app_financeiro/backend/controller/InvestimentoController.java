@@ -24,21 +24,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.math.BigDecimal;
 import java.util.List;
 
-/**
- * Controller responsável pelo CRUD de investimentos (metas/poupanças).
- *
- * Endpoints:
- * - POST /api/investimentos                              → Cria um novo investimento
- * - GET  /api/investimentos                              → Lista todos os investimentos do usuário
- * - POST /api/investimentos/{id}/depositar?valor=X&contaId=Y → Deposita valor no investimento (debita da conta)
- *
- * NOTA: O header "UsuarioId" é TEMPORÁRIO — será substituído por JWT/SecurityContext.
- *
- * REGRAS DE NEGÓCIO IMPORTANTES (implementadas no Service):
- * - O depósito DEBITA o saldo da conta de origem (bloqueia se saldo insuficiente)
- * - O depósito INCREMENTA o valorAtual do investimento
- * - O valorInicial é definido na criação e também debita da conta (se contaId for informada)
- */
+/** CRUD de investimentos e metas de poupança. */
 @RestController
 @RequestMapping("/api/investimentos")
 @Tag(name = "Investimentos", description = "Endpoints para gestão de metas e investimentos de poupança")
@@ -50,13 +36,6 @@ public class InvestimentoController {
         this.investimentoService = investimentoService;
     }
 
-    /**
-     * Cria um novo investimento/meta de poupança para o usuário.
-     *
-     * @param dto       dados do investimento (descricao, valorInicial, meta)
-     * @param usuarioId ID do usuário (header temporário)
-     * @return 201 Created com o investimento criado
-     */
     @PostMapping
     @Operation(summary = "Criar investimento", description = "Cria uma nova meta de investimento para o usuário logado.")
     public ResponseEntity<InvestimentoResponseDTO> criarInvestimento(
@@ -67,12 +46,6 @@ public class InvestimentoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(investimento);
     }
 
-    /**
-     * Lista todos os investimentos ativos do usuário.
-     *
-     * @param usuarioId ID do usuário (header temporário)
-     * @return 200 OK com a lista de investimentos
-     */
     @GetMapping
     @Operation(summary = "Listar investimentos", description = "Retorna todos os investimentos ativos do usuário logado.")
     public ResponseEntity<List<InvestimentoResponseDTO>> listarInvestimentos(
@@ -82,16 +55,7 @@ public class InvestimentoController {
         return ResponseEntity.ok(investimentos);
     }
 
-    /**
-     * Deposita um valor em um investimento existente.
-     * O valor é debitado da conta de origem (contaId).
-     *
-     * @param id        ID do investimento
-     * @param valor     valor a depositar
-     * @param contaId   ID da conta de onde o dinheiro sai
-     * @param usuarioId ID do usuário (header temporário)
-     * @return 200 OK com o investimento atualizado
-     */
+    /** Debita da conta de origem e incrementa valorAtual do investimento. */
     @PostMapping("/{id}/depositar")
     @Operation(summary = "Adicionar depósito", description = "Registra um aporte em um investimento, debitando o valor de uma conta bancária.")
     public ResponseEntity<InvestimentoResponseDTO> depositar(
@@ -104,15 +68,6 @@ public class InvestimentoController {
         return ResponseEntity.ok(investimento);
     }
 
-    /**
-     * Resgata um valor de um investimento para uma conta.
-     *
-     * @param id        ID do investimento
-     * @param valor     Valor do resgate (obrigatório)
-     * @param contaId   ID da conta destino (obrigatório)
-     * @param usuarioId ID do usuário (header temporário)
-     * @return 200 OK com o investimento atualizado
-     */
     @PostMapping("/{id}/resgatar")
     @Operation(summary = "Resgatar valor", description = "Retira um valor do investimento e credita em uma conta bancária.")
     public ResponseEntity<InvestimentoResponseDTO> resgatarInvestimento(
@@ -125,14 +80,6 @@ public class InvestimentoController {
         return ResponseEntity.ok(investimento);
     }
 
-    /**
-     * Atualiza a meta de um investimento.
-     *
-     * @param id        ID do investimento
-     * @param novaMeta  Novo valor para a meta (obrigatório)
-     * @param usuarioId ID do usuário (header temporário)
-     * @return 200 OK com o investimento atualizado
-     */
     @PutMapping("/{id}/meta")
     @Operation(summary = "Atualizar meta", description = "Altera o valor do objetivo (meta final) de um investimento.")
     public ResponseEntity<InvestimentoResponseDTO> atualizarMeta(
@@ -158,13 +105,7 @@ public class InvestimentoController {
         return ResponseEntity.ok(investimento);
     }
 
-    /**
-     * Desativa um investimento caso não haja saldo nele.
-     *
-     * @param id        ID do investimento
-     * @param usuarioId ID do usuário (header temporário)
-     * @return 204 No Content
-     */
+    /** Soft delete — bloqueado se valorAtual > 0. */
     @DeleteMapping("/{id}")
     @Operation(summary = "Excluir investimento", description = "Realiza o soft delete do investimento. Só é permitido se o saldo estiver zerado.")
     public ResponseEntity<Void> deletarInvestimento(

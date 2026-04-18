@@ -19,10 +19,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-/**
- * Controller responsável pela gestão do perfil do usuário logado.
- * Permite a visualização e atualização de dados como nome, celular e foto.
- */
+/** Gestão de perfil do usuário autenticado. */
 @RestController
 @RequestMapping("/api/usuarios/perfil")
 @Tag(name = "Perfil", description = "Gestão de dados do perfil do usuário")
@@ -40,26 +37,12 @@ public class PerfilController {
         this.usuarioMapper = usuarioMapper;
     }
 
-    /**
-     * Retorna os dados do perfil do usuário autenticado.
-     *
-     * @param usuario Entity do usuário extraída do token JWT
-     * @return 200 OK com os dados do perfil
-     */
     @GetMapping("/me")
     @Operation(summary = "Obter dados do perfil", description = "Retorna os dados do usuário autenticado através do token.")
     public ResponseEntity<UsuarioResponseDTO> obterPerfil(@AuthenticationPrincipal UsuarioEntity usuario) {
         return ResponseEntity.ok(usuarioMapper.toResponse(usuario));
     }
 
-    /**
-     * Atualiza os dados de perfil do usuário autenticado.
-     * Valida os campos conforme as regras de negócio e unicidade.
-     *
-     * @param usuario Entity do usuário extraída do token JWT
-     * @param dto     dados para atualização (nome, celular, fotoUrl)
-     * @return 200 OK com os dados atualizados
-     */
     @PutMapping("/me")
     @Operation(summary = "Atualizar perfil", description = "Atualiza nome, celular e preferência de moeda do usuário logado.")
     public ResponseEntity<UsuarioResponseDTO> atualizarPerfil(
@@ -70,14 +53,6 @@ public class PerfilController {
         return ResponseEntity.ok(atualizado);
     }
 
-    /**
-     * Endpoint para upload da foto de perfil.
-     * Recebe um arquivo de imagem e salva como BLOB no banco de dados.
-     *
-     * @param usuario Entity do usuário autenticado
-     * @param file    arquivo multipart (imagem)
-     * @return 204 No Content em caso de sucesso
-     */
     @PatchMapping(value = "/me/foto", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Upload de foto", description = "Realiza o upload real da foto de perfil para armazenamento local.")
     public ResponseEntity<Void> atualizarFoto(
@@ -88,14 +63,6 @@ public class PerfilController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Altera a senha do usuário logado.
-     * Exige a senha atual para confirmação de identidade.
-     *
-     * @param usuario Entity do usuário autenticado
-     * @param dto     contém senha atual e nova senha
-     * @return 200 OK com mensagem de sucesso
-     */
     @PutMapping("/me/senha")
     @Operation(summary = "Alterar senha", description = "Altera a senha do usuário logado. Exige a senha atual para confirmação.")
     public ResponseEntity<String> alterarSenha(

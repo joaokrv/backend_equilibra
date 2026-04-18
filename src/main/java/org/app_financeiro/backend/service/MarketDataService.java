@@ -23,10 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
-/**
- * Serviço que atua como Proxy para APIs financeiras externas.
- * Fornece dados da B3 (Brapi) e Câmbio (AwesomeAPI) com cache interno.
- */
+/** Proxy para APIs financeiras externas (Brapi, AwesomeAPI, HG Brasil, BCB) com cache em memória. */
 @Service
 @RequiredArgsConstructor
 @Slf4j
@@ -51,9 +48,6 @@ public class MarketDataService {
             "USD-BRL", "EUR-BRL", "GBP-BRL", "USD-BRL,EUR-BRL"
     );
 
-    /**
-     * Busca cotações de ações brasileiras via Brapi.
-     */
     public BrapiResponseDTO getQuotes(List<String> tickers) {
         evictExpiredEntries(quotesCache);
         List<BrapiResponseDTO.StockResultDTO> results = new ArrayList<>();
@@ -92,10 +86,6 @@ public class MarketDataService {
         return new BrapiResponseDTO(results);
     }
 
-    /**
-     * Busca taxas de câmbio via AwesomeAPI.
-     * @param pair Exemplo: "USD-BRL"
-     */
     @SuppressWarnings("unchecked")
     public Map<String, Object> getExchangeRates(String pair) {
         if (!PARES_PERMITIDOS.contains(pair)) {
@@ -123,10 +113,6 @@ public class MarketDataService {
         return Map.of();
     }
 
-    /**
-     * Sincroniza indicadores macroeconômicos (SELIC, CDI, Câmbio) via HG Brasil.
-     * Implementa lógica de persistência e fallback industrial.
-     */
     @Transactional
     public void syncIndicadoresMacro() {
         log.debug("Iniciando sincronização de indicadores macroeconômicos...");
@@ -167,10 +153,6 @@ public class MarketDataService {
         }
     }
 
-    /**
-     * Recupera os últimos indicadores macroeconômicos e moedas para o Dashboard.
-     * Consolida SELIC, CDI, Ipca e Câmbio do Banco de Dados.
-     */
     public MercadoIndicadoresResponseDTO getIndicadoresConsolidados() {
         List<IndicadorEconomicoEntity> indicadores = indicadorRepository.buscarUltimosIndicadores();
 
@@ -191,10 +173,6 @@ public class MarketDataService {
         return new MercadoIndicadoresResponseDTO(taxas, moedas, indices);
     }
 
-    /**
-     * Sincroniza o IPCA acumulado 12 meses via API pública do Banco Central (SGS).
-     * Série 13522 — atualizada mensalmente pelo IBGE.
-     */
     @Transactional
     public void syncIPCA() {
         log.debug("Buscando IPCA na API do Banco Central (SGS série 13522)...");
@@ -214,7 +192,9 @@ public class MarketDataService {
     }
 
     private void salvarIndicador(String nome, BigDecimal valor, BigDecimal variacao, LocalDate data, String provedor) {
-        indicadorRepository.insertIndicador(nome, valor, variacao, data, provedor);
+        // JPA save() usa a sequência BIGSERIAL — elimina race condition do MAX(id)+1 (B4-A1)
+        IndicadorEconomicoEntity indicador = new IndicadorEconomicoEntity(nome, valor, variacao, data, provedor);
+        indicadorRepository.save(indicador);
         log.debug("Indicador {} atualizado: {} (Provedor: {})", nome, valor, provedor);
     }
 

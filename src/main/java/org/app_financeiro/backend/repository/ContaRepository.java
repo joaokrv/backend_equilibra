@@ -12,38 +12,16 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Repositório JPA para operações de persistência de ContaEntity.
- *
- * NOTA: A entidade ContaEntity possui @SQLRestriction("ativo = true"),
- * portanto todas as queries derivadas filtram automaticamente por ativo = true.
- */
+/** @SQLRestriction("ativo = true") filtra automaticamente em todas as queries derivadas. */
 @Repository
 public interface ContaRepository extends JpaRepository<ContaEntity, Long> {
 
-    /**
-     * Soma o saldo de todas as contas ativas de um usuário.
-     */
     @Query("SELECT SUM(c.saldo) FROM ContaEntity c WHERE c.usuario.id = :usuarioId")
     BigDecimal somarSaldoPorUsuario(@Param("usuarioId") Long usuarioId);
 
-    /**
-     * Retorna todas as contas (ativas) de um usuário.
-     * Filtro ativo = true aplicado automaticamente via @SQLRestriction.
-     *
-     * @param usuarioId ID do usuário
-     * @return Lista de contas ativas
-     */
     List<ContaEntity> findByUsuarioId(Long usuarioId);
 
-    /**
-     * Busca uma conta específica com bloqueio pessimista.
-     * Garante que nenhuma outra thread possa ler ou modificar a conta até
-     * que a transação atual seja concluída.
-     *
-     * @param id ID da conta
-     * @return Optional contendo a conta com lock
-     */
+    /** PESSIMISTIC_WRITE — serializa atualizações de saldo concorrentes. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM ContaEntity c WHERE c.id = :id")
     Optional<ContaEntity> findByIdWithLock(@Param("id") Long id);

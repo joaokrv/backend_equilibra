@@ -15,17 +15,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
 
-/**
- * Entidade que representa uma Transação financeira do usuário.
- *
- * Uma transação pode ser uma DESPESA debitada de uma conta ou lançada em
- * um cartão de crédito, ou uma RECEITA creditada em uma conta bancária.
- *
- * Relacionamentos opcionais (podem ser nulos):
- * - "conta": presente apenas em transações via conta bancária.
- * - "cartao" e "fatura": presentes apenas em transações via cartão de crédito.
- * - "categoria": classificação opcional da transação.
- */
+/** conta XOR (cartao+fatura) — mutuamente exclusivos; categoria opcional. */
 @Getter
 @Setter
 @NoArgsConstructor

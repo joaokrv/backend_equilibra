@@ -116,7 +116,7 @@ class MovimentacaoFinanceiraServiceTest {
     @Test
     void deveProcessarEstornoCartao() {
         // Arrange
-        when(cartaoService.buscarCartaoValidado(20L, 1L)).thenReturn(cartaoPadrao);
+        when(cartaoService.obterCartaoComBloqueioExclusivo(20L, 1L)).thenReturn(cartaoPadrao);
         when(faturaService.registrarCredito(eq(cartaoPadrao), any(), eq(new BigDecimal("50.00")))).thenReturn(faturaPadrao);
 
         // Act

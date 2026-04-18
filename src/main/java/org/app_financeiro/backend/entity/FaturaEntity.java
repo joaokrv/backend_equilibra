@@ -15,21 +15,8 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 /**
- * Entidade que representa a Fatura mensal de um Cartão de Crédito.
- *
- * Faturas são criadas de forma "Lazy" (sob demanda) pelo FaturaService:
- * elas só existem quando a primeira transação do mês é registrada no cartão.
- *
- * O campo "valorTotal" é incrementado a cada nova transação e decrementado
- * quando uma transação é removida. O "valorPago" acompanha pagamentos parciais.
- *
- * Ciclo de vida do status:
- *   ABERTA -> (passou dataFechamento) -> FECHADA
- *   FECHADA -> (passou dataVencimento) -> ATRASADA
- *   FECHADA ou ATRASADA -> (paga integralmente) -> PAGA
- *
- * O índice único em (cartao_id + mes + ano) garante que nunca
- * existirão duas faturas para o mesmo cartão no mesmo mês/ano.
+ * Criada lazy na primeira transação do mês. Índice único (cartao_id, mes, ano).
+ * Ciclo: ABERTA → FECHADA → ATRASADA → PAGA.
  */
 @Getter
 @Setter

@@ -11,10 +11,7 @@ import java.time.LocalDate;
 import java.time.YearMonth;
 import java.time.format.DateTimeFormatter;
 
-/**
- * Serviço responsável pela gestão autônoma de partições de banco de dados.
- * Implementa a criação proativa de partições mensais e a política de retenção de dados históricos.
- */
+/** Criação proativa de partições mensais e retenção de 2 anos de dados históricos. */
 @Slf4j
 @Service
 @RequiredArgsConstructor
@@ -23,10 +20,7 @@ public class PartitionMaintenanceService {
     private final JdbcTemplate jdbcTemplate;
     private static final DateTimeFormatter YEAR_MONTH_FORMATTER = DateTimeFormatter.ofPattern("yyyy_MM");
 
-    /**
-     * Gerencia as partições do sistema. 
-     * Executado mensalmente (todo dia 25 às 01:00 AM) para preparar o terreno para o próximo mês.
-     */
+    /** Cria partições dos próximos 2 meses. Executado dia 25 às 01:00. */
     @Scheduled(cron = "0 0 1 25 * *")
     @Transactional
     public void gerenciarParticoes() {
@@ -34,26 +28,28 @@ public class PartitionMaintenanceService {
         
         LocalDate hoje = LocalDate.now();
         
-        // Criar partições para os próximos 2 meses por garantia
         prepararParticao(hoje.plusMonths(1));
         prepararParticao(hoje.plusMonths(2));
         
         log.info("Manutenção de partições concluída com sucesso.");
     }
 
-    /**
-     * Cria as partições necessárias para um determinado mês de referência.
-     *
-     * @param data Data dentro do mês alvo
-     */
     private void prepararParticao(LocalDate data) {
         String sufixo = data.format(YEAR_MONTH_FORMATTER);
         LocalDate inicioMes = data.withDayOfMonth(1);
         LocalDate inicioProximoMes = inicioMes.plusMonths(1);
 
+        // SEGURANÇA: sufixo e datas derivados exclusivamente de LocalDate.now() — sem input externo.
+        // Defesa em profundidade contra SQL injection caso alguém refatore este método (B3-A1).
+        if (!sufixo.matches("^\\d{4}_\\d{2}$")) {
+            throw new IllegalStateException("Sufixo de partição inválido: " + sufixo);
+        }
+        if (!inicioMes.toString().matches("^\\d{4}-\\d{2}-\\d{2}$")) {
+            throw new IllegalStateException("Data de partição inválida: " + inicioMes);
+        }
+
         log.info("Verificando partição para o período: {}", sufixo);
 
-        // Partição para Indicadores Econômicos (Mensal)
         try {
             String sqlIndicador = String.format(
                 "CREATE TABLE IF NOT EXISTS indicador_economico_%s PARTITION OF indicador_economico " +
@@ -66,7 +62,6 @@ public class PartitionMaintenanceService {
             log.error("Falha ao criar partição indicador_economico_{}: {}", sufixo, e.getMessage());
         }
 
-        // Partição para Patrimônio Histórico (Mensal)
         try {
             String sqlPatrimonio = String.format(
                 "CREATE TABLE IF NOT EXISTS patrimonio_historico_%s PARTITION OF patrimonio_historico " +
@@ -80,10 +75,7 @@ public class PartitionMaintenanceService {
         }
     }
     
-    /**
-     * Remove partições com dados mais antigos que 2 anos.
-     * Executado no 1o dia de cada mês às 02:00 AM.
-     */
+    /** Remove partições com mais de 2 anos. Executado dia 1 às 02:00. */
     @Scheduled(cron = "0 0 2 1 * *")
     @Transactional
     public void removerParticoesAntigas() {

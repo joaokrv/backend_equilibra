@@ -24,24 +24,7 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 
-/**
- * Serviço responsável pelo gerenciamento de investimentos e metas de poupança.
- *
- * Permite criar investimentos, realizar depósitos (debitando de uma conta),
- * resgatar valores (creditando de volta para uma conta), atualizar a meta
- * e desativar investimentos via soft delete.
- *
- * FLUXO DE DINHEIRO:
- * - Depósito:  Conta --(-valor)--> Investimento  (contaService.debitarSaldo + incrementa valorAtual)
- * - Resgate:   Investimento --(-valor)--> Conta  (contaService.creditarSaldo + decrementa valorAtual)
- *
- * O valorInicial é apenas o ponto de partida da meta, NÃO debita de nenhuma conta automaticamente.
- * Para movimentar dinheiro real, use depositar() ou resgatar().
- *
- * REGRAS:
- * 1. Se a meta for informada, ela deve ser maior que zero.
- * 2. Se a meta for informada, o valorInicial não pode ser maior que a meta.
- */
+/** Gerencia investimentos e metas de poupança com fluxo de depósito/resgate integrado às contas. */
 @Service
 public class InvestimentoService {
 
@@ -68,14 +51,6 @@ public class InvestimentoService {
         this.patrimonioHistoricoService = patrimonioHistoricoService;
     }
 
-    /**
-     * Cria um novo investimento/meta de poupança para o usuário.
-     *
-     * @param dto       Dados do investimento (descrição, valorInicial, meta)
-     * @param usuarioId ID do usuário autenticado
-     * @return InvestimentoResponseDTO com os dados salvos
-     * @throws RecursoNaoEncontradoException se o usuário não existir ou estiver inativo
-     */
     @Transactional
     public InvestimentoResponseDTO criarInvestimento(InvestimentoRegistroRequestDTO dto, Long usuarioId) {
         UsuarioEntity usuario = usuarioService.buscarPorIdOuFalhar(usuarioId);
@@ -121,17 +96,6 @@ public class InvestimentoService {
         return investimentoMapper.toResponse(investimento);
     }
 
-    /**
-     * Deposita um valor em um investimento existente, debitando de uma conta bancária.
-     *
-     * @param investimentoId ID do investimento
-     * @param valor          Valor a depositar (positivo)
-     * @param contaId        ID da conta de onde o dinheiro sai
-     * @param usuarioId      ID do usuário autenticado
-     * @return InvestimentoResponseDTO com valorAtual atualizado
-     * @throws RecursoNaoEncontradoException se o investimento ou conta não existirem
-     * @throws SaldoInsuficienteException    se o saldo da conta for insuficiente
-     */
     @Transactional
     public InvestimentoResponseDTO adicionarDeposito(Long investimentoId, BigDecimal valor, Long contaId, Long usuarioId) {
         InvestimentoEntity investimento = buscarInvestimentoValidado(investimentoId, usuarioId);
@@ -154,17 +118,6 @@ public class InvestimentoService {
         return investimentoMapper.toResponse(investimento);
     }
 
-    /**
-     * Resgata um valor de um investimento, creditando de volta em uma conta bancária.
-     *
-     * @param investimentoId ID do investimento
-     * @param valor          Valor a resgatar (positivo)
-     * @param contaId        ID da conta que receberá o dinheiro
-     * @param usuarioId      ID do usuário autenticado
-     * @return InvestimentoResponseDTO com valorAtual atualizado
-     * @throws RecursoNaoEncontradoException se o investimento ou conta não existirem
-     * @throws RegraDeNegocioException       se o valor de resgate exceder o saldo do investimento
-     */
     @Transactional
     public InvestimentoResponseDTO resgatarInvestimento(Long investimentoId, BigDecimal valor, Long contaId, Long usuarioId) {
         InvestimentoEntity investimento = buscarInvestimentoValidado(investimentoId, usuarioId);
@@ -191,16 +144,6 @@ public class InvestimentoService {
         return investimentoMapper.toResponse(investimento);
     }
 
-    /**
-     * Atualiza a meta (valor-alvo) de um investimento existente.
-     *
-     * @param investimentoId ID do investimento
-     * @param novaMeta       Novo valor da meta (positivo)
-     * @param usuarioId      ID do usuário autenticado
-     * @return InvestimentoResponseDTO com metaAtual atualizada
-     * @throws RecursoNaoEncontradoException se o investimento não existir
-     * @throws RegraDeNegocioException       se a nova meta não for positiva
-     */
     @Transactional
     public InvestimentoResponseDTO atualizarMeta(Long investimentoId, BigDecimal novaMeta, Long usuarioId) {
         InvestimentoEntity investimento = buscarInvestimentoValidado(investimentoId, usuarioId);
@@ -216,9 +159,6 @@ public class InvestimentoService {
         return investimentoMapper.toResponse(investimento);
     }
 
-    /**
-     * Atualiza dados centrais da meta: nome, valor da meta e tipo de investimento.
-     */
     @Transactional
     public InvestimentoResponseDTO atualizarInvestimento(Long investimentoId,
                                                          InvestimentoAtualizacaoRequestDTO dto,
@@ -242,12 +182,6 @@ public class InvestimentoService {
         return investimentoMapper.toResponse(investimento);
     }
 
-    /**
-     * Lista todos os investimentos ativos do usuário.
-     *
-     * @param usuarioId ID do usuário autenticado
-     * @return Lista de InvestimentoResponseDTO (pode ser vazia)
-     */
     @Transactional(readOnly = true)
     public List<InvestimentoResponseDTO> buscarTodosDoUsuario(Long usuarioId) {
         return investimentoRepository.findByUsuarioId(usuarioId)
@@ -256,14 +190,6 @@ public class InvestimentoService {
                 .toList();
     }
 
-    /**
-     * Desativa (soft delete) um investimento.
-     *
-     * @param investimentoId ID do investimento a desativar
-     * @param usuarioId      ID do usuário autenticado
-     * @throws RecursoNaoEncontradoException se o investimento não existir
-     * @throws RegraDeNegocioException       se o investimento ainda possuir saldo
-     */
     @Transactional
     public void deletarInvestimento(Long investimentoId, Long usuarioId) {
         InvestimentoEntity investimento = buscarInvestimentoValidado(investimentoId, usuarioId);
@@ -280,15 +206,6 @@ public class InvestimentoService {
     // MÉTODO PRIVADO DE VALIDAÇÃO
     // =============================================
 
-    /**
-     * Busca um investimento por ID e valida que pertence ao usuário e está ativo.
-     * Padrão idêntico ao buscarContaValidada/buscarCartaoValidado dos outros services.
-     *
-     * @param investimentoId ID do investimento
-     * @param usuarioId      ID do usuário autenticado
-     * @return InvestimentoEntity validado
-     * @throws RecursoNaoEncontradoException se não existir, não pertencer ao usuário ou estiver inativo
-     */
     private InvestimentoEntity buscarInvestimentoValidado(Long investimentoId, Long usuarioId) {
         InvestimentoEntity investimento = investimentoRepository.findById(investimentoId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Investimento não encontrado"));

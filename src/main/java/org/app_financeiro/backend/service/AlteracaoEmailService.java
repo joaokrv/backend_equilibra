@@ -22,18 +22,13 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 
-/**
- * Serviço responsável pelo fluxo de alteração de e-mail em duas etapas:
- *
- * 1. Solicitar: valida identidade (senha atual), verifica disponibilidade do novo email,
- *    gera OTP de 6 dígitos e envia ao NOVO email.
- * 2. Confirmar: valida o OTP, efetiva a troca de email e invalida sessões.
- */
+/** Fluxo de alteração de e-mail em duas etapas: OTP enviado ao novo endereço e invalidação de sessões ao confirmar. */
 @Service
 public class AlteracaoEmailService {
 
     private static final Logger log = LoggerFactory.getLogger(AlteracaoEmailService.class);
     private static final int MINUTOS_EXPIRACAO = 15;
+    private static final int MAX_TENTATIVAS_OTP = 5;
 
     private final SolicitacaoAlteracaoEmailRepository solicitacaoRepository;
     private final UsuarioRepository usuarioRepository;
@@ -51,11 +46,6 @@ public class AlteracaoEmailService {
         this.externalEmailSenderService = externalEmailSenderService;
     }
 
-    /**
-     * Etapa 1: Solicita a alteração de e-mail.
-     * Valida a senha atual, verifica que o novo email não está em uso,
-     * gera OTP e envia ao novo endereço.
-     */
     @Transactional
     public void solicitarAlteracao(Long usuarioId, SolicitarAlteracaoEmailRequestDTO dto) {
         UsuarioEntity usuario = usuarioRepository.findById(usuarioId)
@@ -88,18 +78,31 @@ public class AlteracaoEmailService {
         log.debug("Solicitação de alteração de e-mail criada: usuarioId={}, novoEmail={}", usuarioId, dto.novoEmail());
     }
 
-    /**
-     * Etapa 2: Confirma a alteração de e-mail com o código OTP.
-     * Valida o código, atualiza o email do usuário e invalida sessões ativas.
-     */
     @Transactional
     public void confirmarAlteracao(Long usuarioId, ConfirmarAlteracaoEmailRequestDTO dto) {
         SolicitacaoAlteracaoEmailEntity solicitacao = solicitacaoRepository
-                .findByUsuarioIdAndCodigoAndIsUtilizadoFalse(usuarioId, dto.codigo())
-                .orElseThrow(() -> new CodigoVerificacaoInvalidoException("Código inválido ou já utilizado."));
+                .findTopByUsuarioIdAndIsUtilizadoFalseOrderByDataCriacaoDesc(usuarioId)
+                .orElseThrow(() -> new CodigoVerificacaoInvalidoException("Nenhuma solicitação ativa. Solicite uma nova alteração."));
+
+        // Bloqueado após MAX_TENTATIVAS_OTP erros (B1-C1)
+        if (solicitacao.getTentativasFalhas() >= MAX_TENTATIVAS_OTP) {
+            log.warn("OTP de alteração de e-mail bloqueado por excesso de tentativas: usuarioId={}", usuarioId);
+            throw new CodigoVerificacaoInvalidoException("Código bloqueado após múltiplas tentativas. Solicite uma nova alteração.");
+        }
 
         if (solicitacao.getDataExpiracao().isBefore(LocalDateTime.now())) {
             throw new CodigoVerificacaoInvalidoException("Código expirado. Solicite uma nova alteração de e-mail.");
+        }
+
+        // Código incorreto → incrementa tentativas; invalida ao atingir limite
+        if (!solicitacao.getCodigo().equals(dto.codigo())) {
+            solicitacao.setTentativasFalhas(solicitacao.getTentativasFalhas() + 1);
+            if (solicitacao.getTentativasFalhas() >= MAX_TENTATIVAS_OTP) {
+                solicitacao.setUtilizado(true);
+                log.warn("OTP de alteração invalidado após {} tentativas: usuarioId={}", MAX_TENTATIVAS_OTP, usuarioId);
+            }
+            solicitacaoRepository.save(solicitacao);
+            throw new CodigoVerificacaoInvalidoException("Código inválido ou já utilizado.");
         }
 
         UsuarioEntity usuario = usuarioRepository.findById(usuarioId)

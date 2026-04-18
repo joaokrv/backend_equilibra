@@ -19,17 +19,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * Controller responsável pelo CRUD de cartões de crédito.
- *
- * Endpoints:
- * - POST   /api/cartoes         → Cria um novo cartão
- * - GET    /api/cartoes         → Lista todos os cartões do usuário
- * - GET    /api/cartoes/{id}    → Busca cartão por ID
- * - DELETE /api/cartoes/{id}    → Soft delete do cartão
- *
- * NOTA: O header "UsuarioId" é TEMPORÁRIO — será substituído por JWT/SecurityContext.
- */
+/** CRUD de cartões de crédito. */
 @RestController
 @RequestMapping("/api/cartoes")
 public class CartaoController {
@@ -40,13 +30,6 @@ public class CartaoController {
         this.cartaoService = cartaoService;
     }
 
-    /**
-     * Cria um novo cartão de crédito para o usuário.
-     *
-     * @param dto       dados do cartão (nome, limite, diaFechamento, diaVencimento)
-     * @param usuarioId ID do usuário (header temporário)
-     * @return 201 Created com o cartão criado
-     */
     @PostMapping
     public ResponseEntity<CartaoResponseDTO> criarCartao(
             @Valid @RequestBody CartaoRegistroRequestDTO dto,
@@ -56,12 +39,6 @@ public class CartaoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(cartao);
     }
 
-    /**
-     * Lista todos os cartões ativos do usuário.
-     *
-     * @param usuarioId ID do usuário (header temporário)
-     * @return 200 OK com a lista de cartões
-     */
     @GetMapping
     public ResponseEntity<List<CartaoResponseDTO>> listarCartoes(
             @AuthenticationPrincipal UsuarioEntity usuario) {
@@ -70,14 +47,7 @@ public class CartaoController {
         return ResponseEntity.ok(cartoes);
     }
 
-    /**
-     * Busca um cartão específico por ID.
-     * O Service deve validar que o cartão pertence ao usuário.
-     *
-     * @param id        ID do cartão
-     * @param usuarioId ID do usuário (header temporário)
-     * @return 200 OK com o cartão encontrado
-     */
+    /** Service valida ownership. */
     @GetMapping("/{id}")
     public ResponseEntity<CartaoResponseDTO> buscarPorId(
             @PathVariable Long id,
@@ -87,14 +57,7 @@ public class CartaoController {
         return ResponseEntity.ok(cartao);
     }
 
-    /**
-     * Desativa (soft delete) um cartão.
-     * O Service deve validar que o cartão pertence ao usuário.
-     *
-     * @param id        ID do cartão
-     * @param usuarioId ID do usuário (header temporário)
-     * @return 204 No Content
-     */
+    /** Soft delete. Service valida ownership. */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletarCartao(
             @PathVariable Long id,
@@ -104,15 +67,7 @@ public class CartaoController {
         return ResponseEntity.noContent().build();
     }
 
-    /**
-     * Atualiza os dados de um cartão existente.
-     * O Service valida se o cartão pertence ao usuário e aplica as regras de limite.
-     *
-     * @param id      ID do cartão
-     * @param dto     dados atualizados do cartão
-     * @param usuario usuário autenticado
-     * @return 200 OK com os dados atualizados
-     */
+    /** Service valida ownership e aplica regras de limite. */
     @PutMapping("/{id}")
     public ResponseEntity<CartaoResponseDTO> atualizarCartao(
             @PathVariable Long id,

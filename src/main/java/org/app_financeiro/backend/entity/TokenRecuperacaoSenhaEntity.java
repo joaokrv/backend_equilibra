@@ -9,13 +9,7 @@ import org.hibernate.annotations.CreationTimestamp;
 
 import java.time.LocalDateTime;
 
-/**
- * Entidade que armazena tokens de recuperação de senha.
- *
- * Cada token é um UUID único enviado por e-mail ao usuário.
- * O token possui validade de 30 minutos e só pode ser utilizado uma vez.
- * Tokens anteriores são automaticamente invalidados quando um novo é gerado.
- */
+/** Token UUID de recuperação. Validade 30min, uso único; token anterior invalidado ao gerar novo. */
 @Getter
 @Setter
 @NoArgsConstructor

@@ -21,17 +21,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
-/**
- * Controller responsável pelo CRUD de categorias de transação.
- *
- * Endpoints:
- * - POST   /api/categorias          → Cria uma nova categoria
- * - GET    /api/categorias          → Lista todas as categorias do usuário
- * - GET    /api/categorias?tipo=... → Filtra categorias por tipo (RECEITA/DESPESA)
- * - DELETE /api/categorias/{id}     → Soft delete da categoria
- *
- * NOTA: O header "UsuarioId" é TEMPORÁRIO — será substituído por JWT/SecurityContext.
- */
+/** CRUD de categorias de transação. */
 @RestController
 @RequestMapping("/api/categorias")
 public class CategoriaController {
@@ -42,14 +32,7 @@ public class CategoriaController {
         this.categoriaService = categoriaService;
     }
 
-    /**
-     * Cria uma nova categoria para o usuário.
-     * O Service deve validar que não existe outra categoria com mesmo nome e tipo para este usuário.
-     *
-     * @param dto       dados da categoria (nome, tipo RECEITA/DESPESA)
-     * @param usuarioId ID do usuário (header temporário)
-     * @return 201 Created com a categoria criada
-     */
+    /** Service valida unicidade por nome+tipo+usuário. */
     @PostMapping
     public ResponseEntity<CategoriaResponseDTO> criarCategoria(
             @Valid @RequestBody CategoriaRegistroRequestDTO dto,
@@ -59,14 +42,7 @@ public class CategoriaController {
         return ResponseEntity.status(HttpStatus.CREATED).body(categoria);
     }
 
-    /**
-     * Lista categorias do usuário. Se o parâmetro "tipo" for informado,
-     * filtra por RECEITA ou DESPESA. Caso contrário, retorna todas.
-     *
-     * @param usuarioId ID do usuário (header temporário)
-     * @param tipo      filtro opcional: RECEITA ou DESPESA
-     * @return 200 OK com a lista de categorias
-     */
+    /** Filtra por tipo (RECEITA/DESPESA) se informado; retorna todas se omitido. */
     @GetMapping
     public ResponseEntity<List<CategoriaResponseDTO>> listarCategorias(
             @AuthenticationPrincipal UsuarioEntity usuario,
@@ -81,14 +57,6 @@ public class CategoriaController {
         return ResponseEntity.ok(categorias);
     }
 
-    /**
-     * Atualiza o nome de uma categoria existente.
-     *
-     * @param id      ID da categoria
-     * @param dto     Dados com o novo nome
-     * @param usuario Usuário autenticado via JWT
-     * @return 200 OK com a categoria atualizada
-     */
     @PutMapping("/{id}")
     public ResponseEntity<CategoriaResponseDTO> atualizarCategoria(
             @PathVariable Long id,
@@ -99,14 +67,7 @@ public class CategoriaController {
         return ResponseEntity.ok(atualizada);
     }
 
-    /**
-     * Desativa (soft delete) uma categoria.
-     * O Service deve validar que a categoria pertence ao usuário.
-     *
-     * @param id        ID da categoria
-     * @param usuarioId ID do usuário (header temporário)
-     * @return 204 No Content
-     */
+    /** Soft delete. Service valida ownership. */
     @DeleteMapping("/{id}")
     public ResponseEntity<Void> deletarCategoria(
             @PathVariable Long id,

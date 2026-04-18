@@ -37,13 +37,13 @@ Aqui está a lista detalhada de todas as "portas" de entrada do servidor. Todas 
     *   **O que faz:** Cria a conta, gera o hash da senha, devolve DTO sem a senha.
 *   `POST /api/auth/login`
     *   **Body:** `{ "email", "senha" }`
-    *   **O que faz:** Valida senha (com Pepper), verifica se e-mail tá ativo, e devolve Access + Refresh tokens.
+    *   **O que faz:** Valida senha (com Pepper), verifica se e-mail tá ativo. Retorna `{ accessToken, expiresIn }` no body. O refresh token é enviado apenas via cookie HttpOnly (não aparece no response body).
 *   `POST /api/auth/verificar-email`
     *   **Body:** `{ "email", "codigo" }`
     *   **O que faz:** Pega o OTP de 6 dígitos recebido por e-mail e ativa a conta para login.
 *   `POST /api/auth/refresh`
-    *   **Header:** Access Token expirado | **Body:** `{ "refreshToken" }`
-    *   **O que faz:** Te dá um Access Token fresquinho para continuar usando o app.
+    *   **Cookie:** `refreshToken=<rt>` (HttpOnly, enviado automaticamente pelo browser)
+    *   **O que faz:** Lê o refresh token via cookie HttpOnly, rotaciona-o e devolve um novo access token. O refresh token **nunca** é enviado no body — apenas via cookie.
 
 ---
 

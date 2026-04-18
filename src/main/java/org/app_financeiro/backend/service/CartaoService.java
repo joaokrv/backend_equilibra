@@ -27,15 +27,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import org.app_financeiro.backend.dto.projections.DividaCartaoProjection;
 
-/**
- * Serviço responsável pelo gerenciamento de Cartões de Crédito.
- *
- * Controla o ciclo de vida dos cartões (criação, consulta, soft delete) e
- * calcula o limite disponível em tempo real com base nas faturas pendentes.
- *
- * Regra de cálculo do limite disponível:
- *   Limite Disponível = Limite Total - soma(valorTotal - valorPago) das faturas NÃO PAGAS
- */
+/** Gerencia cartões de crédito e calcula limite disponível em tempo real com base nas faturas pendentes. */
 @Service
 public class CartaoService {
 
@@ -65,15 +57,6 @@ public class CartaoService {
         this.transacaoRecorrenteRepository = transacaoRecorrenteRepository;
     }
 
-    /**
-     * Cria um novo cartão de crédito para o usuário.
-     * O limite disponível inicial é 100% do limite total (sem faturas pendentes).
-     *
-     * @param dto       Dados do cartão (nome, limite, dia fechamento, dia vencimento)
-     * @param usuarioId ID do usuário autenticado
-     * @return CartaoResponseDTO com os dados salvos e limite disponível
-     * @throws RecursoNaoEncontradoException se o usuário não existir ou estiver inativo
-     */
     @Transactional
     public CartaoResponseDTO criarCartao(CartaoRegistroRequestDTO dto, Long usuarioId) {
         UsuarioEntity usuario = usuarioService.buscarPorIdOuFalhar(usuarioId);
@@ -100,27 +83,12 @@ public class CartaoService {
         return cartaoMapper.toResponse(cartaoSalvo, cartaoSalvo.getLimite()); 
     }
 
-    /**
-     * Busca um cartão específico por ID e calcula seu limite disponível atual.
-     *
-     * @param cartaoId  ID do cartão
-     * @param usuarioId ID do dono do cartão
-     * @return CartaoResponseDTO com dados do cartão e limite disponível calculado
-     * @throws RecursoNaoEncontradoException se o cartão não existir ou não pertencer ao usuário
-     */
     public CartaoResponseDTO buscarPorId(Long cartaoId, Long usuarioId) {
         CartaoEntity cartao = buscarCartaoValidado(cartaoId, usuarioId);
         BigDecimal limiteDisponivel = calcularLimiteDisponivel(cartao);
         return cartaoMapper.toResponse(cartao, limiteDisponivel);
     }
 
-    /**
-     * Calcula o limite disponível de um cartão subtraindo as dívidas de faturas não pagas.
-     * Limite Disponível = Limite Total - Soma(valorTotal - valorPago) de faturas não PAGAS.
-     *
-     * @param cartao Entidade do cartão já validada
-     * @return Limite disponível atual do cartão
-     */
     public BigDecimal calcularLimiteDisponivel(CartaoEntity cartao) {
         List<FaturaEntity> faturasPendentes = faturaRepository.findByCartaoIdAndStatusNot(cartao.getId(), StatusFatura.PAGA);
 
@@ -134,12 +102,6 @@ public class CartaoService {
         return cartao.getLimite().subtract(somaDividas);
     }
 
-    /**
-     * Lista todos os cartões ativos do usuário, calculando o limite disponível de cada um em tempo real.
-     *
-     * @param usuarioId ID do usuário autenticado
-     * @return Lista de CartaoResponseDTO (pode ser vazia)
-     */
     @Transactional(readOnly = true)
     public List<CartaoResponseDTO> buscarTodosDoUsuario(Long usuarioId) {
         List<CartaoEntity> cartoes = cartaoRepository.findByUsuarioId(usuarioId);
@@ -161,12 +123,7 @@ public class CartaoService {
                 .toList();
     }
 
-    /**
-     * Atualiza os dados de um cartão existente.
-     *
-     * Regra importante:
-     * - O novo limite não pode ser menor que o valor já utilizado em faturas não pagas.
-     */
+    /** O novo limite não pode ser menor que o valor já utilizado em faturas não pagas. */
     @Transactional
     public CartaoResponseDTO atualizarCartao(Long cartaoId, CartaoRegistroRequestDTO dto, Long usuarioId) {
         CartaoEntity cartao = buscarCartaoValidado(cartaoId, usuarioId);
@@ -202,15 +159,6 @@ public class CartaoService {
         return cartaoMapper.toResponse(cartaoAtualizado, limiteDisponivelAtualizado);
     }
 
-    /**
-     * Desativa (soft delete) um cartão de crédito.
-     * Bloqueia a operação se o cartão possuir faturas não pagas (ABERTA, FECHADA ou ATRASADA).
-     *
-     * @param cartaoId  ID do cartão a desativar
-     * @param usuarioId ID do dono do cartão
-     * @throws RecursoNaoEncontradoException se o cartão não existir ou não pertencer ao usuário
-     * @throws RegraDeNegocioException       se o cartão possuir faturas pendentes
-     */
     @Transactional
     public void deletarCartao(Long cartaoId, Long usuarioId) {
         CartaoEntity cartao = buscarCartaoValidado(cartaoId, usuarioId);
@@ -232,19 +180,8 @@ public class CartaoService {
     }
 
     /**
-     * Consome parte do limite do cartão ao registrar uma DESPESA via cartão.
-     * Verifica se o limite disponível é suficiente antes de prosseguir.
-     *
-     * Este método NÃO persiste nada no cartão. O consumo real do limite acontece
-     * quando o TransacaoService chama faturaService.adicionarTransacao(), que incrementa
-     * o valorTotal da fatura — e o cálculo dinâmico de limite passa a refletir isso.
-     *
-     * @param cartaoId  ID do cartão
-     * @param valor     valor a consumir do limite (positivo)
-     * @param usuarioId ID do dono do cartão
-     * @return CartaoEntity validado
-     * @throws RecursoNaoEncontradoException se o cartão não existir ou não pertencer ao usuário
-     * @throws LimiteInsuficienteException   se o limite disponível for insuficiente
+     * Não persiste nada no cartão — o consumo real do limite acontece quando
+     * faturaService.adicionarTransacao() incrementa o valorTotal da fatura.
      */
     @Transactional
     public CartaoEntity consumirLimite(Long cartaoId, BigDecimal valor, Long usuarioId) {

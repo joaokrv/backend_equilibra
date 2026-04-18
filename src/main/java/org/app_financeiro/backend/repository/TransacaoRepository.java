@@ -20,43 +20,24 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
 
-/**
- * Repositório JPA para operações de persistência de TransacaoEntity.
- * Oferece queries por usuário, período, tipo, categoria, conta e cartão,
- * além de suporte a paginação.
- *
- * NOTA: A entidade TransacaoEntity possui @SQLRestriction("ativo = true"),
- * portanto todas as queries derivadas filtram automaticamente por ativo = true.
- */
+/** @SQLRestriction("ativo = true") filtra automaticamente em todas as queries derivadas. */
 @Repository
 public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long> {
 
-    /**
-     * Soma o valor total de todas as receitas ativas de um usuário.
-     */
-    @Query("SELECT SUM(t.valor) FROM TransacaoEntity t WHERE t.usuario.id = :usuarioId AND t.tipo = org.app_financeiro.backend.enums.TipoTransacao.RECEITA")
+    /** Filtra por PAGO para não inflar o resumo com transações pendentes. */
+    @Query("SELECT SUM(t.valor) FROM TransacaoEntity t WHERE t.usuario.id = :usuarioId AND t.tipo = org.app_financeiro.backend.enums.TipoTransacao.RECEITA AND t.status = org.app_financeiro.backend.enums.StatusTransacao.PAGO")
     BigDecimal somarReceitasPorUsuario(@Param("usuarioId") Long usuarioId);
 
-    /**
-     * Soma o valor total de todas as despesas ativas de um usuário.
-     */
-    @Query("SELECT SUM(t.valor) FROM TransacaoEntity t WHERE t.usuario.id = :usuarioId AND t.tipo = org.app_financeiro.backend.enums.TipoTransacao.DESPESA")
+    /** Filtra por PAGO para não inflar o resumo com transações pendentes. */
+    @Query("SELECT SUM(t.valor) FROM TransacaoEntity t WHERE t.usuario.id = :usuarioId AND t.tipo = org.app_financeiro.backend.enums.TipoTransacao.DESPESA AND t.status = org.app_financeiro.backend.enums.StatusTransacao.PAGO")
     BigDecimal somarDespesasPorUsuario(@Param("usuarioId") Long usuarioId);
 
-    /**
-     * Retorna todas as transações (ativas) de um usuário.
-     */
     List<TransacaoEntity> findByUsuarioId(Long usuarioId);
 
-    /**
-     * Retorna transações (ativas) de um usuário em um intervalo de datas.
-     */
+    /** @EntityGraph evita N+1 ao carregar categoria, conta e cartão. */
     @EntityGraph(attributePaths = {"categoria", "conta", "cartao"})
     List<TransacaoEntity> findByUsuarioIdAndDataBetween(Long usuarioId, LocalDate start, LocalDate end);
 
-    /**
-     * Soma o valor de transacoes por tipo (RECEITA/DESPESA) em um intervalo de datas.
-     */
     @Query("SELECT COALESCE(SUM(t.valor), 0) FROM TransacaoEntity t " +
            "WHERE t.usuario.id = :uid AND t.data BETWEEN :ini AND :fim AND t.tipo = :tipo")
     BigDecimal somarPorTipoNoPeriodo(@Param("uid") Long uid,
@@ -64,9 +45,6 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
                                       @Param("fim") LocalDate fim,
                                       @Param("tipo") TipoTransacao tipo);
 
-    /**
-     * Soma o valor de transacoes por tipo e status em um intervalo de datas.
-     */
     @Query("SELECT COALESCE(SUM(t.valor), 0) FROM TransacaoEntity t " +
            "WHERE t.usuario.id = :uid AND t.data BETWEEN :ini AND :fim " +
            "AND t.tipo = :tipo AND t.status = :status")
@@ -76,34 +54,16 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
                                              @Param("tipo") TipoTransacao tipo,
                                              @Param("status") StatusTransacao status);
 
-    /**
-     * Retorna transações (ativas) de um usuário filtradas por tipo (RECEITA ou DESPESA).
-     */
     List<TransacaoEntity> findByUsuarioIdAndTipo(Long usuarioId, TipoTransacao tipo);
 
-    /**
-     * Retorna transações (ativas) de um usuário em um período, filtradas por categoria.
-     */
     List<TransacaoEntity> findByUsuarioIdAndCategoriaAndDataBetween(Long usuarioId, CategoriaEntity categoria, LocalDate start, LocalDate end);
 
-    /**
-     * Retorna transações (ativas) de um usuário em um período, filtradas por conta bancária.
-     */
     List<TransacaoEntity> findByUsuarioIdAndContaAndDataBetween(Long usuarioId, ContaEntity conta, LocalDate start, LocalDate end);
 
-    /**
-     * Retorna transações (ativas) de um usuário em um período, filtradas por cartão de crédito.
-     */
     List<TransacaoEntity> findByUsuarioIdAndCartaoAndDataBetween(Long usuarioId, CartaoEntity cartao, LocalDate start, LocalDate end);
 
-    /**
-     * Retorna transações (ativas) de um usuário com suporte a paginação.
-     */
     Page<TransacaoEntity> findByUsuarioId(Long usuarioId, Pageable pageable);
 
-    /**
-     * Verifica se já existe uma transação com a mesma chave de idempotência.
-     */
     boolean existsByIdempotencyKey(String idempotencyKey);
 
         @Modifying(clearAutomatically = true)

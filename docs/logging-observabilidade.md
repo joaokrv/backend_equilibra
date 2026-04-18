@@ -209,7 +209,7 @@ Spring Boot Actuator expõe endpoints de monitoramento para health checks e mét
 }
 ```
 
-As rotas do Actuator também estão na whitelist do `SecurityConfig`, permitindo que ferramentas de monitoramento (como Prometheus, Grafana, ou load balancers) verifiquem a saúde da aplicação sem autenticação.
+As rotas do Actuator são protegidas no `SecurityConfig` com `.requestMatchers("/actuator/**").hasRole("ADMIN")` — não são públicas. Ferramentas de monitoramento externas devem se autenticar com um usuário ADMIN ou acessar o health check diretamente pela rede interna sem passar pelo proxy.
 
 ---
 

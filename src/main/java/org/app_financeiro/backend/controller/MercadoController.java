@@ -17,14 +17,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
-/**
- * Controller unificado de dados de mercado.
- *
- * Endpoints:
- * - GET /api/mercado/cotacoes      → Cotações B3 (proxy Brapi)
- * - GET /api/mercado/cambio        → Taxas de câmbio (proxy AwesomeAPI)
- * - GET /api/mercado/indicadores   → Indicadores macro do banco (SELIC, CDI, IPCA, IBOVESPA, IFIX)
- */
+/** Dados de mercado: cotações B3, câmbio e indicadores econômicos consolidados. */
 @Slf4j
 @RestController
 @RequestMapping("/api/mercado")

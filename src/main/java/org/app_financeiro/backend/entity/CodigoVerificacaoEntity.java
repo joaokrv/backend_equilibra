@@ -38,6 +38,9 @@ public class CodigoVerificacaoEntity {
     @Column(name = "utilizado", nullable = false)
     private boolean isUtilizado = false;
 
+    @Column(name = "tentativas_falhas", nullable = false)
+    private int tentativasFalhas = 0;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime dataCriacao;

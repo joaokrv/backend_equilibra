@@ -15,10 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 
-/**
- * Serviço responsável por orquestrar os impactos financeiros entre Contas, Cartões e Faturas.
- * Garante a integridade dos saldos e limites durante a criação, edição e exclusão de transações.
- */
+/** Orquestrador único dos impactos financeiros entre Contas, Cartões e Faturas. */
 @Service
 public class MovimentacaoFinanceiraService {
 
@@ -36,16 +33,6 @@ public class MovimentacaoFinanceiraService {
         this.faturaService = faturaService;
     }
 
-    /**
-     * Processa o impacto financeiro em uma conta bancária baseado no status da transação.
-     *
-     * @param tipo tipo da transação (RECEITA/DESPESA)
-     * @param status status atual da transação
-     * @param contaId ID da conta afetada
-     * @param valor valor da movimentação
-     * @param usuarioId ID do usuário proprietário
-     * @return entidade da conta com saldo atualizado
-     */
     @Transactional
     public ContaEntity processarTransacaoConta(TipoTransacao tipo, StatusTransacao status,
                                                Long contaId, BigDecimal valor, Long usuarioId) {
@@ -61,15 +48,6 @@ public class MovimentacaoFinanceiraService {
         return contaService.buscarContaValidada(contaId, usuarioId);
     }
 
-    /**
-     * Processa uma despesa em cartão de crédito, consumindo limite e registrando na fatura.
-     *
-     * @param cartaoId ID do cartão utilizado
-     * @param data data da transação
-     * @param valor valor da despesa
-     * @param usuarioId ID do usuário proprietário
-     * @return record contendo o cartão e a fatura afetados
-     */
     @Transactional
     public ResultadoMovimentacaoCartao processarDespesaCartao(Long cartaoId, LocalDate data,
                                                                BigDecimal valor, Long usuarioId) {
@@ -79,30 +57,15 @@ public class MovimentacaoFinanceiraService {
         return new ResultadoMovimentacaoCartao(cartao, fatura);
     }
 
-    /**
-     * Processa um estorno ou crédito em cartão de crédito, liberando limite e ajustando a fatura.
-     *
-     * @param cartaoId ID do cartão utilizado
-     * @param data data do estorno
-     * @param valor valor do crédito
-     * @param usuarioId ID do usuário proprietário
-     * @return record contendo o cartão e a fatura afetados
-     */
     @Transactional
     public ResultadoMovimentacaoCartao processarEstornoCartao(Long cartaoId, LocalDate data, BigDecimal valor, Long usuarioId) {
-        CartaoEntity cartao = cartaoService.buscarCartaoValidado(cartaoId, usuarioId);
+        // Lock exclusivo evita lost update em estornos simultâneos (B3-A4)
+        CartaoEntity cartao = cartaoService.obterCartaoComBloqueioExclusivo(cartaoId, usuarioId);
         FaturaEntity fatura = faturaService.registrarCredito(cartao, data, valor);
         log.info("Crédito/Estorno de R$ {} processado no cartão {}", valor, cartaoId);
         return new ResultadoMovimentacaoCartao(cartao, fatura);
     }
 
-    /**
-     * Reverte o efeito financeiro de uma transação ativa.
-     * Utilizado para neutralizar o impacto antes de exclusões ou alterações de valores.
-     *
-     * @param transacao entidade da transação a ser revertida
-     * @param usuarioId ID do usuário proprietário
-     */
     @Transactional
     public void desfazerEfeitoFinanceiro(TransacaoEntity transacao, Long usuarioId) {
         if (transacao.getConta() != null && transacao.getStatus() == StatusTransacao.PAGO) {

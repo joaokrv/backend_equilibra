@@ -13,9 +13,13 @@ import org.springframework.mail.MailException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import jakarta.validation.ConstraintViolationException;
 
 import java.util.List;
 
@@ -39,7 +43,11 @@ import java.util.List;
  *       └── CodigoVerificacaoInvalidoException ..... 400 BAD_REQUEST
  *
  *   MethodArgumentNotValidException ................ 422 UNPROCESSABLE_ENTITY
+ *   ConstraintViolationException ................... 400 BAD_REQUEST
+ *   MissingServletRequestParameterException ........ 400 BAD_REQUEST
  *   HttpMessageNotReadableException ................ 400 BAD_REQUEST
+ *   ObjectOptimisticLockingFailureException ........ 409 CONFLICT
+ *   DataIntegrityViolationException ................ 409 CONFLICT
  *   Exception (fallback) ........................... 500 INTERNAL_SERVER_ERROR
  */
 @ControllerAdvice
@@ -249,6 +257,75 @@ public class GlobalExceptionHandler {
                 "Não foi possível enviar o e-mail agora. Tente novamente em alguns minutos."
         );
         return new ResponseEntity<>(erro, HttpStatus.SERVICE_UNAVAILABLE);
+    }
+
+    // =============================================
+    // EXCEPTIONS DE INFRAESTRUTURA
+    // =============================================
+
+    /**
+     * Trata violações de constraint de bean validation (@PathVariable, @RequestParam).
+     * Complementa o handleValidacao que trata apenas @RequestBody.
+     */
+    @ExceptionHandler(ConstraintViolationException.class)
+    public ResponseEntity<ErroResponseDTO> handleConstraintViolation(ConstraintViolationException ex) {
+        List<String> detalhes = ex.getConstraintViolations()
+                .stream()
+                .map(v -> v.getPropertyPath() + ": " + v.getMessage())
+                .toList();
+        ErroResponseDTO erro = new ErroResponseDTO(
+                HttpStatus.BAD_REQUEST.value(),
+                "VALIDATION_ERROR",
+                "Parâmetro inválido",
+                "Um ou mais parâmetros violam as restrições definidas.",
+                detalhes
+        );
+        return new ResponseEntity<>(erro, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
+     * Trata conflito de versão em atualização concorrente (@Version / locking otimista).
+     * Ocorre quando dois requests atualizam a mesma entidade ao mesmo tempo.
+     */
+    @ExceptionHandler(ObjectOptimisticLockingFailureException.class)
+    public ResponseEntity<ErroResponseDTO> handleOptimisticLocking(ObjectOptimisticLockingFailureException ex) {
+        ErroResponseDTO erro = new ErroResponseDTO(
+                HttpStatus.CONFLICT.value(),
+                "CONCURRENT_UPDATE",
+                "Conflito de atualização",
+                "Operação conflitante. Tente novamente."
+        );
+        return new ResponseEntity<>(erro, HttpStatus.CONFLICT);
+    }
+
+    /**
+     * Trata violações de integridade referencial ou unique constraint no banco.
+     * Evita vazar stack trace do Hibernate — retorna mensagem genérica.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ErroResponseDTO> handleDataIntegrity(DataIntegrityViolationException ex) {
+        log.warn("Violação de integridade de dados: {}", ex.getMostSpecificCause().getMessage());
+        ErroResponseDTO erro = new ErroResponseDTO(
+                HttpStatus.CONFLICT.value(),
+                "DATA_CONFLICT",
+                "Conflito de dados",
+                "Conflito de dados. Verifique se o registro já existe ou está em uso."
+        );
+        return new ResponseEntity<>(erro, HttpStatus.CONFLICT);
+    }
+
+    /**
+     * Trata parâmetros de query obrigatórios ausentes (ex: ?ano= sem valor).
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ErroResponseDTO> handleMissingParam(MissingServletRequestParameterException ex) {
+        ErroResponseDTO erro = new ErroResponseDTO(
+                HttpStatus.BAD_REQUEST.value(),
+                "MISSING_PARAMETER",
+                "Parâmetro ausente",
+                "Parâmetro obrigatório ausente: '" + ex.getParameterName() + "' (tipo: " + ex.getParameterType() + ")."
+        );
+        return new ResponseEntity<>(erro, HttpStatus.BAD_REQUEST);
     }
 
     // =============================================

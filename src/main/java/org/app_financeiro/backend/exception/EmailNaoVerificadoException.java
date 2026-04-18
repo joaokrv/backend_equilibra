@@ -1,10 +1,6 @@
 package org.app_financeiro.backend.exception;
 
-/**
- * Exceção lançada quando o usuário tenta fazer login sem ter verificado o e-mail.
- *
- * HTTP Status: 403 FORBIDDEN (tratado no GlobalExceptionHandler).
- */
+/** Login bloqueado — e-mail não verificado. → 403 FORBIDDEN. */
 public class EmailNaoVerificadoException extends RegraDeNegocioException {
 
     public EmailNaoVerificadoException() {

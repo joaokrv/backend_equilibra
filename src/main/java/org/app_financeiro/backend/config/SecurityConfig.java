@@ -21,18 +21,7 @@ import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.List;
 
-/**
- * Configuração centralizada de segurança da aplicação.
- *
- * Define:
- * - Rotas públicas (/api/auth/**, Swagger, Actuator) e protegidas (todas as demais)
- * - Integração do JwtAuthenticationFilter antes do UsernamePasswordAuthenticationFilter
- * - CORS para frontend web + mobile
- * - CSRF desabilitado (API stateless)
- * - SessionCreationPolicy.STATELESS
- * - Beans de autenticação: UserDetailsService, AuthenticationProvider,
- *   AuthenticationManager, PasswordEncoder
- */
+/** Segurança JWT stateless: filtro, CORS, CSRF off, rotas públicas e protegidas. */
 @Configuration
 @EnableWebSecurity
 @RequiredArgsConstructor

@@ -14,33 +14,15 @@ import jakarta.persistence.LockModeType;
 import java.util.List;
 import java.util.Optional;
 
-/**
- * Repositório JPA para operações de persistência de CartaoEntity.
- *
- * NOTA: A entidade CartaoEntity possui @SQLRestriction("ativo = true"),
- * portanto todas as queries derivadas filtram automaticamente por ativo = true.
- */
+/** @SQLRestriction("ativo = true") filtra automaticamente em todas as queries derivadas. */
 @Repository
 public interface CartaoRepository extends JpaRepository<CartaoEntity, Long> {
 
-    /**
-     * Retorna todos os cartões (ativos) de um usuário.
-     * Filtro ativo = true aplicado automaticamente via @SQLRestriction.
-     *
-     * @param usuarioId ID do usuário
-     * @return Lista de cartões ativos
-     */
+    /** @EntityGraph evita N+1 ao carregar conta vinculada. */
     @EntityGraph(attributePaths = {"conta"})
     List<CartaoEntity> findByUsuarioId(Long usuarioId);
 
-    /**
-     * Busca um cartão específico com bloqueio pessimista.
-     * Garante que nenhuma outra thread possa ler ou modificar o limite
-     * do cartão até que a transação atual seja concluída.
-     *
-     * @param id ID do cartão
-     * @return Optional contendo o cartão com lock
-     */
+    /** PESSIMISTIC_WRITE — serializa atualizações de limite concorrentes. */
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("SELECT c FROM CartaoEntity c WHERE c.id = :id")
     Optional<CartaoEntity> findByIdWithLock(@Param("id") Long id);

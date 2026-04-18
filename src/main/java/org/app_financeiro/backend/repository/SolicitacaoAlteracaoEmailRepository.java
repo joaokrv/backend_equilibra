@@ -12,6 +12,9 @@ public interface SolicitacaoAlteracaoEmailRepository extends JpaRepository<Solic
 
     Optional<SolicitacaoAlteracaoEmailEntity> findByUsuarioIdAndCodigoAndIsUtilizadoFalse(Long usuarioId, String codigo);
 
+    /** Busca independente do código — permite incrementar tentativas_falhas mesmo com código errado (lockout). */
+    Optional<SolicitacaoAlteracaoEmailEntity> findTopByUsuarioIdAndIsUtilizadoFalseOrderByDataCriacaoDesc(Long usuarioId);
+
     @Modifying
     @Query("UPDATE SolicitacaoAlteracaoEmailEntity s SET s.isUtilizado = true WHERE s.usuarioId = :usuarioId AND s.isUtilizado = false")
     void invalidarSolicitacoesAnteriores(@Param("usuarioId") Long usuarioId);

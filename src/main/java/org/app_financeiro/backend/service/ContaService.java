@@ -21,16 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 
-/**
- * Serviço responsável pelo gerenciamento de Contas Bancárias.
- *
- * Controla o CRUD de contas e as operações de débito/crédito de saldo.
- * Saldo negativo é bloqueado por padrão (Fail-Fast): qualquer tentativa de
- * debitar mais do que o saldo disponível resulta em SaldoInsuficienteException.
- *
- * Este serviço é consumido pelo TransacaoService (ao registrar RECEITAS e DESPESAS)
- * e pelo FaturaService (ao processar o pagamento de uma fatura).
- */
+/** Gerencia contas bancárias: CRUD e operações de débito/crédito de saldo. */
 @Service
 public class ContaService {
 
@@ -60,15 +51,6 @@ public class ContaService {
         this.contaMapper = contaMapper;
     }
 
-    /**
-     * Cria uma nova conta bancária para o usuário.
-     * Se o saldo inicial não for informado, assume R$ 0,00.
-     *
-     * @param dto       Dados da conta a ser criada
-     * @param usuarioId ID do dono da conta
-     * @return ContaResponseDTO com os dados salvos
-     * @throws RecursoNaoEncontradoException se o usuário não existir ou estiver inativo
-     */
     @Transactional
     public ContaResponseDTO criarConta(ContaRegistroRequestDTO dto, Long usuarioId) {
         UsuarioEntity usuario = usuarioService.buscarPorIdOuFalhar(usuarioId);
@@ -86,15 +68,6 @@ public class ContaService {
         return contaMapper.toResponse(conta);
     }
 
-    /**
-     * Atualiza o saldo de uma conta (uso genérico para correções manuais).
-     *
-     * @param contaId ID da conta
-     * @param valor Novo saldo absoluto a ser definido
-     * @param usuarioId ID do dono da conta
-     * @return ContaResponseDTO com o saldo atualizado
-     * @throws RecursoNaoEncontradoException se a conta não for encontrada ou não pertencer ao usuário
-     */
     @Transactional
     public ContaResponseDTO atualizarSaldo(Long contaId, BigDecimal valor, Long usuarioId) {
         ContaEntity conta = obterContaComBloqueioExclusivo(contaId, usuarioId);
@@ -110,25 +83,11 @@ public class ContaService {
         return contaMapper.toResponse(conta);
     }
 
-    /**
-     * Busca uma conta específica por ID, validando que pertence ao usuário e está ativa.
-     *
-     * @param contaId   ID da conta
-     * @param usuarioId ID do dono da conta
-     * @return ContaResponseDTO com os dados da conta
-     * @throws RecursoNaoEncontradoException se a conta não for encontrada ou não pertencer ao usuário
-     */
     public ContaResponseDTO buscarPorId(Long contaId, Long usuarioId) {
         ContaEntity conta = buscarContaValidada(contaId, usuarioId);
         return contaMapper.toResponse(conta);
     }
 
-    /**
-     * Lista todas as contas ativas do usuário.
-     *
-     * @param usuarioId ID do dono das contas
-     * @return Lista de ContaResponseDTO (pode ser vazia)
-     */
     public List<ContaResponseDTO> buscarTodasDoUsuario(Long usuarioId) {
         List<ContaEntity> contasDoBanco = contaRepository.findByUsuarioId(usuarioId);
 
@@ -137,17 +96,7 @@ public class ContaService {
                 .toList();
     }
 
-    /**
-     * Debita um valor do saldo da conta.
-     * Usado por TransacaoService ao criar DESPESA e por InvestimentoService ao depositar.
-     * Saldo negativo é bloqueado — lança SaldoInsuficienteException antes de persistir.
-     *
-     * @param contaId   ID da conta
-     * @param valor     valor a debitar (deve ser positivo)
-     * @param usuarioId ID do dono da conta
-     * @throws RecursoNaoEncontradoException se a conta não for encontrada ou não pertencer ao usuário
-     * @throws SaldoInsuficienteException    se o saldo atual for menor que o valor a debitar
-     */
+    /** Saldo negativo é bloqueado — lança SaldoInsuficienteException antes de persistir. */
     @Transactional
     public ContaEntity debitarSaldo(Long contaId, BigDecimal valor, Long usuarioId) {
         ContaEntity conta = obterContaComBloqueioExclusivo(contaId, usuarioId);
@@ -161,15 +110,6 @@ public class ContaService {
         return contaRepository.save(conta);
     }
 
-    /**
-     * Credita um valor ao saldo da conta.
-     * Usado por TransacaoService ao criar RECEITA e ao reverter uma DESPESA deletada.
-     *
-     * @param contaId   ID da conta
-     * @param valor     valor a creditar (deve ser positivo)
-     * @param usuarioId ID do dono da conta
-     * @throws RecursoNaoEncontradoException se a conta não for encontrada ou não pertencer ao usuário
-     */
     @Transactional
     public ContaEntity creditarSaldo(Long contaId, BigDecimal valor, Long usuarioId) {
         ContaEntity conta = obterContaComBloqueioExclusivo(contaId, usuarioId);
@@ -178,15 +118,6 @@ public class ContaService {
         return contaRepository.save(conta);
     }
 
-    /**
-     * Desativa (soft delete) uma conta.
-     * Bloqueia a operação se a conta ainda possuir saldo positivo.
-     *
-     * @param contaId   ID da conta
-     * @param usuarioId ID do dono da conta
-     * @throws RecursoNaoEncontradoException se a conta não for encontrada ou não pertencer ao usuário
-     * @throws RegraDeNegocioException       se a conta ainda possuir saldo maior que zero
-     */
     @Transactional
     public void deletarConta(Long contaId, Long usuarioId) {
         ContaEntity conta = buscarContaValidada(contaId, usuarioId);
