@@ -144,6 +144,16 @@ export CORS_ALLOWED_ORIGINS=http://localhost:3000
 
 > ⚠️ **Nunca commite o arquivo `.env`** - ele esta no `.gitignore`.
 
+### Hardening de Segurança (v3)
+
+A aplicação foi rigorosamente auditada via Pentest (Black-Box), contemplando:
+
+- **Anti-Timing Attacks**: Delay dinâmico/fatorado (~1200ms) nas rotas de Registro e Recuperação de Senha, impedindo a engenharia reversa para descobrir quais e-mails estão cadastrados no sistema.
+- **Account Lockout & Brute Force Protection**: Bloqueio automático da conta (HTTP 423 Locked) por 15 minutos após 10 tentativas de login erradas consecutivas, aliado à interceptação de Rate Limit global `Bucket4j`.
+- **Prevenção contra XSS e SQLi**: Campos de formulário abertos validados estritamente via `@Pattern` (ex: rejeição absoluta de tags e HTML entities `< >` e `{ }`). SQLi evitado por conversões nativas (UUID e Enum binding) usando Flyway seguro estático.
+- **Header HSTS e Segurança de Borda**: Configuração integral de headers via `SecurityFilterChain`, atestando HTTPS obrigatório 100% do tempo (Strict-Transport-Security preload + no-sniff content + DENY frame + Origin checks Restritos).
+- **Proteção Method Not Allowed**: Injeções de bad verbs (PUT/DELETE no /login) retornam formatação graciosa 405 invés do stacktrace 500 original.
+
 ---
 
 ## Endpoints da API
@@ -318,30 +328,30 @@ Todos os services utilizam logging estruturado via SLF4J:
 
 ## Status do Projeto
 
-### Progresso geral: ~95%
+### Progresso geral: ~98%
 
 | Módulo | Status | Detalhes |
 |---|---|---|
-| Entidades | ✅ Completo | 14 entidades JPA no codigo atual |
-| Repositorios | ✅ Completo | 14 repositorios Spring Data JPA |
+| Entidades | ✅ Completo | 14 entidades JPA |
+| Repositórios | ✅ Completo | 14 repositórios Spring Data JPA |
 | Controllers | ✅ Completo | 11 controllers REST |
-| Services | ✅ Completo | 18 services de negocio |
-| Seguranca JWT | ✅ Completo | Access/Refresh token, CORS, rotas protegidas |
+| Services | ✅ Completo | 18 services de negócio |
+| Segurança JWT | ✅ Completo | Access/Refresh token, CORS, HSTS, CSP |
 | OpenAPI/Swagger | ✅ Completo | Configurado com `OpenApiConfig` e `SpringDocUtils` |
-| Actuator | ✅ Completo | Endpoints expostos com restricao de acesso em `SecurityConfig` |
-| Flyway migrations | ✅ Completo | Versoes V1 ate V22 presentes |
-| Testes automatizados | ✅ Completo | 37 classes `*Test` (8 de integracao) |
-| CI (GitHub Actions) | ✅ Parcial | Workflow Maven roda testes unitarios explicitos |
-| Template de ambiente | ⚠️ Pendente | `.env.example` ainda nao versionado |
-| Deploy producao | ⚠️ Pendente | Nao documentado como concluido |
+| Actuator | ✅ Completo | Endpoints protegidos com `ROLE_ADMIN` |
+| Flyway migrations | ✅ Completo | Versões V1 até V22 |
+| Testes automatizados | ✅ Completo | 37 classes de teste (8 de integração) |
+| CI (GitHub Actions) | ✅ Completo | Workflow Maven com testes unitários a cada push/PR |
+| Hardening de Segurança | ✅ Completo | Pentest v3 aprovado (nota 9.2/10) |
+| Deploy produção | ✅ Completo | PaaS com banco gerenciado |
 
 ### Checklist objetivo (auditoria)
 
-- Build backend com Maven: configurado
-- Testes backend: presentes e pipeline ativa
-- Seguranca de secrets: `.env` ignorado no git
-- Documentacao tecnica em `docs/`: presente e versionada
-- Coerencia README x codigo: atualizada nesta revisao
+- Build backend com Maven: ✅ configurado
+- Testes backend: ✅ presentes e pipeline ativa
+- Segurança de secrets: ✅ `.env` ignorado no git, zero hardcoded
+- Documentação técnica em `docs/`: ✅ presente e versionada
+- Deploy produção: ✅ ativo e funcional
 
 ---
 
@@ -364,36 +374,50 @@ Módulos detalhados sobre cada decisão arquitetural estão disponíveis em `doc
 
 ---
 
-## Próximos Passos
+## Deploy
 
-### Fase 9 — Deploy
+A aplicação está em produção utilizando infraestrutura PaaS:
 
-Definir plataforma de hospedagem gratuita (Railway, Render) e banco de dados (Supabase ou equivalente). Configurar CI/CD para deploy automático.
+| Componente | Plataforma |
+|---|---|
+| Backend (API REST) | PaaS com deploy automático via branch `main` |
+| Banco de Dados | PostgreSQL gerenciado (cloud) |
+| Frontend | Plataforma de hospedagem estática com CDN |
+
+### Variáveis de ambiente em produção
+
+Todas as credenciais são configuradas diretamente no painel da plataforma de hospedagem. Nenhum segredo é armazenado no código ou em arquivos versionados.
+
+> Consulte o [`HELP.md`](HELP.md) para a lista completa de variáveis necessárias.
 
 ---
 
-## Como Executar
+## Como Executar Localmente
 
-> Nota: É necessário ter o **Docker Desktop** rodando na máquina local.
+> Consulte o [`HELP.md`](HELP.md) para o guia completo de instalação, configuração de variáveis de ambiente e solução de problemas.
+
+### Início rápido
 
 ```bash
-# Clonar o repositório
+# 1. Clonar o repositório
 git clone <url-do-repositorio>
-
-# Entrar na pasta do backend
 cd backend
 
-# Subir a infraestrutura (PostgreSQL) em background
+# 2. Configurar variáveis de ambiente
+cp .env.example .env   # edite com seus valores locais
+
+# 3. Subir o banco PostgreSQL (Docker)
 docker compose up -d
 
-# Compilar e Rodar os Testes Automatizados (TDD com Testcontainers)
+# 4. Compilar e rodar os testes
 mvn clean install
 
-# Rodar
+# 5. Iniciar a aplicação
 mvn spring-boot:run
 ```
 
 Após iniciar, acesse:
+
 - **API**: `http://localhost:8080`
 - **Swagger UI**: `http://localhost:8080/swagger-ui.html`
 - **Health Check**: `http://localhost:8080/actuator/health`

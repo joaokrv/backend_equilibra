@@ -15,6 +15,7 @@ import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.core.AuthenticationException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -331,6 +332,20 @@ public class GlobalExceptionHandler {
     // =============================================
     // FALLBACK (qualquer exceção não tratada)
     // =============================================
+
+    /**
+     * Trata métodos HTTP não suportados em rotas permitAll() que chegariam ao Dispatcher e dariam 500.
+     */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ErroResponseDTO> handleMethodNotAllowed(HttpRequestMethodNotSupportedException ex) {
+        ErroResponseDTO erro = new ErroResponseDTO(
+                HttpStatus.METHOD_NOT_ALLOWED.value(),
+                "METHOD_NOT_ALLOWED",
+                "Método HTTP não permitido",
+                "O método " + ex.getMethod() + " não é suportado para este endpoint."
+        );
+        return new ResponseEntity<>(erro, HttpStatus.METHOD_NOT_ALLOWED);
+    }
 
     /**
      * Captura qualquer exceção inesperada que não foi tratada acima.

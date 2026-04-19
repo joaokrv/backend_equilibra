@@ -51,13 +51,18 @@ public class SecurityConfig {
         http
                 .cors(Customizer.withDefaults())
                 .csrf(AbstractHttpConfigurer::disable)
-                .headers(headers -> headers
-                        .contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'"))
-                        .frameOptions(frame -> frame.deny())
-                        .contentTypeOptions(Customizer.withDefaults())
-                        .referrerPolicy(referrer -> referrer.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN))
-                        .permissionsPolicy(permissions -> permissions.policy("camera=(), microphone=(), geolocation=()"))
-                )
+                .headers(headers -> {
+                    headers.contentSecurityPolicy(csp -> csp.policyDirectives("default-src 'self'"));
+                    headers.frameOptions(frame -> frame.deny());
+                    headers.contentTypeOptions(Customizer.withDefaults());
+                    headers.referrerPolicy(referrer -> referrer.policy(ReferrerPolicyHeaderWriter.ReferrerPolicy.STRICT_ORIGIN_WHEN_CROSS_ORIGIN));
+                    headers.addHeaderWriter(new org.springframework.security.web.header.writers.StaticHeadersWriter("Permissions-Policy", "camera=(), microphone=(), geolocation=()"));
+                    headers.httpStrictTransportSecurity(hsts -> hsts
+                            .maxAgeInSeconds(63072000)
+                            .includeSubDomains(true)
+                            .preload(true)
+                    );
+                })
                 .authorizeHttpRequests(req ->
                         req.requestMatchers(CorsUtils::isPreFlightRequest).permitAll()
                                 .requestMatchers(WHITE_LIST_URL)

@@ -27,6 +27,7 @@ Todas as exceções são tratadas pelo `GlobalExceptionHandler` e retornam um JS
 | `CREDENCIAIS_INVALIDAS` | 401 | E-mail ou senha incorretos |
 | `REGRA_DE_NEGOCIO` | 422 | Violação genérica de regra |
 | `CONTA_JA_ATIVA` | 422 | Reativar conta já ativa |
+| `METHOD_NOT_ALLOWED` | 405 | Verbo HTTP incorreto p/ rota (Hardening Security) |
 
 ## i18n — Como funciona
 

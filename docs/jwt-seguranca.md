@@ -264,6 +264,8 @@ public class SecurityConfig {
 - **CSRF desabilitado**: API stateless não usa cookies, então CSRF não se aplica.
 - **SessionCreationPolicy.STATELESS**: o Spring não cria sessão HTTP — toda autenticação vem do token.
 - **`addFilterBefore`**: o `JwtAuthenticationFilter` executa ANTES do filtro padrão do Spring, interceptando o token antes de qualquer verificação de credenciais.
+- **`addHeaderWriter` (HSTS)**: Garante transporte estrito via HTTPS mitigando vetores de ataque MITM e protocol downgrading.
+
 > **Obs. CORS nos testes**
 >
 > O bean `corsConfigurationSource` é marcado como `@Primary` e somente carrega em perfis diferentes de `test`.
