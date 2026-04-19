@@ -118,7 +118,7 @@ public class UsuarioController {
 
     @PostMapping("/login")
     @Operation(summary = "Login de usuário", description = "Autentica o usuário, seta refresh token em cookie HttpOnly e retorna access token.")
-    @Transactional
+    @Transactional(noRollbackFor = BadCredentialsException.class)
     public ResponseEntity<?> login(@Valid @RequestBody UsuarioLoginRequestDTO dto,
                                    HttpServletResponse httpResponse) {
         // Verificar lockout antes de tentar autenticação (G4-A1)
