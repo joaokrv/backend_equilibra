@@ -23,9 +23,13 @@ import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import io.jsonwebtoken.JwtException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -90,13 +94,23 @@ public class UsuarioController {
         this.usuarioMapper = usuarioMapper;
     }
 
-    /** Anti-enumeração: resposta genérica independente de o e-mail já existir (B1-A2). */
+    /** Anti-enumeração: resposta genérica independente de o e-mail já existir (B1-A2). Timing fixo anti-enumeration. */
     @PostMapping("/registrar")
     @Operation(summary = "Registrar novo usuário", description = "Cria uma conta pendente de verificação.")
     public ResponseEntity<String> registrar(@Valid @RequestBody UsuarioRegistroRequestDTO dto) {
-        boolean criado = usuarioService.registrarUsuario(dto);
-        if (criado) {
-            emailVerificacaoService.gerarCodigo(dto.email());
+        long inicio = System.currentTimeMillis();
+        try {
+            boolean criado = usuarioService.registrarUsuario(dto);
+            if (criado) {
+                emailVerificacaoService.gerarCodigo(dto.email());
+            }
+        } finally {
+            // Anti-timing: garantir latência mínima fixa de 1200ms
+            long elapsed = System.currentTimeMillis() - inicio;
+            long restante = 1200 - elapsed;
+            if (restante > 0) {
+                try { Thread.sleep(restante); } catch (InterruptedException ignored) {}
+            }
         }
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body("Se o e-mail informado não estiver cadastrado, você receberá um código de verificação.");
@@ -105,35 +119,68 @@ public class UsuarioController {
     @PostMapping("/login")
     @Operation(summary = "Login de usuário", description = "Autentica o usuário, seta refresh token em cookie HttpOnly e retorna access token.")
     @Transactional
-    public ResponseEntity<AuthResponseDTO> login(@Valid @RequestBody UsuarioLoginRequestDTO dto,
-                                                 HttpServletResponse httpResponse) {
-        Authentication auth = authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(dto.email(), dto.senha())
-        );
+    public ResponseEntity<?> login(@Valid @RequestBody UsuarioLoginRequestDTO dto,
+                                   HttpServletResponse httpResponse) {
+        // Verificar lockout antes de tentar autenticação (G4-A1)
+        UsuarioEntity usuarioCheck = usuarioRepository.findByEmail(dto.email()).orElse(null);
+        if (usuarioCheck != null
+                && usuarioCheck.getLockedUntil() != null
+                && usuarioCheck.getLockedUntil().isAfter(LocalDateTime.now())) {
+            long segundos = ChronoUnit.SECONDS.between(
+                    LocalDateTime.now(), usuarioCheck.getLockedUntil());
+            return ResponseEntity.status(423)
+                    .body(Map.of("erro", "Conta bloqueada.",
+                                 "desbloqueio_em_segundos", segundos));
+        }
 
-        // Reusa principal do Authentication (B1) — UserDetailsService retorna UsuarioEntity.
-        // Re-anexa via lock pessimista para serializar updates concorrentes de chaveSessao.
-        UsuarioEntity principal = (UsuarioEntity) auth.getPrincipal();
-        UsuarioEntity usuario = usuarioRepository.findByEmailWithLock(principal.getEmail())
-                .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado."));
+        try {
+            Authentication auth = authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(dto.email(), dto.senha())
+            );
 
-        // Geração da chave de sessão única (Single Active Session)
-        usuario.setChaveSessao(UUID.randomUUID().toString());
-        usuarioRepository.save(usuario);
+            // Reusa principal do Authentication (B1) — UserDetailsService retorna UsuarioEntity.
+            // Re-anexa via lock pessimista para serializar updates concorrentes de chaveSessao.
+            UsuarioEntity principal = (UsuarioEntity) auth.getPrincipal();
+            UsuarioEntity usuario = usuarioRepository.findByEmailWithLock(principal.getEmail())
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado."));
 
-        String accessToken = jwtService.generateAccessToken(usuario);
-        String refreshToken = jwtService.generateRefreshToken(usuario);
+            // Limpar contadores de falha ao sucesso
+            usuario.setLoginAttempts(0);
+            usuario.setLockedUntil(null);
 
-        // RT enviado apenas via HttpOnly cookie — não exposto no body (G5-A1)
-        setRefreshTokenCookie(httpResponse, refreshToken);
+            // Geração da chave de sessão única (Single Active Session)
+            usuario.setChaveSessao(UUID.randomUUID().toString());
+            usuarioRepository.save(usuario);
 
-        AuthResponseDTO response = new AuthResponseDTO(
-                accessToken,
-                null,
-                jwtService.getAccessTokenExpiration(),
-                usuarioMapper.toResponse(usuario)
-        );
-        return ResponseEntity.ok(response);
+            String accessToken = jwtService.generateAccessToken(usuario);
+            String refreshToken = jwtService.generateRefreshToken(usuario);
+
+            // RT enviado apenas via HttpOnly cookie — não exposto no body (G5-A1)
+            setRefreshTokenCookie(httpResponse, refreshToken);
+
+            AuthResponseDTO response = new AuthResponseDTO(
+                    accessToken,
+                    null,
+                    jwtService.getAccessTokenExpiration(),
+                    usuarioMapper.toResponse(usuario)
+            );
+            return ResponseEntity.ok(response);
+        } catch (BadCredentialsException ex) {
+            // Incrementar tentativas falhadas
+            UsuarioEntity usuarioFailed = usuarioRepository.findByEmailWithLock(dto.email()).orElse(null);
+            if (usuarioFailed != null) {
+                int tentativas = (usuarioFailed.getLoginAttempts() != null ? usuarioFailed.getLoginAttempts() : 0) + 1;
+                usuarioFailed.setLoginAttempts(tentativas);
+                if (tentativas >= 10) {
+                    usuarioFailed.setLockedUntil(LocalDateTime.now().plusMinutes(15));
+                    usuarioFailed.setLoginAttempts(0);
+                }
+                usuarioRepository.save(usuarioFailed);
+            }
+            // Anti-timing delay
+            try { Thread.sleep(1200); } catch (InterruptedException ignored) {}
+            throw ex;
+        }
     }
 
     /** Rotaciona RT a cada uso (G5-A2). Reuso detectado → invalida todas as sessões (G5-A3). */

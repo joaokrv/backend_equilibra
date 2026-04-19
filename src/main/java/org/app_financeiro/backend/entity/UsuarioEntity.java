@@ -71,6 +71,12 @@ public class UsuarioEntity implements UserDetails {
     @Column(name = "chave_sessao")
     private String chaveSessao;
 
+    @Column(name = "login_attempts", nullable = false)
+    private Integer loginAttempts = 0;
+
+    @Column(name = "locked_until")
+    private LocalDateTime lockedUntil;
+
     // Métodos da interface UserDetails
     
     @Override

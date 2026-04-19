@@ -41,8 +41,7 @@ public class SecurityConfig {
             "/configuration/security",
             "/swagger-ui/**",
             "/webjars/**",
-            "/swagger-ui.html",
-            "/api/mercado/**"
+            "/swagger-ui.html"
     };
 
     // ─── Security Filter Chain ────────────────────────────────────────────
