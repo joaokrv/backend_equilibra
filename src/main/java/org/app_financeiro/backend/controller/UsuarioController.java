@@ -288,11 +288,20 @@ public class UsuarioController {
 
     // ─── Recuperação de Senha ──────────────────────────────────────────────
 
-    /** Anti-enumeração: resposta sempre 200 OK independente de o e-mail existir. */
+    /** Anti-enumeração: resposta sempre 200 OK independente de o e-mail existir. Timing fixo anti-enumeration. */
     @PostMapping("/solicitar-recuperacao")
     @Operation(summary = "Solicitar recuperação de senha", description = "Envia um link de recuperação de senha para o e-mail informado.")
     public ResponseEntity<String> solicitarRecuperacao(@Valid @RequestBody SolicitarRecuperacaoSenhaRequestDTO dto) {
-        recuperacaoSenhaService.solicitarRecuperacao(dto);
+        long inicio = System.currentTimeMillis();
+        try {
+            recuperacaoSenhaService.solicitarRecuperacao(dto);
+        } finally {
+            long elapsed = System.currentTimeMillis() - inicio;
+            long restante = 1200 - elapsed;
+            if (restante > 0) {
+                try { Thread.sleep(restante); } catch (InterruptedException ignored) {}
+            }
+        }
         return ResponseEntity.ok("Se o e-mail estiver cadastrado, você receberá um link de recuperação.");
     }
 

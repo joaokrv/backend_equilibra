@@ -13,6 +13,10 @@ import org.app_financeiro.backend.enums.MoedaEnum;
 public record UsuarioAtualizacaoRequestDTO(
     @NotBlank(message = "O nome é obrigatório")
     @Size(min = 3, max = 100, message = "O nome deve conter entre 3 e 100 caracteres")
+    @Pattern(
+        regexp = "^[\\p{L}\\p{M}\\s'.\\-]+$",
+        message = "O nome contém caracteres inválidos"
+    )
     String nome,
 
     @Pattern(regexp = "^\\d{10,11}$", message = "O celular deve conter apenas dígitos (10 ou 11 números)")
