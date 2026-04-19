@@ -1,6 +1,5 @@
 package org.app_financeiro.backend.service;
 
-import com.opencsv.CSVWriter;
 import com.opencsv.bean.StatefulBeanToCsv;
 import com.opencsv.bean.StatefulBeanToCsvBuilder;
 import lombok.RequiredArgsConstructor;
@@ -116,7 +115,6 @@ public class RelatorioService {
 
             StatefulBeanToCsv<RelatorioCsvLinhaDTO> motorCsv = new StatefulBeanToCsvBuilder<RelatorioCsvLinhaDTO>(writer)
                     .withSeparator(';')
-                    .withQuotechar(CSVWriter.NO_QUOTE_CHARACTER)
                     .build();
 
             motorCsv.write(transacoes);

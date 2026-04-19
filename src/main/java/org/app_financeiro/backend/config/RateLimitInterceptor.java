@@ -24,6 +24,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private static final long CLEANUP_INTERVAL_REQUESTS = 100;
 
     private final Map<String, BucketEntry> cache = new ConcurrentHashMap<>();
+    private final Map<String, BucketEntry> cacheRelatorio = new ConcurrentHashMap<>();
     private final AtomicLong requestCounter = new AtomicLong(0);
     private final boolean enabled;
     private final boolean trustForwardedFor;
@@ -84,6 +85,30 @@ public class RateLimitInterceptor implements HandlerInterceptor {
                 .build();
     }
 
+    private Bucket resolveBucketRelatorio(String clientIp) {
+        long now = System.currentTimeMillis();
+
+        BucketEntry entry = cacheRelatorio.compute(clientIp, (ip, existing) -> {
+            if (existing == null) {
+                return new BucketEntry(newBucketRelatorio(ip), now);
+            }
+            return existing.touch(now);
+        });
+
+        return entry.bucket();
+    }
+
+    private Bucket newBucketRelatorio(String clientIp) {
+        Bandwidth limit = Bandwidth.builder()
+                .capacity(2)
+                .refillIntervally(2, Duration.ofMinutes(1))
+                .build();
+
+        return Bucket.builder()
+                .addLimit(limit)
+                .build();
+    }
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         if (!enabled) {
@@ -91,8 +116,11 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         }
 
         String ip = extractClientIp(request);
+        String uri = request.getRequestURI();
 
-        Bucket bucket = resolveBucket(ip);
+        Bucket bucket = uri.contains("/relatorios/exportar")
+                ? resolveBucketRelatorio(ip)
+                : resolveBucket(ip);
 
         if (bucket.tryConsume(1)) {
             return true;
@@ -101,7 +129,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
         response.setContentType("application/json;charset=UTF-8");
         response.getWriter().write("{\"erro\":\"Muitas tentativas simultâneas. O bloqueio temporário ativo na rede para sua segurança. Aguarde um minuto.\"}");
-        
+
         return false;
     }
 
@@ -158,6 +186,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
         long minAccess = now - idleTtlMillis;
         cache.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
+        cacheRelatorio.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
 
         if (cache.size() <= maxBuckets) {
             return;

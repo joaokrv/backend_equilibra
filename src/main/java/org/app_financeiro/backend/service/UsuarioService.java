@@ -157,13 +157,14 @@ public class UsuarioService {
     @Transactional
     public void atualizarFoto(Long usuarioId, MultipartFile file) {
         UsuarioEntity usuario = buscarPorIdOuFalhar(usuarioId);
-        
+
+        if (file.getSize() > 2 * 1024 * 1024) { // Limite de 2MB
+            throw new RegraDeNegocioException("A imagem é muito grande. Máximo de 2MB permitido.");
+        }
+
         validarAssinaturaImagem(file);
 
         try {
-            if (file.getSize() > 2 * 1024 * 1024) { // Limite de 2MB
-                throw new RegraDeNegocioException("A imagem é muito grande. Máximo de 2MB permitido.");
-            }
             usuario.setFoto(file.getBytes());
             usuarioRepository.save(usuario);
             log.info("Foto de perfil atualizada: usuarioId={}, size={} bytes", usuarioId, file.getSize());
