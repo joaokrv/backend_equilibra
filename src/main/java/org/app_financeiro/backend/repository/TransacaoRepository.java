@@ -54,14 +54,6 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
                                              @Param("tipo") TipoTransacao tipo,
                                              @Param("status") StatusTransacao status);
 
-    List<TransacaoEntity> findByUsuarioIdAndTipo(Long usuarioId, TipoTransacao tipo);
-
-    List<TransacaoEntity> findByUsuarioIdAndCategoriaAndDataBetween(Long usuarioId, CategoriaEntity categoria, LocalDate start, LocalDate end);
-
-    List<TransacaoEntity> findByUsuarioIdAndContaAndDataBetween(Long usuarioId, ContaEntity conta, LocalDate start, LocalDate end);
-
-    List<TransacaoEntity> findByUsuarioIdAndCartaoAndDataBetween(Long usuarioId, CartaoEntity cartao, LocalDate start, LocalDate end);
-
     Page<TransacaoEntity> findByUsuarioId(Long usuarioId, Pageable pageable);
 
     boolean existsByIdempotencyKey(String idempotencyKey);
@@ -98,4 +90,16 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
                               AND t.categoria.id = :categoriaId
                             """)
                         int desassociarCategoria(@Param("usuarioId") Long usuarioId, @Param("categoriaId") Long categoriaId);
+
+    @EntityGraph(attributePaths = {"categoria", "conta", "cartao"})
+    @Query("SELECT t FROM TransacaoEntity t WHERE t.usuario.id = :usuarioId " +
+            "AND t.data BETWEEN :start AND :end " +
+            "AND (:tipo IS NULL OR t.tipo = :tipo) " +
+            "AND (:status IS NULL OR t.status = :status)")
+    List<TransacaoEntity> buscarParaRelatorio(
+            @Param("usuarioId") Long usuarioId,
+            @Param("start") LocalDate start,
+            @Param("end") LocalDate end,
+            @Param("tipo") TipoTransacao tipo,
+            @Param("status") StatusTransacao status);
 }

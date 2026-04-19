@@ -1,0 +1,167 @@
+@charset "UTF-8";
+
+/* ==========================================================================
+   Relatório Financeiro PDF - Estilo "Equilibra"
+   ========================================================================== */
+
+@page {
+    size: A4 portrait;
+    margin: 1.5cm;
+
+    @bottom-center {
+        content: "Equilibra - Controle Financeiro Pessoal | Página " counter(page) " de " counter(pages);
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-size: 10px;
+        color: #888888;
+    }
+}
+
+body {
+    font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+    color: #333333;
+    background-color: #ffffff;
+    margin: 0;
+    padding: 0;
+    font-size: 12px;
+}
+
+/* --- Header Padrão Imersivo --- */
+.header-box {
+    background-color: #7B61FF;
+    color: #ffffff;
+    padding: 30px;
+    border-radius: 8px;
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.header-box h1 {
+    margin: 0;
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+}
+
+.header-box p {
+    margin: 8px 0 0 0;
+    font-size: 14px;
+    opacity: 0.9;
+    font-weight: 300;
+}
+
+/* --- Seção de Resumo (Cards) --- */
+.summary-container {
+    width: 100%;
+    margin-bottom: 30px;
+    border-collapse: separate;
+    border-spacing: 15px 0;
+}
+
+.summary-card {
+    background-color: #f7f7f9;
+    padding: 15px;
+    border-radius: 6px;
+    border: 1px solid #e0e0e0;
+    text-align: center;
+    width: 45%;
+    vertical-align: top;
+}
+
+.summary-label {
+    font-size: 11px;
+    color: #666666;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: 5px;
+}
+
+.summary-value {
+    font-size: 20px;
+    font-weight: bold;
+    color: #333333;
+}
+
+.summary-value.receita {
+    color: #059669;
+}
+
+.summary-value.despesa {
+    color: #dc2626;
+}
+
+/* --- Tabela de Transações --- */
+table.transaction-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 10px;
+    -fs-table-paginate: paginate;
+}
+
+.transaction-table thead th {
+    background-color: #f0f0f5;
+    color: #444444;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    padding: 12px 10px;
+    text-align: left;
+    border-bottom: 2px solid #dddddd;
+}
+
+/* Alinhamento Específico */
+.transaction-table th.right-align,
+.transaction-table td.right-align {
+    text-align: right;
+}
+
+.transaction-table th.center-align,
+.transaction-table td.center-align {
+    text-align: center;
+}
+
+.transaction-table tbody td {
+    padding: 12px 10px;
+    border-bottom: 1px solid #eeeeee;
+    font-size: 12px;
+}
+
+.transaction-table tbody tr:nth-child(even) {
+    background-color: #fafafa;
+}
+
+/* Componente visual de Tags (Categoria e Status) */
+.badge {
+    display: inline-block;
+    padding: 3px 8px;
+    border-radius: 12px;
+    font-size: 10px;
+    font-weight: bold;
+    text-transform: uppercase;
+}
+
+/* Cores das Badges de Status */
+.badge-pago {
+    background-color: #d1fae5;
+    color: #065f46;
+}
+
+.badge-pendente {
+    background-color: #fef08a;
+    color: #854d0e;
+}
+
+.badge-categoria {
+    background-color: #e5e7eb;
+    color: #374151;
+}
+
+/* Cores dos Valores na Tabela */
+.valor-receita {
+    color: #10b981;
+    font-weight: bold;
+}
+
+.valor-despesa {
+    color: #ef4444;
+    font-weight: bold;
+}

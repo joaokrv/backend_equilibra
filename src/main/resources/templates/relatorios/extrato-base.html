@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+
+<head>
+    <meta charset="UTF-8" />
+    <title th:text="${tituloRelatorio}">Relatório Financeiro</title>
+    <link rel="stylesheet" type="text/css" href="static/css/relatorios-pdf.css" />
+</head>
+
+<body>
+
+    <!-- Header Box -->
+    <div class="header-box">
+        <h1>Equilibra</h1>
+        <p th:text="${tituloRelatorio}">Relatório de Extrato Geral</p>
+        <p style="margin-top: 5px; font-size: 12px; opacity: 0.8;" th:text="${periodoGeracao}">Período: 01/04/2026 a
+            30/04/2026</p>
+    </div>
+
+    <!-- Container de Informações Macro -->
+    <table class="summary-container" style="width: 100%;" th:if="${mostrarResumo}">
+        <tr>
+            <td class="summary-card">
+                <div class="summary-label">Total de Receitas</div>
+                <div class="summary-value receita" th:text="${totalReceitas}">R$ 0,00</div>
+            </td>
+            <td style="width: 10px;"></td> <!-- Espaçador -->
+            <td class="summary-card">
+                <div class="summary-label">Total de Despesas</div>
+                <div class="summary-value despesa" th:text="${totalDespesas}">R$ 0,00</div>
+            </td>
+        </tr>
+    </table>
+
+    <div style="margin-top: 20px; margin-bottom: 5px; font-weight: bold; font-size: 14px; color: #444;">
+        Detalhamento das Transações
+    </div>
+
+    <!-- Tabela Principal de Transações -->
+    <table class="transaction-table">
+        <thead>
+            <tr>
+                <th>Data</th>
+                <th>Descrição</th>
+                <th class="center-align">Categoria</th>
+                <th class="center-align">Status</th>
+                <th class="right-align">Valor (R$)</th>
+            </tr>
+        </thead>
+        <tbody>
+            <!-- Bloco caso a lista esteja vazia -->
+            <tr th:if="${#lists.isEmpty(transacoes)}">
+                <td colspan="5" class="center-align" style="padding: 30px; color: #888;">
+                    Nenhuma transação encontrada neste período.
+                </td>
+            </tr>
+
+            <!-- Loop dinâmico iterando pela lista de Transações DTO que será passada pelo Service -->
+            <tr th:each="tx : ${transacoes}">
+
+                <!-- Data: Mapeado da Property String no seu DTO de CsvLinha ou RelatorioLinhaDTO -->
+                <td th:text="${tx.data}">01/01/2026</td>
+
+                <!-- Descrição -->
+                <td>
+                    <span th:text="${tx.descricao}">Mercado</span><br />
+                    <!-- Nome da Conta ou Cartão bem pequenininho abaixo -->
+                    <span style="font-size: 9px; color: #888;" th:text="${tx.contaOuCartao}">Cartão Master</span>
+                </td>
+
+                <!-- Categoria (Badge Cinza) -->
+                <td class="center-align">
+                    <span class="badge badge-categoria" th:text="${tx.descricaoCategoria}">Alimentação</span>
+                </td>
+
+                <!-- Status (Badge Dinâmica baseada se é Pago ou Pendente) -->
+                <!-- Estamos utilizando Thymeleaf class-append logic para pintar de verde ou amarelo -->
+                <td class="center-align">
+                    <span class="badge"
+                        th:classappend="${tx.status != null and tx.status.equalsIgnoreCase('PAGO')} ? 'badge-pago' : 'badge-pendente'"
+                        th:text="${tx.status != null ? tx.status : 'PENDENTE'}">
+                        Pago
+                    </span>
+                </td>
+
+                <!-- Valor Real -->
+                <!-- Pintura verde para Receita, Vermelho para despesa -->
+                <td class="right-align"
+                    th:classappend="${tx.tipo != null and tx.tipo.equalsIgnoreCase('RECEITA')} ? 'valor-receita' : 'valor-despesa'"
+                    th:text="${tx.tipo != null and tx.tipo.equalsIgnoreCase('RECEITA') ? '+' + tx.valor : '-' + tx.valor}">
+                    R$ 100,00
+                </td>
+            </tr>
+        </tbody>
+    </table>
+
+</body>
+
+</html>

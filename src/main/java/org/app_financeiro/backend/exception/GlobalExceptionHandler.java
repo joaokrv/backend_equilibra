@@ -246,6 +246,20 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Trata erros de parâmetros com valores inválidos (ex: IllegalArgumentException no Controller de Relatórios).
+     */
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErroResponseDTO> handleIllegalArgument(IllegalArgumentException ex) {
+        ErroResponseDTO erro = new ErroResponseDTO(
+                HttpStatus.BAD_REQUEST.value(),
+                "INVALID_PARAMETER_VALUE",
+                "Valor Incorreto",
+                ex.getMessage()
+        );
+        return new ResponseEntity<>(erro, HttpStatus.BAD_REQUEST);
+    }
+
+    /**
      * Trata falhas de infraestrutura no envio de e-mail (SMTP indisponível, timeout, etc.).
      */
     @ExceptionHandler(MailException.class)
