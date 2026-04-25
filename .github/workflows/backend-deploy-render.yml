@@ -22,7 +22,7 @@ jobs:
           restore-keys: ${{ runner.os }}-maven-
 
       - name: Run tests
-        run: mvn clean test -Dexcludes="**/*IntegrationTest.java,**/*IT.java"
+        run: mvn clean test
         env:
           JWT_SECRET: ${{ secrets.CI_JWT_SECRET }}
           AUTH_PEPPER: ${{ secrets.CI_AUTH_PEPPER }}
