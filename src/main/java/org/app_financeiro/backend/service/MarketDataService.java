@@ -106,9 +106,7 @@ public class MarketDataService {
 
         try {
             UriComponentsBuilder builder = UriComponentsBuilder
-                    .fromHttpUrl(awesomeApiBaseUrl)
-                    .path("/last/{pair}")
-                    .uriVariables(Map.of("pair", pair));
+                    .fromHttpUrl(awesomeApiBaseUrl + "/last/" + pair);
             if (awesomeApiKey != null && !awesomeApiKey.isBlank()) {
                 builder.queryParam("token", awesomeApiKey);
             }
