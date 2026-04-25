@@ -22,7 +22,7 @@ jobs:
           restore-keys: ${{ runner.os }}-maven-
 
       - name: Run tests
-        run: mvn clean test -Dtest="*Test" -DexcludedGroups="integration"
+        run: mvn clean test -Dexcludes="**/*IntegrationTest.java,**/*IT.java"
 
   deploy:
     needs: test
