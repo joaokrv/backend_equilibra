@@ -36,6 +36,12 @@ public class MarketDataService {
     @Value("${brapi.token:}")
     private String brapiToken;
 
+    @Value("${awesome-api.base-url:https://economia.awesomeapi.com.br}")
+    private String awesomeApiBaseUrl;
+
+    @Value("${awesome-api.key:}")
+    private String awesomeApiKey;
+
     // Cache granular em memória (Ticker -> Dados de Resultado)
     private final Map<String, CachedData<BrapiResponseDTO.StockResultDTO>> quotesCache = new ConcurrentHashMap<>();
     private final Map<String, CachedData<Map<String, Object>>> exchangeCache = new ConcurrentHashMap<>();
@@ -99,7 +105,14 @@ public class MarketDataService {
         }
 
         try {
-            String url = "https://economia.awesomeapi.com.br/last/" + pair;
+            UriComponentsBuilder builder = UriComponentsBuilder
+                    .fromHttpUrl(awesomeApiBaseUrl)
+                    .path("/last/{pair}")
+                    .uriVariables(Map.of("pair", pair));
+            if (awesomeApiKey != null && !awesomeApiKey.isBlank()) {
+                builder.queryParam("token", awesomeApiKey);
+            }
+            String url = builder.toUriString();
             Map<String, Object> response = restTemplate.getForObject(url, Map.class);
             
             if (response != null) {
