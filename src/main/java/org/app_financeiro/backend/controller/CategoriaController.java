@@ -1,6 +1,7 @@
 package org.app_financeiro.backend.controller;
 
 import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.app_financeiro.backend.dto.request.CategoriaRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.CategoriaResponseDTO;
 import org.app_financeiro.backend.enums.TipoTransacao;
@@ -24,6 +25,7 @@ import java.util.List;
 /** CRUD de categorias de transação. */
 @RestController
 @RequestMapping("/api/categorias")
+@Tag(name = "Categorias", description = "CRUD de categorias de transação")
 public class CategoriaController {
 
     private final CategoriaService categoriaService;

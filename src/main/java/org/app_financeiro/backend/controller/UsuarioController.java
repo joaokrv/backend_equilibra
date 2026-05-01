@@ -61,7 +61,7 @@ import java.util.UUID;
  */
 @RestController
 @RequestMapping("/api/auth")
-@Tag(name = "Autenticação", description = "Fluxos de registro, login e verificação de conta")
+@Tag(name = "Autenticacao", description = "Fluxos de registro, login e verificação de conta")
 public class UsuarioController {
 
     @Value("${cookie.secure:true}")

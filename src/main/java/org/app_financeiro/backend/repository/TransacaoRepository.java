@@ -58,6 +58,9 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
 
     boolean existsByIdempotencyKey(String idempotencyKey);
 
+    @EntityGraph(attributePaths = {"categoria", "conta", "cartao"})
+    List<TransacaoEntity> findByFaturaId(Long faturaId);
+
         @Modifying(clearAutomatically = true)
         @Transactional
         @Query("""

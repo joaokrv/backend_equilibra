@@ -1,6 +1,7 @@
 package org.app_financeiro.backend.controller;
 
 import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.app_financeiro.backend.dto.request.CartaoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.CartaoResponseDTO;
 import org.app_financeiro.backend.service.CartaoService;
@@ -22,6 +23,7 @@ import java.util.List;
 /** CRUD de cartões de crédito. */
 @RestController
 @RequestMapping("/api/cartoes")
+@Tag(name = "Cartoes", description = "CRUD de cartões de crédito")
 public class CartaoController {
 
     private final CartaoService cartaoService;

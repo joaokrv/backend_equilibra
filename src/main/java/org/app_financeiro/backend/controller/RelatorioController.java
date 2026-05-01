@@ -14,7 +14,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 
 @RestController
 @RequestMapping("/api/v1/relatorios")
-@Tag(name = "Relatórios", description = "Geração de relatórios financeiros em PDF e CSV")
+@Tag(name = "Relatorios", description = "Geração de relatórios financeiros em PDF e CSV")
 public class RelatorioController {
 
     private final RelatorioService relatorioService;

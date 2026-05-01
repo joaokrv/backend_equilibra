@@ -1,6 +1,7 @@
 package org.app_financeiro.backend.controller;
 
 import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.app_financeiro.backend.dto.request.ContaRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.ContaResponseDTO;
 import org.app_financeiro.backend.service.ContaService;
@@ -25,6 +26,7 @@ import java.util.List;
 /** CRUD de contas bancárias. */
 @RestController
 @RequestMapping("/api/contas")
+@Tag(name = "Contas", description = "CRUD de contas bancárias")
 public class ContaController {
 
     private final ContaService contaService;

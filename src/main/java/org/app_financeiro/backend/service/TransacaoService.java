@@ -38,17 +38,20 @@ public class TransacaoService {
     private final CategoriaService categoriaService;
     private final UsuarioService usuarioService;
     private final TransacaoMapper transacaoMapper;
+    private final FaturaService faturaService;
 
     public TransacaoService(TransacaoRepository transacaoRepository,
                             MovimentacaoFinanceiraService movimentacaoFinanceiraService,
                             CategoriaService categoriaService,
                             UsuarioService usuarioService,
-                            TransacaoMapper transacaoMapper) {
+                            TransacaoMapper transacaoMapper,
+                            FaturaService faturaService) {
         this.transacaoRepository = transacaoRepository;
         this.movimentacaoFinanceiraService = movimentacaoFinanceiraService;
         this.categoriaService = categoriaService;
         this.usuarioService = usuarioService;
         this.transacaoMapper = transacaoMapper;
+        this.faturaService = faturaService;
     }
 
     @Transactional
@@ -210,6 +213,15 @@ public class TransacaoService {
     public Page<TransacaoResponseDTO> listarPorUsuario(Long usuarioId, Pageable pageable) {
         return transacaoRepository.findByUsuarioId(usuarioId, pageable)
                 .map(transacaoMapper::toResponse);
+    }
+
+    @Transactional(readOnly = true)
+    public List<TransacaoResponseDTO> buscarPorFatura(Long faturaId, Long usuarioId) {
+        faturaService.buscarFaturaComDetalhe(faturaId, usuarioId);
+        List<TransacaoEntity> transacoes = transacaoRepository.findByFaturaId(faturaId);
+        return transacoes.stream()
+                .map(transacaoMapper::toResponse)
+                .toList();
     }
 
     private void validarParcelas(TransacaoRegistroRequestDTO dto) {

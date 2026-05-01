@@ -89,7 +89,7 @@ class TransacaoServiceTest {
         TransacaoResponseDTO responseDTO = new TransacaoResponseDTO(
                 100L, "Mercado", new BigDecimal("100.00"), LocalDate.now(),
                 TipoTransacao.DESPESA, StatusTransacao.PAGO, MetodoPagamento.PIX,
-                "Alimentação", null, "Conta Principal", null, null, null, false);
+                "Alimentação", null, "Conta Principal", null, null, null, false, null, null);
         when(transacaoMapper.toResponse(any())).thenReturn(responseDTO);
 
         // Act
@@ -189,8 +189,8 @@ class TransacaoServiceTest {
         org.springframework.data.domain.Page<TransacaoEntity> pageEnt =
                 new org.springframework.data.domain.PageImpl<>(List.of(t1, t2), pageable, 2);
         when(transacaoRepository.findByUsuarioId(1L, pageable)).thenReturn(pageEnt);
-        when(transacaoMapper.toResponse(t1)).thenReturn(new TransacaoResponseDTO(1L, "Desc1", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null, null, null, null, false));
-        when(transacaoMapper.toResponse(t2)).thenReturn(new TransacaoResponseDTO(2L, "Desc2", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null, null, null, null, false));
+        when(transacaoMapper.toResponse(t1)).thenReturn(new TransacaoResponseDTO(1L, "Desc1", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null, null, null, null, false, null, null));
+        when(transacaoMapper.toResponse(t2)).thenReturn(new TransacaoResponseDTO(2L, "Desc2", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null, null, null, null, false, null, null));
 
         // Act
         var result = transacaoService.listarPorUsuario(1L, pageable);
@@ -276,7 +276,7 @@ class TransacaoServiceTest {
                 when(transacaoMapper.toResponse(any(TransacaoEntity.class))).thenReturn(
                                 new TransacaoResponseDTO(1L, "D1", BigDecimal.ZERO, LocalDate.of(2026, 3, 15),
                                                 TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX,
-                                                null, null, null, null, null, null, false));
+                                                null, null, null, null, null, null, false, null, null));
 
                 List<TransacaoResponseDTO> resultado = transacaoService.listarPorIntervalo(inicio, fim, 1L);
 

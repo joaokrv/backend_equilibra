@@ -10,6 +10,7 @@ import java.time.LocalDate;
 /**
  * DTO de resposta com os dados de uma transação financeira.
  * Retorna nomes descritivos e IDs de categoria, conta e cartão para suporte a edição.
+ * Inclui informações de parcelamento para transações em cartão de crédito.
  */
 public record TransacaoResponseDTO(
     Long id,
@@ -25,5 +26,7 @@ public record TransacaoResponseDTO(
     Long contaId,
     String nomeCartao,
     Long cartaoId,
-    boolean isRecorrente
+    boolean isRecorrente,
+    Integer numeroParcela,
+    Integer totalParcelas
 ) {}

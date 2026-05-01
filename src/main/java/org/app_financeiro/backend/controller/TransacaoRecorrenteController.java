@@ -16,7 +16,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/recorrentes")
-@Tag(name = "Transações Recorrentes", description = "Gestão de receitas e despesas fixas")
+@Tag(name = "TransacoesRecorrentes", description = "Gestão de receitas e despesas fixas")
 public class TransacaoRecorrenteController {
 
     private final TransacaoRecorrenteService service;

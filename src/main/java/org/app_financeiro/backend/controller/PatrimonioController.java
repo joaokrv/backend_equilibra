@@ -22,7 +22,7 @@ import java.util.List;
 @RestController
 @RequestMapping("/api/patrimonio")
 @RequiredArgsConstructor
-@Tag(name = "Patrimônio", description = "Endpoints para histórico patrimonial")
+@Tag(name = "Patrimonio", description = "Endpoints para histórico patrimonial")
 public class PatrimonioController {
 
     private final PatrimonioHistoricoService patrimonioHistoricoService;

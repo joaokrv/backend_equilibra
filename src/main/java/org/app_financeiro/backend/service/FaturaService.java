@@ -152,6 +152,13 @@ public class FaturaService {
         }
     }
 
+    @Transactional(readOnly = true)
+    public FaturaResponseDTO buscarFaturaComDetalhe(Long faturaId, Long usuarioId) {
+        FaturaEntity fatura = buscarPorId(faturaId, usuarioId);
+        atualizarStatusVencidas(List.of(fatura));
+        return faturaMapper.toResponse(fatura);
+    }
+
     public FaturaEntity buscarPorId(Long faturaId, Long usuarioId) {
         FaturaEntity fatura = faturaRepository.findById(faturaId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Fatura não encontrada"));

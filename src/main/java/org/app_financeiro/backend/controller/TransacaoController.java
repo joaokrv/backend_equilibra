@@ -32,7 +32,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 @Validated
 @RestController
 @RequestMapping("/api/transacoes")
-@Tag(name = "Transações", description = "Gerenciamento de receitas e despesas (contas e cartões)")
+@Tag(name = "Transacoes", description = "Gerenciamento de receitas e despesas (contas e cartões)")
 public class TransacaoController {
 
     private final TransacaoService transacaoService;
@@ -51,14 +51,24 @@ public class TransacaoController {
         return ResponseEntity.status(HttpStatus.CREATED).body(transacao);
     }
 
-    @GetMapping(params = {"ano","mes"})
-    @Operation(summary = "Listar transações mensais", description = "Retorna todas as transações de um mês e ano específicos para o usuário logado.")
+    @GetMapping("/mensal")
+    @Operation(summary = "Listar transações mensais", operationId = "listarMensal", description = "Retorna todas as transações de um mês e ano específicos para o usuário logado.")
     public ResponseEntity<List<TransacaoResponseDTO>> listarMensal(
             @RequestParam @Min(2000) @Max(2100) int ano,
             @RequestParam @Min(1) @Max(12) int mes,
             @AuthenticationPrincipal UsuarioEntity usuario) {
 
         List<TransacaoResponseDTO> transacoes = transacaoService.buscarPorMes(ano, mes, usuario.getId());
+        return ResponseEntity.ok(transacoes);
+    }
+
+    @GetMapping("/fatura")
+    @Operation(summary = "Listar transações por fatura", operationId = "listarPorFatura", description = "Retorna todas as transações de uma fatura específica.")
+    public ResponseEntity<List<TransacaoResponseDTO>> listarPorFatura(
+            @RequestParam Long faturaId,
+            @AuthenticationPrincipal UsuarioEntity usuario) {
+
+        List<TransacaoResponseDTO> transacoes = transacaoService.buscarPorFatura(faturaId, usuario.getId());
         return ResponseEntity.ok(transacoes);
     }
 
@@ -88,7 +98,7 @@ public class TransacaoController {
     }
 
     @GetMapping
-    @Operation(summary = "Listar transações paginadas", description = "Retorna transações do usuário em páginas (sem filtro mensal). Use parâmetros page, size, sort.")
+    @Operation(summary = "Listar transações paginadas", operationId = "listarPaginado", description = "Retorna transações do usuário em páginas (sem filtro mensal). Use parâmetros page, size, sort.")
     public ResponseEntity<org.springframework.data.domain.Page<TransacaoResponseDTO>> listarPaginado(
             @AuthenticationPrincipal UsuarioEntity usuario,
             org.springframework.data.domain.Pageable pageable) {
