@@ -30,8 +30,3 @@ ALTER INDEX pk_indicador_economico_v2 RENAME TO pk_indicador_economico;
 
 -- 5. Recriação do índice
 CREATE INDEX idx_indicador_nome_data ON indicador_economico (nome, data_atualizacao);
-
--- Nota: patrimonio_historico já possui partição anual (patrimonio_historico_2026) desde a V14.
--- Apenas adicionaremos a partição de 2027 preventivamente.
-CREATE TABLE IF NOT EXISTS patrimonio_historico_2027 PARTITION OF patrimonio_historico
-    FOR VALUES FROM ('2027-01-01') TO ('2028-01-01');
