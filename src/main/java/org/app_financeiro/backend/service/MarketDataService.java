@@ -221,10 +221,14 @@ public class MarketDataService {
     }
 
     private void salvarIndicador(String nome, BigDecimal valor, BigDecimal variacao, LocalDate data, String provedor) {
-        // JPA save() usa a sequência BIGSERIAL — elimina race condition do MAX(id)+1 (B4-A1)
-        IndicadorEconomicoEntity indicador = new IndicadorEconomicoEntity(nome, valor, variacao, data, provedor);
-        indicadorRepository.save(indicador);
-        log.debug("Indicador {} atualizado: {} (Provedor: {})", nome, valor, provedor);
+        try {
+            // JPA save() usa a sequência BIGSERIAL — elimina race condition do MAX(id)+1 (B4-A1)
+            IndicadorEconomicoEntity indicador = new IndicadorEconomicoEntity(nome, valor, variacao, data, provedor);
+            indicadorRepository.save(indicador);
+            log.debug("Indicador {} atualizado: {} (Provedor: {})", nome, valor, provedor);
+        } catch (org.springframework.dao.DataAccessException e) {
+            log.error("Falha de infraestrutura ao salvar indicador {}: {} (Ignorando para evitar crash)", nome, e.getMessage());
+        }
     }
 
     private boolean isCacheValid(CachedData<?> cached) {
