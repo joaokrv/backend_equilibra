@@ -26,7 +26,7 @@ SELECT id, nome, valor, variacao, data_atualizacao, provedor FROM indicador_econ
 -- 4. Remoção da estrutura antiga (mensal) e renomeação da nova
 DROP TABLE indicador_economico CASCADE;
 ALTER TABLE indicador_economico_v2 RENAME TO indicador_economico;
-ALTER TABLE indicador_economico_v2_pkey RENAME TO pk_indicador_economico;
+ALTER INDEX pk_indicador_economico_v2 RENAME TO pk_indicador_economico;
 
 -- 5. Recriação do índice
 CREATE INDEX idx_indicador_nome_data ON indicador_economico (nome, data_atualizacao);

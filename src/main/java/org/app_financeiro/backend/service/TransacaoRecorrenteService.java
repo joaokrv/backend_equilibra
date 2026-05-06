@@ -52,8 +52,24 @@ public class TransacaoRecorrenteService {
 
     @Transactional
     public TransacaoRecorrenteResponseDTO criar(TransacaoRecorrenteRequestDTO dto, Long usuarioId) {
+        if (dto.contaId() != null && dto.cartaoId() != null) {
+            throw new RegraDeNegocioException("Transação recorrente inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
+        }
+        if (dto.contaId() == null && dto.cartaoId() == null) {
+            throw new RegraDeNegocioException("Transação recorrente inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
+        }
+
         UsuarioEntity usuario = usuarioService.buscarPorIdOuFalhar(usuarioId);
-        ContaEntity conta = contaService.buscarContaValidada(dto.contaId(), usuarioId);
+        
+        ContaEntity conta = null;
+        if (dto.contaId() != null) {
+            conta = contaService.buscarContaValidada(dto.contaId(), usuarioId);
+        }
+
+        CartaoEntity cartao = null;
+        if (dto.cartaoId() != null) {
+            cartao = cartaoService.buscarCartaoValidado(dto.cartaoId(), usuarioId);
+        }
 
         TransacaoRecorrenteEntity entity = new TransacaoRecorrenteEntity();
         entity.setDescricao(dto.descricao());
@@ -61,16 +77,12 @@ public class TransacaoRecorrenteService {
         entity.setTipo(dto.tipo());
         entity.setMetodoPagamento(dto.metodoPagamento());
         entity.setConta(conta);
+        entity.setCartao(cartao);
         entity.setDiaLancamento(dto.diaLancamento());
         entity.setDataInicio(dto.dataInicio() != null ? dto.dataInicio() : LocalDate.now());
         entity.setDataFim(dto.dataFim());
         entity.setUsuario(usuario);
         entity.setAtivo(true);
-
-        if (dto.cartaoId() != null) {
-            CartaoEntity cartao = cartaoService.buscarCartaoValidado(dto.cartaoId(), usuarioId);
-            entity.setCartao(cartao);
-        }
 
         if (dto.categoriaId() != null) {
             CategoriaEntity categoria = categoriaService.buscarPorIdOuFalhar(dto.categoriaId(), usuarioId);
@@ -96,24 +108,35 @@ public class TransacaoRecorrenteService {
 
     @Transactional
     public TransacaoRecorrenteResponseDTO atualizar(Long id, TransacaoRecorrenteRequestDTO dto, Long usuarioId) {
+        if (dto.contaId() != null && dto.cartaoId() != null) {
+            throw new RegraDeNegocioException("Transação recorrente inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
+        }
+        if (dto.contaId() == null && dto.cartaoId() == null) {
+            throw new RegraDeNegocioException("Transação recorrente inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
+        }
+
         TransacaoRecorrenteEntity entity = buscarValidada(id, usuarioId);
-        ContaEntity conta = contaService.buscarContaValidada(dto.contaId(), usuarioId);
+
+        ContaEntity conta = null;
+        if (dto.contaId() != null) {
+            conta = contaService.buscarContaValidada(dto.contaId(), usuarioId);
+        }
+
+        CartaoEntity cartao = null;
+        if (dto.cartaoId() != null) {
+            cartao = cartaoService.buscarCartaoValidado(dto.cartaoId(), usuarioId);
+        }
 
         entity.setDescricao(dto.descricao());
         entity.setValor(dto.valor());
         entity.setTipo(dto.tipo());
         entity.setMetodoPagamento(dto.metodoPagamento());
         entity.setConta(conta);
+        entity.setCartao(cartao);
         entity.setDiaLancamento(dto.diaLancamento());
 
         if (dto.dataInicio() != null) entity.setDataInicio(dto.dataInicio());
         entity.setDataFim(dto.dataFim());
-
-        if (dto.cartaoId() != null) {
-            entity.setCartao(cartaoService.buscarCartaoValidado(dto.cartaoId(), usuarioId));
-        } else {
-            entity.setCartao(null);
-        }
 
         if (dto.categoriaId() != null) {
             entity.setCategoria(categoriaService.buscarPorIdOuFalhar(dto.categoriaId(), usuarioId));

@@ -44,7 +44,7 @@ public class TransacaoRecorrenteEntity {
     private MetodoPagamento metodoPagamento;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "conta_id", nullable = false)
+    @JoinColumn(name = "conta_id")
     private ContaEntity conta;
 
     @ManyToOne(fetch = FetchType.LAZY)

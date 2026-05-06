@@ -106,7 +106,7 @@ public class RecorrenciaSchedulerService {
                         rec.getValor(),
                         dataTransacao,
                         rec.getTipo(),
-                        StatusTransacao.PENDENTE,
+                        null, // Permite que o TransacaoService aplique as regras automáticas de status baseadas no método de pagamento
                         rec.getMetodoPagamento(),
                         contaId,
                         cartaoId,

@@ -64,11 +64,11 @@ public class TransacaoService {
         }
 
         if (dto.contaId() != null && dto.cartaoId() != null) {
-            throw new RegraDeNegocioException("Não é permitido informar contaId e cartaoId ao mesmo tempo");
+            throw new RegraDeNegocioException("Transação inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
         }
 
         if (dto.contaId() == null && dto.cartaoId() == null) {
-            throw new RegraDeNegocioException("Necessário informar contaId ou cartaoId para criar a transação");
+            throw new RegraDeNegocioException("Transação inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
         }
 
         CategoriaEntity categoria = null;
@@ -124,10 +124,10 @@ public class TransacaoService {
         movimentacaoFinanceiraService.desfazerEfeitoFinanceiro(transacao, usuarioId);
 
         if (dto.contaId() != null && dto.cartaoId() != null) {
-            throw new RegraDeNegocioException("Não é permitido informar contaId e cartaoId ao mesmo tempo");
+            throw new RegraDeNegocioException("Transação inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
         }
         if (dto.contaId() == null && dto.cartaoId() == null) {
-            throw new RegraDeNegocioException("Necessário informar contaId ou cartaoId");
+            throw new RegraDeNegocioException("Transação inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
         }
         
         CategoriaEntity categoria = null;
