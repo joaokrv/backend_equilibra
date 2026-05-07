@@ -22,6 +22,7 @@ public record TransacaoRecorrenteRequestDTO(
     @NotNull(message = "O tipo é obrigatório")
     TipoTransacao tipo,
 
+    @NotNull(message = "O método de pagamento é obrigatório")
     MetodoPagamento metodoPagamento,
 
     @NotNull(message = "A conta é obrigatória")

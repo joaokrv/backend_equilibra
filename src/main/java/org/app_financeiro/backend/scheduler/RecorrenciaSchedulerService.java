@@ -111,6 +111,7 @@ public class RecorrenciaSchedulerService {
                         contaId,
                         cartaoId,
                         rec.getCategoria() != null ? rec.getCategoria().getId() : null,
+                        rec.getId(), // recorrenteId — vincula a transação à recorrência
                         null, // numeroParcela
                         null, // totalParcelas
                         idempotencyKey

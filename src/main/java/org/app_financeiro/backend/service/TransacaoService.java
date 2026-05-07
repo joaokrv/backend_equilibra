@@ -17,6 +17,7 @@ import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.exception.OperacaoNaoPermitidaException;
 import org.app_financeiro.backend.repository.TransacaoRepository;
+import org.app_financeiro.backend.repository.TransacaoRecorrenteRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.Page;
@@ -34,6 +35,7 @@ public class TransacaoService {
     private static final Logger log = LoggerFactory.getLogger(TransacaoService.class);
 
     private final TransacaoRepository transacaoRepository;
+    private final TransacaoRecorrenteRepository transacaoRecorrenteRepository;
     private final MovimentacaoFinanceiraService movimentacaoFinanceiraService;
     private final CategoriaService categoriaService;
     private final UsuarioService usuarioService;
@@ -41,12 +43,14 @@ public class TransacaoService {
     private final FaturaService faturaService;
 
     public TransacaoService(TransacaoRepository transacaoRepository,
+                            TransacaoRecorrenteRepository transacaoRecorrenteRepository,
                             MovimentacaoFinanceiraService movimentacaoFinanceiraService,
                             CategoriaService categoriaService,
                             UsuarioService usuarioService,
                             TransacaoMapper transacaoMapper,
                             FaturaService faturaService) {
         this.transacaoRepository = transacaoRepository;
+        this.transacaoRecorrenteRepository = transacaoRecorrenteRepository;
         this.movimentacaoFinanceiraService = movimentacaoFinanceiraService;
         this.categoriaService = categoriaService;
         this.usuarioService = usuarioService;
@@ -102,6 +106,13 @@ public class TransacaoService {
         transacao.setTotalParcelas(dto.totalParcelas());
         transacao.setAtivo(true);
         transacao.setIdempotencyKey(dto.idempotencyKey());
+
+        if (dto.recorrenteId() != null) {
+            transacao.setRecorrente(
+                transacaoRecorrenteRepository.findById(dto.recorrenteId())
+                    .orElseThrow(() -> new RecursoNaoEncontradoException("Recorrência não encontrada"))
+            );
+        }
 
         transacaoRepository.save(transacao);
         log.info("Transação {} criada para usuário {}", transacao.getId(), usuarioId);
@@ -247,6 +258,8 @@ public class TransacaoService {
 
         MetodoPagamento metodo = dto.metodoPagamento();
         if (metodo == null) {
+            log.warn("Transação sem metodoPagamento. descricao={}, tipo={}, valor={}, contaId={}, cartaoId={}, recorrenteId={}",
+                    dto.descricao(), dto.tipo(), dto.valor(), dto.contaId(), dto.cartaoId(), dto.recorrenteId());
             return StatusTransacao.PENDENTE;
         }
 

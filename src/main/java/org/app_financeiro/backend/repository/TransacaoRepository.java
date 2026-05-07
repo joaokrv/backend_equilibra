@@ -39,7 +39,7 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
     List<TransacaoEntity> findByUsuarioIdAndDataBetween(Long usuarioId, LocalDate start, LocalDate end);
 
     @Query("SELECT COALESCE(SUM(t.valor), 0) FROM TransacaoEntity t " +
-           "WHERE t.usuario.id = :uid AND t.data BETWEEN :ini AND :fim AND t.tipo = :tipo")
+           "WHERE t.usuario.id = :uid AND t.data BETWEEN :ini AND :fim AND t.tipo = :tipo AND t.isAtivo = true")
     BigDecimal somarPorTipoNoPeriodo(@Param("uid") Long uid,
                                       @Param("ini") LocalDate ini,
                                       @Param("fim") LocalDate fim,
@@ -47,7 +47,7 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
 
     @Query("SELECT COALESCE(SUM(t.valor), 0) FROM TransacaoEntity t " +
            "WHERE t.usuario.id = :uid AND t.data BETWEEN :ini AND :fim " +
-           "AND t.tipo = :tipo AND t.status = :status")
+           "AND t.tipo = :tipo AND t.status = :status AND t.isAtivo = true")
     BigDecimal somarPorTipoEStatusNoPeriodo(@Param("uid") Long uid,
                                              @Param("ini") LocalDate ini,
                                              @Param("fim") LocalDate fim,

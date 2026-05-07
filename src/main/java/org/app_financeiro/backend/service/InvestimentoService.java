@@ -252,6 +252,7 @@ public class InvestimentoService {
                 null,
                 null,
                 null,
+                null,
                 idempotencyKey
         );
 

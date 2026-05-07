@@ -11,6 +11,7 @@ import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.app_financeiro.backend.mapper.TransacaoMapper;
 import org.app_financeiro.backend.repository.TransacaoRepository;
+import org.app_financeiro.backend.repository.TransacaoRecorrenteRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -26,6 +27,7 @@ import java.util.Optional;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -45,6 +47,12 @@ class TransacaoServiceTest {
 
     @Mock
     private TransacaoMapper transacaoMapper;
+
+    @Mock
+    private FaturaService faturaService;
+
+    @Mock
+    private TransacaoRecorrenteRepository transacaoRecorrenteRepository;
 
     @InjectMocks
     private TransacaoService transacaoService;
@@ -78,7 +86,7 @@ class TransacaoServiceTest {
         // Ordem: descricao, valor, data, tipo, status, metodoPagamento, contaId, cartaoId, categoriaId, numParc, totParc
         TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                 "Mercado", new BigDecimal("100.00"), LocalDate.now(), TipoTransacao.DESPESA,
-                StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null, "key-1");
+                StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null, null, "key-1");
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(categoriaService.buscarPorIdOuFalhar(5L, 1L)).thenReturn(categoriaDespesa);
@@ -106,7 +114,7 @@ class TransacaoServiceTest {
         // Arrange
         TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                 "Netflix", new BigDecimal("55.00"), LocalDate.now(), TipoTransacao.DESPESA,
-                StatusTransacao.PAGO, MetodoPagamento.CARTAO_CREDITO, null, 20L, 5L, null, null, "key-2");
+                StatusTransacao.PAGO, MetodoPagamento.CARTAO_CREDITO, null, 20L, 5L, null, null, null, "key-2");
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(categoriaService.buscarPorIdOuFalhar(5L, 1L)).thenReturn(categoriaDespesa);
@@ -134,7 +142,7 @@ class TransacaoServiceTest {
         // Arrange
         TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                 "Erro", BigDecimal.TEN, LocalDate.now(), TipoTransacao.DESPESA,
-                null, null, 10L, 20L, 5L, null, null, "key-3");
+                null, null, 10L, 20L, 5L, null, null, null, "key-3");
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
 
@@ -150,7 +158,7 @@ class TransacaoServiceTest {
         categoriaDespesa.setTipo(TipoTransacao.RECEITA); // Incompatível com o tipo da transação (DESPESA)
         TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                 "Erro", BigDecimal.TEN, LocalDate.now(), TipoTransacao.DESPESA,
-                null, null, 10L, null, 5L, null, null, "key-4");
+                null, null, 10L, null, 5L, null, null, null, "key-4");
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(categoriaService.buscarPorIdOuFalhar(5L, 1L)).thenReturn(categoriaDespesa);
@@ -211,7 +219,7 @@ class TransacaoServiceTest {
 
         TransacaoRegistroRequestDTO requestNovo = new TransacaoRegistroRequestDTO(
                 "Novo", new BigDecimal("100.00"), LocalDate.now(), TipoTransacao.DESPESA,
-                StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null, "key-5");
+                StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null, null, "key-5");
 
         when(transacaoRepository.findById(100L)).thenReturn(Optional.of(transacaoAntiga));
         when(categoriaService.buscarPorIdOuFalhar(5L, 1L)).thenReturn(categoriaDespesa);
@@ -247,7 +255,7 @@ class TransacaoServiceTest {
         // Arrange
         TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                 "Mercado", new BigDecimal("100.00"), LocalDate.now(), TipoTransacao.DESPESA,
-                StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null, "unique-key");
+                StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null, null, "unique-key");
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(transacaoRepository.existsByIdempotencyKey("unique-key")).thenReturn(true);
@@ -302,5 +310,59 @@ class TransacaoServiceTest {
                 assertThatThrownBy(() -> transacaoService.listarPorIntervalo(inicio, fim, 1L))
                                 .isInstanceOf(RegraDeNegocioException.class)
                                 .hasMessageContaining("Intervalo maximo");
+        }
+
+        @Test
+        void deveCriarTransacaoComRecorrenteIdEVincularARecorrencia() {
+                // Arrange
+                TransacaoRecorrenteEntity recorrencia = new TransacaoRecorrenteEntity();
+                recorrencia.setId(7L);
+
+                TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
+                        "Salário", new BigDecimal("3000.00"), LocalDate.now(), TipoTransacao.RECEITA,
+                        null, MetodoPagamento.PIX, 10L, null, null, 7L, null, null, "REC-7-2026-05");
+
+                when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
+                when(movimentacaoFinanceiraService.processarTransacaoConta(any(), any(), any(), any(), any()))
+                        .thenReturn(contaPadrao);
+                when(transacaoRecorrenteRepository.findById(7L)).thenReturn(Optional.of(recorrencia));
+
+                when(transacaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+                when(transacaoMapper.toResponse(any())).thenReturn(new TransacaoResponseDTO(
+                        50L, "Salário", new BigDecimal("3000.00"), LocalDate.now(), TipoTransacao.RECEITA,
+                        StatusTransacao.PAGO, MetodoPagamento.PIX, null, null, "Conta Principal", 10L, null, null, true, null, null));
+
+                // Act
+                TransacaoResponseDTO result = transacaoService.criarTransacao(request, 1L);
+
+                // Assert
+                assertThat(result.isRecorrente()).isTrue();
+                verify(transacaoRecorrenteRepository).findById(7L);
+                verify(transacaoRepository).save(argThat(t -> t.getRecorrente() != null && Long.valueOf(7L).equals(t.getRecorrente().getId())));
+        }
+
+        @Test
+        void deveCriarTransacaoSemRecorrenteIdComRecorrenteNulo() {
+                // Arrange
+                TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
+                        "Compra Manual", new BigDecimal("50.00"), LocalDate.now(), TipoTransacao.DESPESA,
+                        StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null, null, "manual-1");
+
+                when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
+                when(categoriaService.buscarPorIdOuFalhar(5L, 1L)).thenReturn(categoriaDespesa);
+                when(movimentacaoFinanceiraService.processarTransacaoConta(any(), any(), any(), any(), any()))
+                        .thenReturn(contaPadrao);
+
+                when(transacaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+                when(transacaoMapper.toResponse(any())).thenReturn(new TransacaoResponseDTO(
+                        51L, "Compra Manual", new BigDecimal("50.00"), LocalDate.now(), TipoTransacao.DESPESA,
+                        StatusTransacao.PAGO, MetodoPagamento.PIX, "Alimentação", 5L, "Conta Principal", 10L, null, null, false, null, null));
+
+                // Act
+                TransacaoResponseDTO result = transacaoService.criarTransacao(request, 1L);
+
+                // Assert
+                assertThat(result.isRecorrente()).isFalse();
+                verify(transacaoRepository).save(argThat(t -> t.getRecorrente() == null));
         }
 }

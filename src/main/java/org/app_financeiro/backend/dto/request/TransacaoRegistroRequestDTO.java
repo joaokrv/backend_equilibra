@@ -36,6 +36,7 @@ public record TransacaoRegistroRequestDTO(
     Long contaId,
     Long cartaoId,
     Long categoriaId,
+    Long recorrenteId,
 
     @Min(value = 1, message = "O número da parcela deve ser no mínimo 1")
     Integer numeroParcela,
