@@ -1,12 +1,6 @@
--- 1. Cria a tabela avulsa para 2025 (Sem Lock na tabela pai)
+-- 1. Cria a partição para 2025
 SET statement_timeout = 0;
-CREATE TABLE IF NOT EXISTS patrimonio_historico_2025 (
-    LIKE patrimonio_historico INCLUDING DEFAULTS INCLUDING CONSTRAINTS
-);
-
--- 2. "Pluga" a tabela avulsa como partição da tabela pai 
--- (Pede o Lock por apenas 1 milissegundo)
-ALTER TABLE patrimonio_historico ATTACH PARTITION patrimonio_historico_2025
+CREATE TABLE IF NOT EXISTS patrimonio_historico_2025 PARTITION OF patrimonio_historico
     FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
 
 -- 2. Backfill: Maio 2026 (mês atual)
