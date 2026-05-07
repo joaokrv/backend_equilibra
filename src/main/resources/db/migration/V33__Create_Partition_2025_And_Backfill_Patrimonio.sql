@@ -1,7 +1,3 @@
--- V33: Criação da partição 2025 e Backfill de dados
--- Removemos o timeout da sessão do Flyway para evitar cancelamentos durante o deploy
-SET statement_timeout = 0;
-
 -- 1. Cria a partição para 2025
 CREATE TABLE IF NOT EXISTS patrimonio_historico_2025 PARTITION OF patrimonio_historico
     FOR VALUES FROM ('2025-01-01') TO ('2026-01-01');
