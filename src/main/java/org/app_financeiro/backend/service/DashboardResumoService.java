@@ -60,9 +60,9 @@ public class DashboardResumoService {
         BigDecimal saldoContasAtual = normalizar(contaRepository.somarSaldoPorUsuario(usuarioId));
         BigDecimal totalInvestidoAtual = normalizar(investimentoRepository.somarTotalInvestidoPorUsuario(usuarioId));
 
-        Double variacaoSaldo = calcularVariacaoSnapshot(
+        VariacaoSnapshot variacaoSaldo = calcularVariacaoSnapshot(
                 usuarioId, intervalo, PatrimonioHistoricoEntity::getSaldoContas);
-        Double variacaoInvestimentos = calcularVariacaoSnapshot(
+        VariacaoSnapshot variacaoInvestimentos = calcularVariacaoSnapshot(
                 usuarioId, intervalo, PatrimonioHistoricoEntity::getTotalInvestido);
 
         return new DashboardResumoPeriodoResponseDTO(
@@ -80,9 +80,11 @@ public class DashboardResumoService {
                 totalDespesasPendentesAtual,
                 calcularVariacaoPercentual(totalDespesasAtual, totalDespesasAnterior),
                 saldoContasAtual,
+                variacaoSaldo.valorAnterior(),
                 totalInvestidoAtual,
-                variacaoSaldo,
-                variacaoInvestimentos
+                variacaoInvestimentos.valorAnterior(),
+                variacaoSaldo.percentual(),
+                variacaoInvestimentos.percentual()
         );
     }
 
@@ -110,6 +112,11 @@ public class DashboardResumoService {
             return 100.0;
         }
 
+        // Período anterior muito pequeno → variação percentual sem significado prático
+        if (anterior.abs().compareTo(new BigDecimal("1.00")) < 0) {
+            return null;
+        }
+
         BigDecimal variacao = atual.subtract(anterior)
                 .divide(anterior.abs(), 6, RoundingMode.HALF_UP)
                 .multiply(BigDecimal.valueOf(100));
@@ -117,22 +124,25 @@ public class DashboardResumoService {
         return variacao.setScale(2, RoundingMode.HALF_UP).doubleValue();
     }
 
-    private Double calcularVariacaoSnapshot(Long usuarioId,
-                                             IntervaloReferencia intervalo,
-                                             Function<PatrimonioHistoricoEntity, BigDecimal> extrator) {
+    private VariacaoSnapshot calcularVariacaoSnapshot(Long usuarioId,
+                                                      IntervaloReferencia intervalo,
+                                                      Function<PatrimonioHistoricoEntity, BigDecimal> extrator) {
         var snapshotAtual = patrimonioHistoricoRepository.findMaisRecentePorUsuarioNoIntervalo(
                 usuarioId, intervalo.inicioAtual(), intervalo.fimAtual());
         var snapshotAnterior = patrimonioHistoricoRepository.findMaisRecentePorUsuarioNoIntervalo(
                 usuarioId, intervalo.inicioAnterior(), intervalo.fimAnterior());
 
         if (snapshotAtual.isEmpty() || snapshotAnterior.isEmpty()) {
-            return null;
+            return new VariacaoSnapshot(null, null);
         }
 
         BigDecimal atual = extrator.apply(snapshotAtual.get());
         BigDecimal anterior = extrator.apply(snapshotAnterior.get());
 
-        return calcularVariacaoPercentual(atual, anterior);
+        return new VariacaoSnapshot(
+                calcularVariacaoPercentual(atual, anterior),
+                anterior
+        );
     }
 
     private BigDecimal normalizar(BigDecimal valor) {
@@ -144,6 +154,12 @@ public class DashboardResumoService {
             LocalDate fimAtual,
             LocalDate inicioAnterior,
             LocalDate fimAnterior
+    ) {
+    }
+
+    private record VariacaoSnapshot(
+            Double percentual,
+            BigDecimal valorAnterior
     ) {
     }
 }

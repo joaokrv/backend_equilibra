@@ -19,8 +19,8 @@ public interface PatrimonioHistoricoRepository extends JpaRepository<PatrimonioH
 
     Optional<PatrimonioHistoricoEntity> findByUsuarioIdAndDataReferencia(Long usuarioId, LocalDate dataReferencia);
 
-    /** Query nativa — obtém próximo BIGSERIAL para compatibilizar com PK composta (id, data_referencia). */
-    @Query(value = "SELECT nextval(pg_get_serial_sequence('patrimonio_historico', 'id'))", nativeQuery = true)
+    /** Query nativa — obtém próximo valor da sequência. pg_get_serial_sequence é unreliable em tabelas particionadas. */
+    @Query(value = "SELECT nextval('patrimonio_historico_id_seq')", nativeQuery = true)
     Long nextId();
 
     /** Usado para calcular variação de saldo/investimentos por período. */

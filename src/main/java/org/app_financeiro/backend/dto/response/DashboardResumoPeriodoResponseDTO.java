@@ -21,7 +21,9 @@ public record DashboardResumoPeriodoResponseDTO(
         BigDecimal totalDespesasPendentesAtual,
         Double variacaoDespesasPercentual,
         BigDecimal saldoContasAtual,
+        BigDecimal saldoContasAnterior,
         BigDecimal totalInvestidoAtual,
+        BigDecimal totalInvestidoAnterior,
         Double variacaoSaldoContasPercentual,
         Double variacaoInvestimentosPercentual
 ) {
