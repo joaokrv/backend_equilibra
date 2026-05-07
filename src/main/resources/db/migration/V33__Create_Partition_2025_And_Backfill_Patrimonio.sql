@@ -8,18 +8,30 @@ INSERT INTO patrimonio_historico (id, usuario_id, data_referencia, valor_total, 
 SELECT nextval('patrimonio_historico_id_seq'), u.id, d::DATE, 0, 0, 0
 FROM usuarios u
 CROSS JOIN generate_series('2026-05-01'::DATE, '2026-05-07'::DATE, INTERVAL '1 day') d
-WHERE u.ativo = true AND u.email_verificado = true;
+WHERE u.ativo = true AND u.email_verificado = true
+AND NOT EXISTS (
+    SELECT 1 FROM patrimonio_historico ph 
+    WHERE ph.usuario_id = u.id AND ph.data_referencia = d::DATE
+);
 
 -- 3. Backfill: Abril 2026
 INSERT INTO patrimonio_historico (id, usuario_id, data_referencia, valor_total, saldo_contas, total_investido)
 SELECT nextval('patrimonio_historico_id_seq'), u.id, d::DATE, 0, 0, 0
 FROM usuarios u
 CROSS JOIN generate_series('2026-04-01'::DATE, '2026-04-30'::DATE, INTERVAL '1 day') d
-WHERE u.ativo = true AND u.email_verificado = true;
+WHERE u.ativo = true AND u.email_verificado = true
+AND NOT EXISTS (
+    SELECT 1 FROM patrimonio_historico ph 
+    WHERE ph.usuario_id = u.id AND ph.data_referencia = d::DATE
+);
 
 -- 4. Backfill: Março 2026
 INSERT INTO patrimonio_historico (id, usuario_id, data_referencia, valor_total, saldo_contas, total_investido)
 SELECT nextval('patrimonio_historico_id_seq'), u.id, d::DATE, 0, 0, 0
 FROM usuarios u
 CROSS JOIN generate_series('2026-03-01'::DATE, '2026-03-31'::DATE, INTERVAL '1 day') d
-WHERE u.ativo = true AND u.email_verificado = true;
+WHERE u.ativo = true AND u.email_verificado = true
+AND NOT EXISTS (
+    SELECT 1 FROM patrimonio_historico ph 
+    WHERE ph.usuario_id = u.id AND ph.data_referencia = d::DATE
+);
