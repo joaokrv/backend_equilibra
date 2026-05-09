@@ -254,6 +254,33 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
+    void deveListarDespesaNoMesDaFaturaQuandoCartaoFecharAntesDaCompra() throws Exception {
+        LocalDate compraAposFechamento = LocalDate.of(2023, 10, 7);
+        TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
+            "Compra Cartão", new BigDecimal("120.00"), compraAposFechamento, TipoTransacao.DESPESA, null,
+            MetodoPagamento.CARTAO_CREDITO, null, cartaoAId, catDespesaAId, null, null, null, "key-int-10"
+        );
+
+        mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated());
+
+        mockMvc.perform(get("/api/transacoes/mensal")
+                .header("Authorization", "Bearer " + tokenA)
+                .param("ano", "2023")
+                .param("mes", "10"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(0));
+
+        mockMvc.perform(get("/api/transacoes/mensal")
+                .header("Authorization", "Bearer " + tokenA)
+                .param("ano", "2023")
+                .param("mes", "11"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(1))
+                .andExpect(jsonPath("$[0].descricao").value("Compra Cartão"));
+    }
+
+    @Test
     void naoDevePermitirTotalParcelasInvalido() throws Exception {
         TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
             "Parcela Erro", new BigDecimal("100.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.CARTAO_CREDITO, null, cartaoAId, null, null, 1, 0, "key-int-8"

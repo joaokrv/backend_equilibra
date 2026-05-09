@@ -31,20 +31,30 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
 
     List<TransacaoEntity> findByUsuarioId(Long usuarioId);
 
-    /** @EntityGraph evita N+1 ao carregar categoria, conta e cartão. */
-    @EntityGraph(attributePaths = {"categoria", "conta", "cartao"})
-    List<TransacaoEntity> findByUsuarioIdAndDataBetween(Long usuarioId, LocalDate start, LocalDate end);
+          /** @EntityGraph evita N+1 ao carregar categoria, conta, cartão e fatura. */
+          @EntityGraph(attributePaths = {"categoria", "conta", "cartao", "fatura"})
+          @Query("SELECT t FROM TransacaoEntity t " +
+            "LEFT JOIN t.fatura f " +
+            "WHERE t.usuario.id = :usuarioId AND (" +
+            "(f IS NOT NULL AND f.dataFechamento BETWEEN :start AND :end) OR " +
+            "(f IS NULL AND t.data BETWEEN :start AND :end))")
+          List<TransacaoEntity> findByUsuarioIdAndDataBetween(Long usuarioId, LocalDate start, LocalDate end);
 
-    @Query("SELECT COALESCE(SUM(t.valor), 0) FROM TransacaoEntity t " +
-          "WHERE t.usuario.id = :uid AND t.data BETWEEN :ini AND :fim AND t.tipo = :tipo AND t.transferencia = false AND t.isAtivo = true")
+          @Query("SELECT COALESCE(SUM(t.valor), 0) FROM TransacaoEntity t " +
+            "LEFT JOIN t.fatura f " +
+            "WHERE t.usuario.id = :uid AND t.tipo = :tipo AND t.transferencia = false AND t.isAtivo = true AND (" +
+            "(f IS NOT NULL AND f.dataFechamento BETWEEN :ini AND :fim) OR " +
+            "(f IS NULL AND t.data BETWEEN :ini AND :fim))")
     BigDecimal somarPorTipoNoPeriodo(@Param("uid") Long uid,
                                       @Param("ini") LocalDate ini,
                                       @Param("fim") LocalDate fim,
                                       @Param("tipo") TipoTransacao tipo);
 
-    @Query("SELECT COALESCE(SUM(t.valor), 0) FROM TransacaoEntity t " +
-           "WHERE t.usuario.id = :uid AND t.data BETWEEN :ini AND :fim " +
-          "AND t.tipo = :tipo AND t.status = :status AND t.transferencia = false AND t.isAtivo = true")
+          @Query("SELECT COALESCE(SUM(t.valor), 0) FROM TransacaoEntity t " +
+             "LEFT JOIN t.fatura f " +
+             "WHERE t.usuario.id = :uid AND t.tipo = :tipo AND t.status = :status AND t.transferencia = false AND t.isAtivo = true AND (" +
+             "(f IS NOT NULL AND f.dataFechamento BETWEEN :ini AND :fim) OR " +
+             "(f IS NULL AND t.data BETWEEN :ini AND :fim))")
     BigDecimal somarPorTipoEStatusNoPeriodo(@Param("uid") Long uid,
                                              @Param("ini") LocalDate ini,
                                              @Param("fim") LocalDate fim,
@@ -92,10 +102,13 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
                         int desassociarCategoria(@Param("usuarioId") Long usuarioId, @Param("categoriaId") Long categoriaId);
 
     @EntityGraph(attributePaths = {"categoria", "conta", "cartao"})
-    @Query("SELECT t FROM TransacaoEntity t WHERE t.usuario.id = :usuarioId " +
-            "AND t.data BETWEEN :start AND :end " +
-            "AND (:tipo IS NULL OR t.tipo = :tipo) " +
-            "AND (:status IS NULL OR t.status = :status)")
+        @Query("SELECT t FROM TransacaoEntity t " +
+          "LEFT JOIN t.fatura f " +
+          "WHERE t.usuario.id = :usuarioId AND (" +
+          "(f IS NOT NULL AND f.dataFechamento BETWEEN :start AND :end) OR " +
+          "(f IS NULL AND t.data BETWEEN :start AND :end)) " +
+          "AND (:tipo IS NULL OR t.tipo = :tipo) " +
+          "AND (:status IS NULL OR t.status = :status)")
     List<TransacaoEntity> buscarParaRelatorio(
             @Param("usuarioId") Long usuarioId,
             @Param("start") LocalDate start,
