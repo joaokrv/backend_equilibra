@@ -256,6 +256,6 @@ public class InvestimentoService {
                 idempotencyKey
         );
 
-        transacaoService.criarTransacao(registroDTO, usuarioId);
+        transacaoService.criarTransacaoInterna(registroDTO, usuarioId, true);
     }
 }

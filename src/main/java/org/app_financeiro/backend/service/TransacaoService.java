@@ -27,6 +27,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.util.List;
+import java.util.Objects;
 
 /** Gerencia transações financeiras e seus impactos em contas e cartões. */
 @Service
@@ -60,6 +61,10 @@ public class TransacaoService {
 
     @Transactional
     public TransacaoResponseDTO criarTransacao(TransacaoRegistroRequestDTO dto, Long usuarioId) {
+        return criarTransacaoInterna(dto, usuarioId, false);
+    }
+
+    TransacaoResponseDTO criarTransacaoInterna(TransacaoRegistroRequestDTO dto, Long usuarioId, boolean transferencia) {
         UsuarioEntity usuario = usuarioService.buscarPorIdOuFalhar(usuarioId);
 
         if (transacaoRepository.existsByIdempotencyKey(dto.idempotencyKey())) {
@@ -106,10 +111,12 @@ public class TransacaoService {
         transacao.setTotalParcelas(dto.totalParcelas());
         transacao.setAtivo(true);
         transacao.setIdempotencyKey(dto.idempotencyKey());
+        transacao.setTransferencia(transferencia);
 
         if (dto.recorrenteId() != null) {
+            Long recorrenteId = Objects.requireNonNull(dto.recorrenteId());
             transacao.setRecorrente(
-                transacaoRecorrenteRepository.findById(dto.recorrenteId())
+                transacaoRecorrenteRepository.findById(recorrenteId)
                     .orElseThrow(() -> new RecursoNaoEncontradoException("Recorrência não encontrada"))
             );
         }

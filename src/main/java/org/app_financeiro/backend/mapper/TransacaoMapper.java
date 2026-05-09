@@ -20,6 +20,7 @@ public interface TransacaoMapper {
     @Mapping(source = "cartao.nome", target = "nomeCartao")
     @Mapping(source = "cartao.id", target = "cartaoId")
     @Mapping(target = "isRecorrente", source = ".", qualifiedByName = "mapRecorrente")
+    @Mapping(target = "isTransferencia", source = "transferencia")
     TransacaoResponseDTO toResponse(TransacaoEntity entity);
 
     @Named("mapRecorrente")

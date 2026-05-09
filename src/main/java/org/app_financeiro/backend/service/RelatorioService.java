@@ -52,7 +52,7 @@ public class RelatorioService {
         List<RelatorioCsvLinhaDTO> transacoesProntasParaEmissao = transacoes.stream().map(transacaoBd -> {
             return RelatorioCsvLinhaDTO.builder()
                     .data(transacaoBd.getData().format(DateTimeFormatter.ofPattern("dd/MM/yyyy")))
-                    .tipo(transacaoBd.getTipo().name())
+                .tipo(transacaoBd.isTransferencia() ? "TRANSFERENCIA" : transacaoBd.getTipo().name())
                     .descricao(transacaoBd.getDescricao())
                     .descricaoCategoria(transacaoBd.getCategoria() != null ? transacaoBd.getCategoria().getNome() : "Sem Categoria")
                     .contaOuCartao(transacaoBd.getConta() != null ? transacaoBd.getConta().getNome() : (transacaoBd.getCartao() != null ? transacaoBd.getCartao().getNome() : ""))
@@ -62,11 +62,13 @@ public class RelatorioService {
         }).toList();
 
         BigDecimal totalReceitas = transacoes.stream()
+            .filter(tx -> !tx.isTransferencia())
                 .filter(tx -> tx.getTipo() == TipoTransacao.RECEITA)
                 .map(TransacaoEntity::getValor)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);
 
         BigDecimal totalDespesas = transacoes.stream()
+            .filter(tx -> !tx.isTransferencia())
                 .filter(tx -> tx.getTipo() == TipoTransacao.DESPESA)
                 .map(TransacaoEntity::getValor)
                 .reduce(BigDecimal.ZERO, BigDecimal::add);

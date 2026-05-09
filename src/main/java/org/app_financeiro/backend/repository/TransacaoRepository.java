@@ -1,8 +1,5 @@
 package org.app_financeiro.backend.repository;
 
-import org.app_financeiro.backend.entity.ContaEntity;
-import org.app_financeiro.backend.entity.CartaoEntity;
-import org.app_financeiro.backend.entity.CategoriaEntity;
 import org.app_financeiro.backend.entity.TransacaoEntity;
 import org.app_financeiro.backend.enums.StatusTransacao;
 import org.app_financeiro.backend.enums.TipoTransacao;
@@ -25,11 +22,11 @@ import java.util.List;
 public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long> {
 
     /** Filtra por PAGO para não inflar o resumo com transações pendentes. */
-    @Query("SELECT SUM(t.valor) FROM TransacaoEntity t WHERE t.usuario.id = :usuarioId AND t.tipo = org.app_financeiro.backend.enums.TipoTransacao.RECEITA AND t.status = org.app_financeiro.backend.enums.StatusTransacao.PAGO")
+    @Query("SELECT SUM(t.valor) FROM TransacaoEntity t WHERE t.usuario.id = :usuarioId AND t.tipo = TipoTransacao.RECEITA AND t.status = StatusTransacao.PAGO AND t.transferencia = false")
     BigDecimal somarReceitasPorUsuario(@Param("usuarioId") Long usuarioId);
 
     /** Filtra por PAGO para não inflar o resumo com transações pendentes. */
-    @Query("SELECT SUM(t.valor) FROM TransacaoEntity t WHERE t.usuario.id = :usuarioId AND t.tipo = org.app_financeiro.backend.enums.TipoTransacao.DESPESA AND t.status = org.app_financeiro.backend.enums.StatusTransacao.PAGO")
+    @Query("SELECT SUM(t.valor) FROM TransacaoEntity t WHERE t.usuario.id = :usuarioId AND t.tipo = TipoTransacao.DESPESA AND t.status = StatusTransacao.PAGO AND t.transferencia = false")
     BigDecimal somarDespesasPorUsuario(@Param("usuarioId") Long usuarioId);
 
     List<TransacaoEntity> findByUsuarioId(Long usuarioId);
@@ -39,7 +36,7 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
     List<TransacaoEntity> findByUsuarioIdAndDataBetween(Long usuarioId, LocalDate start, LocalDate end);
 
     @Query("SELECT COALESCE(SUM(t.valor), 0) FROM TransacaoEntity t " +
-           "WHERE t.usuario.id = :uid AND t.data BETWEEN :ini AND :fim AND t.tipo = :tipo AND t.isAtivo = true")
+          "WHERE t.usuario.id = :uid AND t.data BETWEEN :ini AND :fim AND t.tipo = :tipo AND t.transferencia = false AND t.isAtivo = true")
     BigDecimal somarPorTipoNoPeriodo(@Param("uid") Long uid,
                                       @Param("ini") LocalDate ini,
                                       @Param("fim") LocalDate fim,
@@ -47,7 +44,7 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
 
     @Query("SELECT COALESCE(SUM(t.valor), 0) FROM TransacaoEntity t " +
            "WHERE t.usuario.id = :uid AND t.data BETWEEN :ini AND :fim " +
-           "AND t.tipo = :tipo AND t.status = :status AND t.isAtivo = true")
+          "AND t.tipo = :tipo AND t.status = :status AND t.transferencia = false AND t.isAtivo = true")
     BigDecimal somarPorTipoEStatusNoPeriodo(@Param("uid") Long uid,
                                              @Param("ini") LocalDate ini,
                                              @Param("fim") LocalDate fim,

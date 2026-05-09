@@ -28,5 +28,6 @@ public record TransacaoResponseDTO(
     Long cartaoId,
     boolean isRecorrente,
     Integer numeroParcela,
-    Integer totalParcelas
+    Integer totalParcelas,
+    boolean isTransferencia
 ) {}

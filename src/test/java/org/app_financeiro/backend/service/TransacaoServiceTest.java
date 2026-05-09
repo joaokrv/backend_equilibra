@@ -7,6 +7,7 @@ import org.app_financeiro.backend.entity.*;
 import org.app_financeiro.backend.enums.MetodoPagamento;
 import org.app_financeiro.backend.enums.StatusTransacao;
 import org.app_financeiro.backend.enums.TipoTransacao;
+import org.app_financeiro.backend.exception.OperacaoNaoPermitidaException;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.app_financeiro.backend.mapper.TransacaoMapper;
@@ -97,7 +98,7 @@ class TransacaoServiceTest {
         TransacaoResponseDTO responseDTO = new TransacaoResponseDTO(
                 100L, "Mercado", new BigDecimal("100.00"), LocalDate.now(),
                 TipoTransacao.DESPESA, StatusTransacao.PAGO, MetodoPagamento.PIX,
-                "Alimentação", null, "Conta Principal", null, null, null, false, null, null);
+                "Alimentação", null, "Conta Principal", null, null, null, false, null, null, false);
         when(transacaoMapper.toResponse(any())).thenReturn(responseDTO);
 
         // Act
@@ -197,8 +198,8 @@ class TransacaoServiceTest {
         org.springframework.data.domain.Page<TransacaoEntity> pageEnt =
                 new org.springframework.data.domain.PageImpl<>(List.of(t1, t2), pageable, 2);
         when(transacaoRepository.findByUsuarioId(1L, pageable)).thenReturn(pageEnt);
-        when(transacaoMapper.toResponse(t1)).thenReturn(new TransacaoResponseDTO(1L, "Desc1", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null, null, null, null, false, null, null));
-        when(transacaoMapper.toResponse(t2)).thenReturn(new TransacaoResponseDTO(2L, "Desc2", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null, null, null, null, false, null, null));
+        when(transacaoMapper.toResponse(t1)).thenReturn(new TransacaoResponseDTO(1L, "Desc1", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null, null, null, null, false, null, null, false));
+        when(transacaoMapper.toResponse(t2)).thenReturn(new TransacaoResponseDTO(2L, "Desc2", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null, null, null, null, false, null, null, false));
 
         // Act
         var result = transacaoService.listarPorUsuario(1L, pageable);
@@ -262,7 +263,7 @@ class TransacaoServiceTest {
 
         // Act & Assert
         assertThatThrownBy(() -> transacaoService.criarTransacao(request, 1L))
-                .isInstanceOf(org.app_financeiro.backend.exception.OperacaoNaoPermitidaException.class)
+                .isInstanceOf(OperacaoNaoPermitidaException.class)
                 .hasMessageContaining("Esta transação já foi processada anteriormente.");
     }
 
@@ -284,7 +285,7 @@ class TransacaoServiceTest {
                 when(transacaoMapper.toResponse(any(TransacaoEntity.class))).thenReturn(
                                 new TransacaoResponseDTO(1L, "D1", BigDecimal.ZERO, LocalDate.of(2026, 3, 15),
                                                 TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX,
-                                                null, null, null, null, null, null, false, null, null));
+                                                null, null, null, null, null, null, false, null, null, false));
 
                 List<TransacaoResponseDTO> resultado = transacaoService.listarPorIntervalo(inicio, fim, 1L);
 
@@ -330,7 +331,7 @@ class TransacaoServiceTest {
                 when(transacaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
                 when(transacaoMapper.toResponse(any())).thenReturn(new TransacaoResponseDTO(
                         50L, "Salário", new BigDecimal("3000.00"), LocalDate.now(), TipoTransacao.RECEITA,
-                        StatusTransacao.PAGO, MetodoPagamento.PIX, null, null, "Conta Principal", 10L, null, null, true, null, null));
+                        StatusTransacao.PAGO, MetodoPagamento.PIX, null, null, "Conta Principal", 10L, null, null, true, null, null, false));
 
                 // Act
                 TransacaoResponseDTO result = transacaoService.criarTransacao(request, 1L);
@@ -356,7 +357,7 @@ class TransacaoServiceTest {
                 when(transacaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
                 when(transacaoMapper.toResponse(any())).thenReturn(new TransacaoResponseDTO(
                         51L, "Compra Manual", new BigDecimal("50.00"), LocalDate.now(), TipoTransacao.DESPESA,
-                        StatusTransacao.PAGO, MetodoPagamento.PIX, "Alimentação", 5L, "Conta Principal", 10L, null, null, false, null, null));
+                        StatusTransacao.PAGO, MetodoPagamento.PIX, "Alimentação", 5L, "Conta Principal", 10L, null, null, false, null, null, false));
 
                 // Act
                 TransacaoResponseDTO result = transacaoService.criarTransacao(request, 1L);

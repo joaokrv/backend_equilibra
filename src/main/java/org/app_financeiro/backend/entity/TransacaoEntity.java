@@ -100,6 +100,9 @@ public class TransacaoEntity {
     @JoinColumn(name = "recorrente_id")
     private TransacaoRecorrenteEntity recorrente;
 
+    @Column(name = "is_transferencia", nullable = false)
+    private boolean transferencia = false;
+
     @Column(name = "ativo", nullable = false)
     private boolean isAtivo = true;
 }
