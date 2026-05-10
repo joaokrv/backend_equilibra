@@ -31,7 +31,20 @@ public class SecurityConfig {
     private final AuthenticationProvider authenticationProvider;
 
     private static final String[] WHITE_LIST_URL = {
-            "/api/auth/**",
+            // Endpoints públicos de autenticação e registro
+            "/api/auth/login",
+            "/api/auth/registrar",
+            "/api/auth/pre-registrar",
+            "/api/auth/verificar-email",
+            "/api/auth/reenviar-codigo",
+            "/api/auth/refresh",
+            "/api/auth/logout",
+            "/api/auth/solicitar-recuperacao",
+            "/api/auth/resetar-senha",
+            "/api/auth/reativar-conta",
+            "/api/auth/otp-status",
+            "/api/auth/validar-token",
+            // Swagger (desabilitado em prod via application-prod.properties)
             "/v2/api-docs",
             "/v3/api-docs",
             "/v3/api-docs/**",
@@ -68,8 +81,6 @@ public class SecurityConfig {
                                 .requestMatchers(WHITE_LIST_URL)
                                 .permitAll()
                                 .requestMatchers("/actuator/**").hasRole("ADMIN")
-                                .requestMatchers("/api/v1/auth/**").permitAll()
-                                .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html", "/api-docs/**").permitAll()
                                 .anyRequest().authenticated()
                 )
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))

@@ -26,6 +26,7 @@ public class EmailVerificacaoService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailVerificacaoService.class);
     private static final int MAX_TENTATIVAS_OTP = 5;
+    private static final int MAX_TENTATIVAS_CODIGO = 3;
 
     private final CodigoVerificacaoRepository codigoVerificacaoRepository;
     private final UsuarioRepository usuarioRepository;
