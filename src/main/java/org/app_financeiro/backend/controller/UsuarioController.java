@@ -17,6 +17,10 @@ import org.app_financeiro.backend.service.EmailVerificacaoService;
 import org.app_financeiro.backend.service.JwtService;
 import org.app_financeiro.backend.service.RecuperacaoSenhaService;
 import org.app_financeiro.backend.service.UsuarioService;
+import org.app_financeiro.backend.service.UsuarioPendenteService;
+import org.app_financeiro.backend.repository.UsuarioPendenteRepository;
+import org.app_financeiro.backend.entity.UsuarioPendenteEntity;
+import org.app_financeiro.backend.dto.response.OtpStatusResponseDTO;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -27,6 +31,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -41,6 +46,9 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import org.app_financeiro.backend.mapper.UsuarioMapper;
 
 import java.util.Map;
@@ -50,19 +58,22 @@ import java.util.UUID;
  * Controller responsável pelos endpoints de autenticação e verificação de e-mail.
  *
  * Endpoints:
- * - POST /api/auth/registrar       → Cria novo usuário (emailVerificado=false)
- * - POST /api/auth/login           → Autentica usuário e retorna access + refresh tokens
- * - POST /api/auth/refresh         → Renova o access token usando o refresh token
- * - POST /api/auth/verificar-email → Valida código de 6 dígitos
- * - POST /api/auth/reenviar-codigo → Gera e reenvia novo código de verificação
+ * - POST /api/auth/pre-registrar    → Inicia pré-registro com OTP obrigatório
+ * - GET  /api/auth/otp-status       → Consulta estado do pré-registro
+ * - POST /api/auth/login            → Autentica usuário e retorna access + refresh tokens
+ * - POST /api/auth/refresh          → Renova o access token usando o refresh token
+ * - POST /api/auth/verificar-email  → Valida código de 6 dígitos (pré-registro ou legado)
+ * - POST /api/auth/reenviar-codigo  → Gera e reenvia novo código de verificação
  * - POST /api/auth/solicitar-recuperacao → Envia link de recuperação de senha por e-mail
- * - GET  /api/auth/validar-token   → Valida se o token de recuperação é válido
- * - POST /api/auth/resetar-senha   → Reseta a senha usando o token de recuperação
+ * - GET  /api/auth/validar-token    → Valida se o token de recuperação é válido
+ * - POST /api/auth/resetar-senha    → Reseta a senha usando o token de recuperação
  */
 @RestController
 @RequestMapping("/api/auth")
 @Tag(name = "Autenticacao", description = "Fluxos de registro, login e verificação de conta")
 public class UsuarioController {
+
+    private static final Logger log = LoggerFactory.getLogger(UsuarioController.class);
 
     @Value("${cookie.secure:true}")
     private boolean cookieSecure;
@@ -76,6 +87,9 @@ public class UsuarioController {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final UsuarioRepository usuarioRepository;
+    private final PasswordEncoder passwordEncoder;
+    private final UsuarioPendenteService usuarioPendenteService;
+    private final UsuarioPendenteRepository usuarioPendenteRepository;
     private final UsuarioMapper usuarioMapper;
 
     public UsuarioController(UsuarioService usuarioService,
@@ -84,6 +98,9 @@ public class UsuarioController {
                              AuthenticationManager authenticationManager,
                              JwtService jwtService,
                              UsuarioRepository usuarioRepository,
+                             PasswordEncoder passwordEncoder,
+                             UsuarioPendenteService usuarioPendenteService,
+                             UsuarioPendenteRepository usuarioPendenteRepository,
                              UsuarioMapper usuarioMapper) {
         this.usuarioService = usuarioService;
         this.emailVerificacaoService = emailVerificacaoService;
@@ -91,29 +108,65 @@ public class UsuarioController {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.usuarioRepository = usuarioRepository;
+        this.passwordEncoder = passwordEncoder;
+        this.usuarioPendenteService = usuarioPendenteService;
+        this.usuarioPendenteRepository = usuarioPendenteRepository;
         this.usuarioMapper = usuarioMapper;
     }
 
-    /** Anti-enumeração: resposta genérica independente de o e-mail já existir (B1-A2). Timing fixo anti-enumeration. */
-    @PostMapping("/registrar")
-    @Operation(summary = "Registrar novo usuário", description = "Cria uma conta pendente de verificação.")
-    public ResponseEntity<String> registrar(@Valid @RequestBody UsuarioRegistroRequestDTO dto) {
-        long inicio = System.currentTimeMillis();
-        try {
-            boolean criado = usuarioService.registrarUsuario(dto);
-            if (criado) {
-                emailVerificacaoService.gerarCodigo(dto.email());
-            }
-        } finally {
-            // Anti-timing: garantir latência mínima fixa de 1200ms
-            long elapsed = System.currentTimeMillis() - inicio;
-            long restante = 1200 - elapsed;
-            if (restante > 0) {
-                try { Thread.sleep(restante); } catch (InterruptedException ignored) {}
-            }
+    @PostMapping("/pre-registrar")
+    @Operation(summary = "Solicitar pré-registro", description = "Inicia o fluxo de cadastro com OTP. Retorna registroId para validação.")
+    @Transactional
+    public ResponseEntity<OtpStatusResponseDTO> preRegistrar(@Valid @RequestBody UsuarioRegistroRequestDTO dto) {
+        String emailNorm = dto.email().trim().toLowerCase();
+        LocalDateTime agora = LocalDateTime.now();
+        
+        // Anti-enumeração: se e-mail existe em 'usuarios', retorna sucesso genérico sem enviar OTP
+        if (usuarioRepository.existsByEmailIncludingInactive(emailNorm)) {
+            log.warn("[SECURITY] Tentativa de pré-registro com e-mail já existente: {}", emailNorm);
+            // Anti-timing: simula latência de envio de e-mail
+            try { Thread.sleep(1200); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+            return ResponseEntity.ok(new OtpStatusResponseDTO("ATIVO", 5, agora.plusMinutes(15), null, null, null, UUID.randomUUID().toString()));
         }
-        return ResponseEntity.status(HttpStatus.CREATED)
-                .body("Se o e-mail informado não estiver cadastrado, você receberá um código de verificação.");
+
+        UsuarioPendenteEntity pendente = usuarioPendenteRepository.findByEmail(emailNorm)
+                .orElseGet(() -> {
+                    UsuarioPendenteEntity p = new UsuarioPendenteEntity();
+                    p.setId(UUID.randomUUID());
+                    p.setEmail(emailNorm);
+                    p.setNome(dto.nome());
+                    p.setSenhaHash(passwordEncoder.encode(dto.senha()));
+                    p.setExpiraEm(agora.minusMinutes(1)); // Força inicialização
+                    return p;
+                });
+
+        if (pendente.getBloqueadoAte() != null && pendente.getBloqueadoAte().isAfter(agora)) {
+            return ResponseEntity.status(423).body(usuarioPendenteService.mapearParaStatus(pendente));
+        }
+
+        if (pendente.getUltimoEnvioEm() != null && pendente.getUltimoEnvioEm().plusMinutes(5).isAfter(agora)) {
+            return ResponseEntity.status(429).body(usuarioPendenteService.mapearParaStatus(pendente));
+        }
+
+        if (pendente.getExpiraEm().isBefore(agora)) {
+            pendente.setNome(dto.nome());
+            pendente.setSenhaHash(passwordEncoder.encode(dto.senha()));
+            pendente.setExpiraEm(agora.plusMinutes(15));
+            pendente.setUltimoEnvioEm(agora);
+            usuarioPendenteRepository.save(pendente);
+            emailVerificacaoService.gerarCodigo(pendente.getEmail());
+        } else {
+            usuarioPendenteRepository.save(pendente);
+        }
+
+        return ResponseEntity.ok(usuarioPendenteService.mapearParaStatus(pendente));
+    }
+
+    @GetMapping("/otp-status")
+    @Operation(summary = "Consultar status do OTP", description = "Retorna o estado atual do pré-registro.")
+    public ResponseEntity<OtpStatusResponseDTO> getOtpStatus(@RequestParam String registroId) {
+        UsuarioPendenteEntity pendente = usuarioPendenteService.buscarOuFalhar(UUID.fromString(registroId));
+        return ResponseEntity.ok(usuarioPendenteService.mapearParaStatus(pendente));
     }
 
     @PostMapping("/login")
@@ -138,35 +191,54 @@ public class UsuarioController {
                     new UsernamePasswordAuthenticationToken(dto.email(), dto.senha())
             );
 
-            // Reusa principal do Authentication (B1) — UserDetailsService retorna UsuarioEntity.
-            // Re-anexa via lock pessimista para serializar updates concorrentes de chaveSessao.
             UsuarioEntity principal = (UsuarioEntity) auth.getPrincipal();
             UsuarioEntity usuario = usuarioRepository.findByEmailWithLock(principal.getEmail())
                     .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado."));
 
-            // Limpar contadores de falha ao sucesso
+            if (!usuario.isEmailVerificado()) {
+                log.warn("[SECURITY] Tentativa de login para e-mail não verificado: {}", usuario.getEmail());
+                
+                UsuarioPendenteEntity pendente = usuarioPendenteRepository.findByEmail(usuario.getEmail())
+                        .orElseGet(() -> {
+                            UsuarioPendenteEntity p = new UsuarioPendenteEntity();
+                            p.setId(UUID.randomUUID());
+                            p.setEmail(usuario.getEmail());
+                            p.setNome(usuario.getNome());
+                            p.setSenhaHash(usuario.getSenha());
+                            p.setExpiraEm(LocalDateTime.now().plusMinutes(15));
+                            return usuarioPendenteRepository.save(p);
+                        });
+
+                if (pendente.getUltimoEnvioEm() == null || pendente.getUltimoEnvioEm().plusMinutes(5).isBefore(LocalDateTime.now())) {
+                    emailVerificacaoService.gerarCodigo(pendente.getEmail());
+                    pendente.setUltimoEnvioEm(LocalDateTime.now());
+                    usuarioPendenteRepository.save(pendente);
+                }
+
+                AuthResponseDTO errorResponse = new AuthResponseDTO(null, null, 0, null, usuarioPendenteService.mapearParaStatus(pendente));
+                return ResponseEntity.status(HttpStatus.FORBIDDEN).body(errorResponse);
+            }
+
             usuario.setLoginAttempts(0);
             usuario.setLockedUntil(null);
 
-            // Geração da chave de sessão única (Single Active Session)
             usuario.setChaveSessao(UUID.randomUUID().toString());
             usuarioRepository.save(usuario);
 
             String accessToken = jwtService.generateAccessToken(usuario);
             String refreshToken = jwtService.generateRefreshToken(usuario);
 
-            // RT enviado apenas via HttpOnly cookie — não exposto no body (G5-A1)
             setRefreshTokenCookie(httpResponse, refreshToken);
 
             AuthResponseDTO response = new AuthResponseDTO(
                     accessToken,
                     null,
                     jwtService.getAccessTokenExpiration(),
-                    usuarioMapper.toResponse(usuario)
+                    usuarioMapper.toResponse(usuario),
+                    null
             );
             return ResponseEntity.ok(response);
         } catch (BadCredentialsException ex) {
-            // Incrementar tentativas falhadas
             UsuarioEntity usuarioFailed = usuarioRepository.findByEmailWithLock(dto.email()).orElse(null);
             if (usuarioFailed != null) {
                 int tentativas = (usuarioFailed.getLoginAttempts() != null ? usuarioFailed.getLoginAttempts() : 0) + 1;
@@ -235,7 +307,8 @@ public class UsuarioController {
                 newAccessToken,
                 null,
                 jwtService.getAccessTokenExpiration(),
-                usuarioMapper.toResponse(usuario)
+                usuarioMapper.toResponse(usuario),
+                null
         );
         return ResponseEntity.ok(response);
     }
@@ -264,16 +337,68 @@ public class UsuarioController {
     }
 
     @PostMapping("/verificar-email")
-    @Operation(summary = "Verificar e-mail", description = "Valida a conta do usuário usando o código de 6 dígitos enviado por e-mail.")
-    public ResponseEntity<String> verificarEmail(@Valid @RequestBody VerificarEmailRequestDTO dto) {
+    @Operation(summary = "Verificar e-mail", description = "Valida a conta usando o código de 6 dígitos. Suporta fluxo de pré-registro.")
+    @Transactional
+    public ResponseEntity<?> verificarEmail(@Valid @RequestBody VerificarEmailRequestDTO dto) {
+        // Fluxo via registroId (Pré-registro)
+        if (dto.registroId() != null && !dto.registroId().isBlank()) {
+            UsuarioPendenteEntity pendente = usuarioPendenteService.buscarOuFalharComLock(UUID.fromString(dto.registroId()));
+            
+            if (pendente.getBloqueadoAte() != null && pendente.getBloqueadoAte().isAfter(LocalDateTime.now())) {
+                long segundos = ChronoUnit.SECONDS.between(LocalDateTime.now(), pendente.getBloqueadoAte());
+                return ResponseEntity.status(423)
+                        .header("Retry-After", String.valueOf(segundos))
+                        .body(usuarioPendenteService.mapearParaStatus(pendente));
+            }
+
+            try {
+                emailVerificacaoService.validarCodigoSimples(pendente.getEmail(), dto.codigo());
+                
+                // OTP Válido -> Promover para usuário real e limpar rastro
+                UsuarioEntity usuario = usuarioService.finalizarRegistro(pendente);
+                usuarioPendenteRepository.delete(pendente);
+                
+                log.info("E-mail verificado com sucesso via pré-registro: {}", usuario.getEmail());
+                return ResponseEntity.ok(Map.of("mensagem", "E-mail verificado com sucesso!", "email", usuario.getEmail()));
+            } catch (Exception e) {
+                usuarioPendenteService.registrarTentativaFalha(pendente);
+                throw e;
+            }
+        }
+
+        // Fluxo Legado (apenas e-mail) - Mantido para compatibilidade interna
         emailVerificacaoService.verificarEmail(dto);
         return ResponseEntity.ok("E-mail verificado com sucesso!");
     }
 
-    /** Invalida todos os códigos anteriores antes de gerar novo. */
     @PostMapping("/reenviar-codigo")
-    @Operation(summary = "Reenviar código", description = "Gera um novo código de ativação e reenvia para o e-mail do usuário.")
-    public ResponseEntity<String> reenviarCodigo(@Valid @RequestBody ReenviarCodigoRequestDTO dto) {
+    @Operation(summary = "Reenviar código", description = "Gera um novo código de ativação. Suporta registroId.")
+    @Transactional
+    public ResponseEntity<?> reenviarCodigo(@Valid @RequestBody ReenviarCodigoRequestDTO dto) {
+        if (dto.registroId() != null && !dto.registroId().isBlank()) {
+            UsuarioPendenteEntity pendente = usuarioPendenteService.buscarOuFalhar(UUID.fromString(dto.registroId()));
+            
+            if (pendente.getBloqueadoAte() != null && pendente.getBloqueadoAte().isAfter(LocalDateTime.now())) {
+                long segundos = ChronoUnit.SECONDS.between(LocalDateTime.now(), pendente.getBloqueadoAte());
+                return ResponseEntity.status(423)
+                        .header("Retry-After", String.valueOf(segundos))
+                        .body(usuarioPendenteService.mapearParaStatus(pendente));
+            }
+
+            if (pendente.getUltimoEnvioEm() != null && pendente.getUltimoEnvioEm().plusMinutes(5).isAfter(LocalDateTime.now())) {
+                long segundos = ChronoUnit.SECONDS.between(LocalDateTime.now(), pendente.getUltimoEnvioEm().plusMinutes(5));
+                return ResponseEntity.status(429)
+                        .header("Retry-After", String.valueOf(segundos))
+                        .body(usuarioPendenteService.mapearParaStatus(pendente));
+            }
+
+            emailVerificacaoService.gerarCodigo(pendente.getEmail());
+            pendente.setUltimoEnvioEm(LocalDateTime.now());
+            usuarioPendenteRepository.save(pendente);
+            
+            return ResponseEntity.ok(usuarioPendenteService.mapearParaStatus(pendente));
+        }
+
         emailVerificacaoService.reenviarCodigo(dto);
         return ResponseEntity.ok("Novo código de verificação enviado!");
     }

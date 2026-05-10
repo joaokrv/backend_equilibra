@@ -42,31 +42,13 @@ class PerfilIntegrationTest extends AbstractIntegrationTest {
     @BeforeEach
     void setUp() throws Exception {
         usuarioRepository.deleteAll();
+        when(mailSender.createMimeMessage()).thenReturn(new org.springframework.mail.javamail.JavaMailSenderImpl().createMimeMessage());
 
         // Setup Usuário A
-        tokenA = setupUser("User A", "usera@email.com", "SenhaA123!");
+        tokenA = setupUsuarioVerificado("User A", "usera@email.com", "SenhaA123!");
         
         // Setup Usuário B
-        tokenB = setupUser("User B", "userb@email.com", "SenhaB123!");
-    }
-
-    private String setupUser(String nome, String email, String senha) throws Exception {
-        UsuarioRegistroRequestDTO reg = new UsuarioRegistroRequestDTO(nome, email, senha);
-        mockMvc.perform(post("/api/auth/registrar")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(reg)));
-        
-        UsuarioEntity user = usuarioRepository.findByEmail(email).get();
-        user.setEmailVerificado(true);
-        usuarioRepository.save(user);
-
-        UsuarioLoginRequestDTO login = new UsuarioLoginRequestDTO(email, senha);
-        MvcResult res = mockMvc.perform(post("/api/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(login))).andReturn();
-        
-        Map<String, String> tokens = objectMapper.readValue(res.getResponse().getContentAsString(), Map.class);
-        return tokens.get("accessToken");
+        tokenB = setupUsuarioVerificado("User B", "userb@email.com", "SenhaB123!");
     }
 
     @Test

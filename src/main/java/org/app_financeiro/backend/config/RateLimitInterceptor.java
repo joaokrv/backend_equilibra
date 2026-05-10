@@ -25,6 +25,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private final Map<String, BucketEntry> cache = new ConcurrentHashMap<>();
     private final Map<String, BucketEntry> cacheRelatorio = new ConcurrentHashMap<>();
+    private final Map<String, BucketEntry> cacheAuth = new ConcurrentHashMap<>();
     private final AtomicLong requestCounter = new AtomicLong(0);
     private final boolean enabled;
     private final boolean trustForwardedFor;
@@ -103,10 +104,26 @@ public class RateLimitInterceptor implements HandlerInterceptor {
                 .capacity(2)
                 .refillIntervally(2, Duration.ofMinutes(1))
                 .build();
+        return Bucket.builder().addLimit(limit).build();
+    }
 
-        return Bucket.builder()
-                .addLimit(limit)
+    private Bucket resolveBucketAuth(String clientIp) {
+        long now = System.currentTimeMillis();
+        BucketEntry entry = cacheAuth.compute(clientIp, (ip, existing) -> {
+            if (existing == null) {
+                return new BucketEntry(newBucketAuth(ip), now);
+            }
+            return existing.touch(now);
+        });
+        return entry.bucket();
+    }
+
+    private Bucket newBucketAuth(String clientIp) {
+        Bandwidth limit = Bandwidth.builder()
+                .capacity(3)
+                .refillIntervally(3, Duration.ofMinutes(1))
                 .build();
+        return Bucket.builder().addLimit(limit).build();
     }
 
     @Override
@@ -118,9 +135,14 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         String ip = extractClientIp(request);
         String uri = request.getRequestURI();
 
-        Bucket bucket = uri.contains("/relatorios/exportar")
-                ? resolveBucketRelatorio(ip)
-                : resolveBucket(ip);
+        Bucket bucket;
+        if (uri.contains("/relatorios/exportar")) {
+            bucket = resolveBucketRelatorio(ip);
+        } else if (uri.startsWith("/api/auth/")) {
+            bucket = resolveBucketAuth(ip);
+        } else {
+            bucket = resolveBucket(ip);
+        }
 
         if (bucket.tryConsume(1)) {
             return true;
@@ -187,6 +209,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         long minAccess = now - idleTtlMillis;
         cache.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
         cacheRelatorio.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
+        cacheAuth.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
 
         if (cache.size() <= maxBuckets) {
             return;

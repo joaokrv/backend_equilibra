@@ -51,9 +51,6 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private EntityManager entityManager;
 
-    @MockBean
-    private CodigoVerificacaoRepository codigoVerificacaoRepository;
-
     private String tokenA;
     private Long idUserA;
 
@@ -64,34 +61,13 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
 
         // Limpar dados antes de cada teste (ordem inversa de dependência)
         categoriaRepository.deleteAllInBatch();
+        codigoVerificacaoRepository.deleteAllInBatch();
+        usuarioPendenteRepository.deleteAllInBatch();
         usuarioRepository.deleteAllInBatch();
 
         // Registrar, verificar e logar Usuário A
-        tokenA = "Bearer " + setupUser("User A", "userA@email.com");
-        idUserA = usuarioRepository.findByEmail("userA@email.com").get().getId();
-    }
-
-    private String setupUser(String nome, String email) throws Exception {
-        UsuarioRegistroRequestDTO reg = new UsuarioRegistroRequestDTO(nome, email, "senha123");
-        mockMvc.perform(post("/api/auth/registrar")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(reg)))
-                .andExpect(status().isCreated());
-
-        // Forçar verificação de e-mail no banco
-        UsuarioEntity user = usuarioRepository.findByEmail(email).orElseThrow();
-        user.setEmailVerificado(true);
-        usuarioRepository.save(user);
-
-        // Login
-        MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new UsuarioLoginRequestDTO(email, "senha123"))))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        Map<String, Object> response = objectMapper.readValue(loginResult.getResponse().getContentAsString(), Map.class);
-        return (String) response.get("accessToken");
+        tokenA = "Bearer " + setupUsuarioVerificado("User A", "usera@email.com", "senha123");
+        idUserA = usuarioRepository.findByEmail("usera@email.com").get().getId();
     }
 
     private void salvarCategoria(String nome, TipoTransacao tipo, Long usuarioId) {
@@ -240,7 +216,7 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void naoDeveDeletarCategoriaDeOutroUsuario() throws Exception {
-        String tokenB = "Bearer " + setupUser("User B", "userB@email.com");
+        String tokenB = "Bearer " + setupUsuarioVerificado("User B", "userb@email.com", "senha123");
 
         CategoriaRegistroRequestDTO dto = new CategoriaRegistroRequestDTO("Cat A", TipoTransacao.DESPESA);
         MvcResult resA = mockMvc.perform(post("/api/categorias")
@@ -259,7 +235,7 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void usuarioBNaoDeveVerCategoriasDoUsuarioA() throws Exception {
-        String tokenB = "Bearer " + setupUser("User B", "userB@email.com");
+        String tokenB = "Bearer " + setupUsuarioVerificado("User B", "userb2@email.com", "senha123");
 
         salvarCategoria("Cat A 1", TipoTransacao.DESPESA, idUserA);
         salvarCategoria("Cat A 2", TipoTransacao.RECEITA, idUserA);

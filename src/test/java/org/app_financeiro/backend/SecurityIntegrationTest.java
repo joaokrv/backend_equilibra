@@ -211,27 +211,6 @@ class SecurityIntegrationTest extends AbstractIntegrationTest {
     // ─── Helpers ─────────────────────────────────────────────────────────
 
     private String criarUsuarioEObterToken(String email, String senha) throws Exception {
-        // Registrar
-        UsuarioRegistroRequestDTO req = new UsuarioRegistroRequestDTO("Test User", email, senha);
-        mockMvc.perform(post("/api/auth/registrar")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(req)))
-                .andExpect(status().isCreated());
-
-        // Verificar e-mail no banco diretamente
-        UsuarioEntity usuario = usuarioRepository.findByEmail(email).orElseThrow();
-        usuario.setEmailVerificado(true);
-        usuarioRepository.save(usuario);
-
-        // Login
-        UsuarioLoginRequestDTO loginReq = new UsuarioLoginRequestDTO(email, senha);
-        MvcResult result = mockMvc.perform(post("/api/auth/login")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(loginReq)))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        return objectMapper.readTree(result.getResponse().getContentAsString())
-                .get("accessToken").asText();
+        return setupUsuarioVerificado("Test User", email, senha);
     }
 }

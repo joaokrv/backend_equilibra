@@ -57,39 +57,18 @@ class AccountIntegrationTest extends AbstractIntegrationTest {
         cartaoRepository.deleteAll();
         contaRepository.deleteAll();
         codigoVerificacaoRepository.deleteAll();
+        usuarioPendenteRepository.deleteAll();
         usuarioRepository.deleteAll();
 
         // Configura o mock do e-mail
         when(mailSender.createMimeMessage()).thenReturn(new JavaMailSenderImpl().createMimeMessage());
 
-        // 1. Registrar e autenticar um usuário para os testes
+        // Registrar e autenticar um usuário verificado
         String email = "test@email.com";
         String senha = "SenhaSegura123";
 
-        // Registrar
-        UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Test User", email, senha);
-        mockMvc.perform(post("/api/auth/registrar")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(registroReq)))
-                .andExpect(status().isCreated());
-
-        // Verificar e-mail manualmente no banco para simplificar o teste de fluxo
-        UsuarioEntity usuario = usuarioRepository.findByEmail(email).orElseThrow();
-        usuario.setEmailVerificado(true);
-        usuarioRepository.save(usuario);
-        this.usuarioId = usuario.getId();
-
-        // Login
-        UsuarioLoginRequestDTO loginReq = new UsuarioLoginRequestDTO(email, senha);
-        MvcResult result = mockMvc.perform(post("/api/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(loginReq)))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        String responseBody = result.getResponse().getContentAsString();
-        Map<String, String> tokens = objectMapper.readValue(responseBody, Map.class);
-        this.accessToken = tokens.get("accessToken");
+        this.accessToken = setupUsuarioVerificado("Test User", email, senha);
+        this.usuarioId = usuarioRepository.findByEmail(email).orElseThrow().getId();
     }
 
     @Test

@@ -7,7 +7,9 @@ import org.app_financeiro.backend.dto.request.UsuarioRegistroRequestDTO;
 import org.app_financeiro.backend.dto.request.VerificarEmailRequestDTO;
 import org.app_financeiro.backend.entity.CodigoVerificacaoEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
+import org.app_financeiro.backend.entity.UsuarioPendenteEntity;
 import org.app_financeiro.backend.repository.CodigoVerificacaoRepository;
+import org.app_financeiro.backend.repository.UsuarioPendenteRepository;
 import org.app_financeiro.backend.repository.UsuarioRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -24,6 +26,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+/**
+ * Testes de integração para o fluxo de autenticação com pré-registro e OTP obrigatório.
+ * Alinhado com a RFC-Registro-OTP-Obrigatorio-2026-05-10.
+ */
 class AuthIntegrationTest extends AbstractIntegrationTest {
 
     @Autowired
@@ -38,27 +44,41 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private CodigoVerificacaoRepository codigoVerificacaoRepository;
 
+    @Autowired
+    private UsuarioPendenteRepository usuarioPendenteRepository;
+
     @BeforeEach
     void cleanUp() {
         codigoVerificacaoRepository.deleteAll();
+        usuarioPendenteRepository.deleteAll();
         usuarioRepository.deleteAll();
-        
+
         // Configura o mock para evitar NullPointerException ao criar MimeMessage
         when(mailSender.createMimeMessage()).thenReturn(new JavaMailSenderImpl().createMimeMessage());
     }
 
+    /**
+     * RFC 7.1 + 7.2: Fluxo completo — pré-registrar → verificar OTP → login com sucesso.
+     */
     @Test
-    void deveRegistrarVerificarELogarComSucesso() throws Exception {
+    void devePreRegistrarVerificarELogarComSucesso() throws Exception {
         String email = "joao@email.com";
         String senha = "SenhaSegura123";
 
-        // 1. REGISTRAR — resposta é mensagem genérica (G3 anti-enumeração)
+        // 1. PRÉ-REGISTRAR — retorna registroId e status ATIVO (RFC 7.1)
         UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Joao Victor", email, senha);
 
-        mockMvc.perform(post("/api/auth/registrar")
+        MvcResult preRegistroResult = mockMvc.perform(post("/api/auth/pre-registrar")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(registroReq)))
-                .andExpect(status().isCreated());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.registroId").exists())
+                .andExpect(jsonPath("$.status").value("ATIVO"))
+                .andExpect(jsonPath("$.tentativasRestantes").value(5))
+                .andReturn();
+
+        String registroId = objectMapper.readTree(preRegistroResult.getResponse().getContentAsString())
+                .get("registroId").asText();
 
         // 2. BUSCAR CÓDIGO (Simulando recebimento de e-mail)
         CodigoVerificacaoEntity codigoEntity = codigoVerificacaoRepository.findAll()
@@ -67,15 +87,22 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 .findFirst()
                 .orElseThrow();
 
-        // 3. VERIFICAR E-MAIL
-        VerificarEmailRequestDTO verificarReq = new VerificarEmailRequestDTO(email, codigoEntity.getCodigo());
+        // 3. VERIFICAR E-MAIL via registroId (RFC 7.2)
+        VerificarEmailRequestDTO verificarReq = new VerificarEmailRequestDTO(email, codigoEntity.getCodigo(), registroId);
 
         mockMvc.perform(post("/api/auth/verificar-email")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(verificarReq)))
                 .andExpect(status().isOk());
 
-        // 4. LOGIN — accessToken no body, refreshToken no cookie HttpOnly (G5)
+        // 4. Verifica que o usuário definitivo foi criado com emailVerificado=true (RFC 7.2)
+        UsuarioEntity usuario = usuarioRepository.findByEmail(email).orElseThrow();
+        assertThat(usuario.isEmailVerificado()).isTrue();
+
+        // 5. Verifica que o pré-registro foi removido (RFC 7.2)
+        assertThat(usuarioPendenteRepository.findByEmail(email)).isEmpty();
+
+        // 6. LOGIN — accessToken no body, refreshToken no cookie HttpOnly (G5)
         UsuarioLoginRequestDTO loginReq = new UsuarioLoginRequestDTO(email, senha);
 
         mockMvc.perform(post("/api/auth/login")
@@ -83,53 +110,83 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 .content(objectMapper.writeValueAsString(loginReq)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").exists())
-                .andExpect(jsonPath("$.refreshToken").value(null)) // null no body — RT somente via cookie (G5)
+                .andExpect(jsonPath("$.refreshToken").value((Object) null)) // null no body — RT somente via cookie (G5)
                 .andExpect(cookie().exists("refreshToken"))
                 .andExpect(cookie().httpOnly("refreshToken", true));
     }
 
+    /**
+     * RFC 7.5: Tentativa de login para e-mail não verificado deve retornar 403 com otpStatus.
+     */
     @Test
     void naoDeveLogarSeEmailNaoVerificado() throws Exception {
         String email = "pendente@email.com";
         String senha = "SenhaSegura123";
 
-        // Registrar sem verificar
+        // Pré-registrar sem verificar OTP
         UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Usuario Pendente", email, senha);
-        mockMvc.perform(post("/api/auth/registrar")
+        mockMvc.perform(post("/api/auth/pre-registrar")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(registroReq)))
-                .andExpect(status().isCreated());
+                .andExpect(status().isOk());
 
-        // Tentar Login
+        // Simula que o usuário foi "promovido" parcialmente (cenário legado ou manual)
+        // Criando um usuário real com emailVerificado=false para testar a rota de login
+        UsuarioPendenteEntity pendente = usuarioPendenteRepository.findByEmail(email).orElseThrow();
+        UsuarioEntity usuario = new UsuarioEntity();
+        usuario.setNome(pendente.getNome());
+        usuario.setEmail(pendente.getEmail());
+        usuario.setSenha(pendente.getSenhaHash());
+        usuario.setEmailVerificado(false);
+        usuarioRepository.save(usuario);
+
+        // Tentar Login — deve retornar 403 com otpStatus (RFC 7.5)
         UsuarioLoginRequestDTO loginReq = new UsuarioLoginRequestDTO(email, senha);
 
         mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(loginReq)))
-                .andExpect(status().isForbidden()); // 403 - Conta desabilitada (e-mail não verificado)
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.otpStatus").exists())
+                .andExpect(jsonPath("$.otpStatus.registroId").exists());
     }
 
+    /**
+     * RFC 10.1: Pré-registro com e-mail já existente retorna sucesso genérico (anti-enumeração).
+     */
+    @Test
+    void preRegistroComEmailExistenteRetornaSucessoGenerico() throws Exception {
+        // Criar usuário real já verificado
+        UsuarioEntity existente = new UsuarioEntity();
+        existente.setNome("Já Existe");
+        existente.setEmail("existe@email.com");
+        existente.setSenha("$argon2id$hash");
+        existente.setEmailVerificado(true);
+        usuarioRepository.save(existente);
+
+        // Tentar pré-registro com mesmo e-mail
+        UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Outro Nome", "existe@email.com", "SenhaSegura123");
+        mockMvc.perform(post("/api/auth/pre-registrar")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(registroReq)))
+                .andExpect(status().isOk()) // Resposta genérica — sem revelar que existe
+                .andExpect(jsonPath("$.registroId").exists())
+                .andExpect(jsonPath("$.status").value("ATIVO"));
+
+        // NÃO deve ter criado pré-registro
+        assertThat(usuarioPendenteRepository.findByEmail("existe@email.com")).isEmpty();
+    }
+
+    /**
+     * RFC G5-A1/A2/A3: Novo login invalida RT anterior. RT é rotacionado a cada uso.
+     */
     @Test
     void novoLoginDeveInvalidarRefreshTokenAnterior() throws Exception {
         String email = "sessao@email.com";
         String senha = "SenhaSegura123";
 
-        UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Usuario Sessao", email, senha);
-        mockMvc.perform(post("/api/auth/registrar")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(registroReq)))
-                .andExpect(status().isCreated());
-
-        CodigoVerificacaoEntity codigoEntity = codigoVerificacaoRepository.findAll()
-                .stream()
-                .filter(c -> c.getEmail().equals(email))
-                .findFirst()
-                .orElseThrow();
-
-        // Verificar e-mail diretamente no banco para simplificar
-        UsuarioEntity usuario = usuarioRepository.findByEmail(email).orElseThrow();
-        usuario.setEmailVerificado(true);
-        usuarioRepository.save(usuario);
+        // Setup: criar usuário verificado diretamente no banco
+        registrarEVerificarUsuario(email, senha, "Usuario Sessao");
 
         UsuarioLoginRequestDTO loginReq = new UsuarioLoginRequestDTO(email, senha);
 
@@ -157,21 +214,16 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+    /**
+     * RFC G5-A2/A3: Refresh token rota e reuso detectado invalida todas as sessões.
+     */
     @Test
     void refreshTokenRotacionaACadaUso() throws Exception {
         String email = "rotation@email.com";
         String senha = "SenhaSegura123";
 
-        UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Rotation User", email, senha);
-        mockMvc.perform(post("/api/auth/registrar")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(registroReq)))
-                .andExpect(status().isCreated());
-
-        // Verificar e-mail no banco diretamente
-        UsuarioEntity usuario = usuarioRepository.findByEmail(email).orElseThrow();
-        usuario.setEmailVerificado(true);
-        usuarioRepository.save(usuario);
+        // Setup: criar usuário verificado diretamente no banco
+        registrarEVerificarUsuario(email, senha, "Rotation User");
 
         UsuarioLoginRequestDTO loginReq = new UsuarioLoginRequestDTO(email, senha);
         MvcResult login = mockMvc.perform(post("/api/auth/login")
@@ -201,5 +253,35 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/api/auth/refresh")
                         .cookie(new Cookie("refreshToken", rtRotacionado)))
                 .andExpect(status().isUnauthorized());
+    }
+
+    // ─── Helpers ──────────────────────────────────────────────────────────
+
+    /**
+     * Helper: faz o fluxo completo de pré-registro + verificação via OTP,
+     * criando um usuário verificado no banco para os testes de login/refresh.
+     */
+    private void registrarEVerificarUsuario(String email, String senha, String nome) throws Exception {
+        UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO(nome, email, senha);
+        MvcResult result = mockMvc.perform(post("/api/auth/pre-registrar")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(registroReq)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        String registroId = objectMapper.readTree(result.getResponse().getContentAsString())
+                .get("registroId").asText();
+
+        CodigoVerificacaoEntity codigoEntity = codigoVerificacaoRepository.findAll()
+                .stream()
+                .filter(c -> c.getEmail().equals(email))
+                .findFirst()
+                .orElseThrow();
+
+        VerificarEmailRequestDTO verificarReq = new VerificarEmailRequestDTO(email, codigoEntity.getCodigo(), registroId);
+        mockMvc.perform(post("/api/auth/verificar-email")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(verificarReq)))
+                .andExpect(status().isOk());
     }
 }

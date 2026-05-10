@@ -22,6 +22,10 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
+/**
+ * Testes unitários do serviço de verificação de e-mail via OTP.
+ * Cobre os cenários de geração, validação e expiração do código de 6 dígitos.
+ */
 @ExtendWith(MockitoExtension.class)
 class EmailVerificacaoServiceTest {
 
@@ -59,7 +63,8 @@ class EmailVerificacaoServiceTest {
         // Arrange
         String email = "test@email.com";
         String codigo = "123456";
-        VerificarEmailRequestDTO dto = new VerificarEmailRequestDTO(email, codigo);
+        // O 3º argumento (registroId) é null para o fluxo legado
+        VerificarEmailRequestDTO dto = new VerificarEmailRequestDTO(email, codigo, null);
 
         CodigoVerificacaoEntity entity = new CodigoVerificacaoEntity();
         entity.setEmail(email);
@@ -90,7 +95,7 @@ class EmailVerificacaoServiceTest {
         // Arrange
         String email = "test@email.com";
         String codigo = "123456";
-        VerificarEmailRequestDTO dto = new VerificarEmailRequestDTO(email, codigo);
+        VerificarEmailRequestDTO dto = new VerificarEmailRequestDTO(email, codigo, null);
 
         CodigoVerificacaoEntity entity = new CodigoVerificacaoEntity();
         entity.setDataExpiracao(LocalDateTime.now().minusMinutes(1)); // Expirado
@@ -108,7 +113,7 @@ class EmailVerificacaoServiceTest {
     @Test
     void deveLancarExceptionSeCodigoInexistente() {
         // Arrange — código ativo existe mas com código diferente → "inválido"
-        VerificarEmailRequestDTO dto = new VerificarEmailRequestDTO("test@email.com", "000000");
+        VerificarEmailRequestDTO dto = new VerificarEmailRequestDTO("test@email.com", "000000", null);
         CodigoVerificacaoEntity entity = new CodigoVerificacaoEntity();
         entity.setCodigo("999999");
         entity.setDataExpiracao(LocalDateTime.now().plusMinutes(10));
@@ -121,5 +126,33 @@ class EmailVerificacaoServiceTest {
         assertThatThrownBy(() -> emailVerificacaoService.verificarEmail(dto))
                 .isInstanceOf(CodigoVerificacaoInvalidoException.class)
                 .hasMessageContaining("inválido");
+    }
+
+    /**
+     * Testa a validação simples de código (usada no fluxo de pré-registro).
+     * O método 'validarCodigoSimples' não toca na entidade de Usuário.
+     */
+    @Test
+    void deveValidarCodigoSimplesComSucesso() {
+        // Arrange
+        String email = "preregistro@email.com";
+        String codigo = "654321";
+
+        CodigoVerificacaoEntity entity = new CodigoVerificacaoEntity();
+        entity.setEmail(email);
+        entity.setCodigo(codigo);
+        entity.setDataExpiracao(LocalDateTime.now().plusMinutes(10));
+        entity.setUtilizado(false);
+
+        when(codigoVerificacaoRepository.findTopByEmailAndIsUtilizadoFalseOrderByDataCriacaoDesc(email))
+                .thenReturn(Optional.of(entity));
+
+        // Act
+        emailVerificacaoService.validarCodigoSimples(email, codigo);
+
+        // Assert — OTP marcado como utilizado, mas sem tocar em UsuarioRepository
+        assertThat(entity.isUtilizado()).isTrue();
+        verify(codigoVerificacaoRepository).save(entity);
+        verifyNoInteractions(usuarioRepository);
     }
 }

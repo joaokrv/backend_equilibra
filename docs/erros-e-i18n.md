@@ -29,6 +29,17 @@ Todas as exceções são tratadas pelo `GlobalExceptionHandler` e retornam um JS
 | `CONTA_JA_ATIVA` | 422 | Reativar conta já ativa |
 | `METHOD_NOT_ALLOWED` | 405 | Verbo HTTP incorreto p/ rota (Hardening Security) |
 
+## Fluxo de Pre-Registro e OTP (status HTTP)
+
+- **400** — Código inválido ou solicitação inválida (mensagem neutra, sem confirmar e-mail)
+- **403** — `EMAIL_NAO_VERIFICADO` no login
+- **404** — `REGISTRO_NAO_ENCONTRADO` para `registroId` inválido
+- **410** — OTP expirado
+- **423** — Bloqueio ativo por tentativas
+- **429** — Cooldown de reenvio/tentativa
+
+> Observação: no fluxo de pré-registro, respostas são **genéricas** para evitar enumeração de e-mail.
+
 ## i18n — Como funciona
 
 O sistema usa `MessageSource` do Spring com arquivos `.properties`:

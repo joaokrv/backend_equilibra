@@ -4,6 +4,7 @@ import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import lombok.Getter;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -26,9 +27,11 @@ public class JwtService {
     @Value("${jwt.secret}")
     private String secretKey;
 
+    @Getter
     @Value("${jwt.access-token-expiration}")
     private long accessTokenExpiration;
 
+    @Getter
     @Value("${jwt.refresh-token-expiration}")
     private long refreshTokenExpiration;
 
@@ -69,14 +72,6 @@ public class JwtService {
             }
         }
         return buildToken(extraClaims, userDetails, refreshTokenExpiration);
-    }
-
-    public long getAccessTokenExpiration() {
-        return accessTokenExpiration;
-    }
-
-    public long getRefreshTokenExpiration() {
-        return refreshTokenExpiration;
     }
 
     private String buildToken(Map<String, Object> extraClaims, UserDetails userDetails, long expiration) {

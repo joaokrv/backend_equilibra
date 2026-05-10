@@ -57,9 +57,6 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
     @Autowired
     private EntityManager entityManager;
 
-    @MockBean
-    private CodigoVerificacaoRepository codigoVerificacaoRepository;
-
     private String tokenA;
     private Long idUserA;
 
@@ -69,31 +66,12 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
 
         investimentoRepository.deleteAllInBatch();
         contaRepository.deleteAllInBatch();
+        codigoVerificacaoRepository.deleteAllInBatch();
+        usuarioPendenteRepository.deleteAllInBatch();
         usuarioRepository.deleteAllInBatch();
 
-        tokenA = "Bearer " + setupUser("User A", "userA@email.com");
-        idUserA = usuarioRepository.findByEmail("userA@email.com").get().getId();
-    }
-
-    private String setupUser(String nome, String email) throws Exception {
-        UsuarioRegistroRequestDTO reg = new UsuarioRegistroRequestDTO(nome, email, "senha123");
-        mockMvc.perform(post("/api/auth/registrar")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(reg)))
-                .andExpect(status().isCreated());
-
-        UsuarioEntity user = usuarioRepository.findByEmail(email).orElseThrow();
-        user.setEmailVerificado(true);
-        usuarioRepository.save(user);
-
-        MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
-                .contentType(MediaType.APPLICATION_JSON)
-                .content(objectMapper.writeValueAsString(new UsuarioLoginRequestDTO(email, "senha123"))))
-                .andExpect(status().isOk())
-                .andReturn();
-
-        Map<String, Object> response = objectMapper.readValue(loginResult.getResponse().getContentAsString(), Map.class);
-        return (String) response.get("accessToken");
+        tokenA = "Bearer " + setupUsuarioVerificado("User A", "usera@email.com", "senha123");
+        idUserA = usuarioRepository.findByEmail("usera@email.com").get().getId();
     }
 
     private Long criarConta(String nome, BigDecimal saldo, Long usuarioId) {
@@ -270,7 +248,7 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void usuarioBNaoDeveVerInvestimentosDoUsuarioA() throws Exception {
-        String tokenB = "Bearer " + setupUser("User B", "userB@email.com");
+        String tokenB = "Bearer " + setupUsuarioVerificado("User B", "userb@email.com", "senha123");
         salvarInvestimento("Secreto User A", new BigDecimal("100.00"), new BigDecimal("1000.00"), idUserA);
 
         mockMvc.perform(get("/api/investimentos")
@@ -281,8 +259,8 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void naoDeveDepositarEmInvestimentoDeOutroUsuario() throws Exception {
-        String tokenB = "Bearer " + setupUser("User B", "userB@email.com");
-        Long idUserB = usuarioRepository.findByEmail("userB@email.com").get().getId();
+        String tokenB = "Bearer " + setupUsuarioVerificado("User B2", "userb2@email.com", "senha123");
+        Long idUserB = usuarioRepository.findByEmail("userb2@email.com").get().getId();
         
         Long idContaB = criarConta("Conta B", new BigDecimal("1000.00"), idUserB);
         Long idInvA = salvarInvestimento("Investimento A", new BigDecimal("100.00"), new BigDecimal("1000.00"), idUserA);

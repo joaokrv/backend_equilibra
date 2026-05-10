@@ -63,9 +63,6 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     @PersistenceContext
     private EntityManager entityManager;
 
-    @MockBean
-    private CodigoVerificacaoRepository codigoVerificacaoRepository;
-
     private String tokenA;
     private Long usuarioAId;
     private Long contaAId;
@@ -83,8 +80,8 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
         when(mailSender.createMimeMessage()).thenReturn(new JavaMailSenderImpl().createMimeMessage());
 
         // Criar Usuário A e recursos
-        tokenA = setupUser("User A", "userA@email.com");
-        usuarioAId = usuarioRepository.findByEmail("userA@email.com").get().getId();
+        tokenA = setupUsuarioVerificado("User A", "usera@email.com", "SenhaSegura123");
+        usuarioAId = usuarioRepository.findByEmail("usera@email.com").get().getId();
         
         contaAId = criarConta(tokenA, "Conta A", new BigDecimal("1000.00"));
         cartaoAId = criarCartao(tokenA, "Cartao A", new BigDecimal("5000.00"));
@@ -92,8 +89,8 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
         catReceitaAId = criarCategoria(tokenA, "Salário", TipoTransacao.RECEITA);
 
         // Criar Usuário B
-        tokenB = setupUser("User B", "userB@email.com");
-        usuarioBId = usuarioRepository.findByEmail("userB@email.com").get().getId();
+        tokenB = setupUsuarioVerificado("User B", "userb@email.com", "SenhaSegura123");
+        usuarioBId = usuarioRepository.findByEmail("userb@email.com").get().getId();
     }
 
     private void limparBanco() {
@@ -104,22 +101,9 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
         contaRepository.deleteAllInBatch();
         categoriaRepository.deleteAllInBatch();
         codigoVerificacaoRepository.deleteAllInBatch();
+        usuarioPendenteRepository.deleteAllInBatch();
         usuarioRepository.deleteAllInBatch();
         entityManager.flush();
-    }
-
-    private String setupUser(String nome, String email) throws Exception {
-        UsuarioRegistroRequestDTO reg = new UsuarioRegistroRequestDTO(nome, email, "SenhaSegura123");
-        mockMvc.perform(post("/api/auth/registrar").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(reg)));
-        
-        UsuarioEntity user = usuarioRepository.findByEmail(email).get();
-        user.setEmailVerificado(true);
-        usuarioRepository.save(user);
-
-        UsuarioLoginRequestDTO login = new UsuarioLoginRequestDTO(email, "SenhaSegura123");
-        MvcResult res = mockMvc.perform(post("/api/auth/login").contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(login))).andReturn();
-        Map<String, String> tokens = objectMapper.readValue(res.getResponse().getContentAsString(), Map.class);
-        return tokens.get("accessToken");
     }
 
     private Long criarConta(String token, String nome, BigDecimal saldo) throws Exception {

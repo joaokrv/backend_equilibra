@@ -74,19 +74,18 @@ eyJhbGciOiJIUzI1NiJ9.eyJ1c3VhcmlvSWQiOjEsInN1YiI6InVzZXJAZW1haWwuY29tIiwiZXhwIjo
 │                         FLUXO DE AUTENTICAÇÃO                         │
 ├─────────────────────────────────────────────────────────────────────────┤
 │                                                                       │
-│  1. REGISTRO                                                          │
-│     POST /api/auth/registrar  { nome, email, senha }                  │
-│     → Cria conta com emailVerificado = false                          │
-│     → Gera código OTP de 6 dígitos                                   │
+│  1. PRÉ-REGISTRO                                                      │
+│     POST /api/auth/pre-registrar  { nome, email, senha }              │
+│     → Cria pré-registro e envia OTP (se permitido)                    │
 │                                                                       │
 │  2. VERIFICAÇÃO DE E-MAIL                                             │
-│     POST /api/auth/verificar-email  { email, codigo: "048372" }       │
-│     → Se válido: emailVerificado = true                               │
+│     POST /api/auth/verificar-email  { registroId, codigo }            │
+│     → Se válido: cria usuário definitivo                              │
 │                                                                       │
 │  3. LOGIN                                                             │
 │     POST /api/auth/login  { email, senha }                            │
 │     → Valida credenciais                                              │
-│     → Verifica emailVerificado == true                                │
+│     → Se não verificado: 403 + dispara OTP                            │
 │     → Retorna: { accessToken, expiresIn }  (refreshToken = null)      │
 │     → refreshToken enviado apenas via cookie HttpOnly "refreshToken"  │
 │                                                                       │

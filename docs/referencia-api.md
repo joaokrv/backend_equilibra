@@ -21,7 +21,7 @@ Aqui estão os principais serviços e suas responsabilidades:
 | `TransacaoService`            | Gravar receitas/despesas, aplicar estornos, derivar o `StatusTransacao`. | Maior arquivo de CRUD básico. |
 | `InvestimentoService`         | Manter metas de poupança, fazer saques e depósitos. | Lida com dinheiro "preso" em metas. |
 | `MovimentacaoFinanceiraService`| **O Maestro.** Quando uma transação acontece, ele avisa a Conta ou o Cartão. | O fluxo do dinheiro passa obrigatoriamente por aqui. |
-| `EmailVerificacaoService`     | Gerar código OTP de 6 dígitos e enviar e-mail via SMTP. | Lógica de `SecureRandom` e templates HTML. |
+| `EmailVerificacaoService`     | Gerar OTP de 6 dígitos, expiração e validação de tentativas. | Lógica de `SecureRandom`, expiração e envio. |
 | `FaturaSchedulerService`      | Um robô invisível que roda de madrugada para marcar faturas atrasadas. | Usa `@Scheduled(cron = ...)` do Spring. |
 
 ---
@@ -32,18 +32,25 @@ Aqui está a lista detalhada de todas as "portas" de entrada do servidor. Todas 
 
 ### 🛡️ Autenticação e Registro (`UsuarioController`)
 
-*   `POST /api/auth/registrar`
+*   `POST /api/auth/pre-registrar`
     *   **Body:** `{ "nome", "email", "senha" }`
-    *   **O que faz:** Cria a conta, gera o hash da senha, devolve DTO sem a senha.
+    *   **O que faz:** Cria pré-registro e envia OTP (se permitido), retornando `registroId`.
 *   `POST /api/auth/login`
     *   **Body:** `{ "email", "senha" }`
-    *   **O que faz:** Valida senha (com Pepper), verifica se e-mail tá ativo. Retorna `{ accessToken, expiresIn }` no body. O refresh token é enviado apenas via cookie HttpOnly (não aparece no response body).
+    *   **O que faz:** Se verificado, retorna `{ accessToken, expiresIn }`. Se não verificado, retorna 403 `EMAIL_NAO_VERIFICADO` e dispara OTP (respeitando cooldown/bloqueio).
 *   `POST /api/auth/verificar-email`
-    *   **Body:** `{ "email", "codigo" }`
-    *   **O que faz:** Pega o OTP de 6 dígitos recebido por e-mail e ativa a conta para login.
+    *   **Body:** `{ "registroId", "codigo" }`
+    *   **O que faz:** Valida o OTP e cria o usuário definitivo.
+*   `POST /api/auth/reenviar-codigo`
+    *   **Body:** `{ "registroId" }`
+    *   **O que faz:** Reenvia OTP respeitando cooldown e lockout.
+*   `GET /api/auth/otp-status?registroId=...`
+    *   **O que faz:** Retorna status do OTP (ATIVO, EXPIRADO, BLOQUEADO, USADO) e datas.
 *   `POST /api/auth/refresh`
     *   **Cookie:** `refreshToken=<rt>` (HttpOnly, enviado automaticamente pelo browser)
     *   **O que faz:** Lê o refresh token via cookie HttpOnly, rotaciona-o e devolve um novo access token. O refresh token **nunca** é enviado no body — apenas via cookie.
+
+**Observação de segurança:** respostas do pré-registro são neutras para evitar enumeração de e-mail.
 
 ---
 

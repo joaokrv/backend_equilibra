@@ -22,7 +22,7 @@ O objetivo não é concorrer com apps como Mobills ou Guiabolso — é uma aplic
 - Acompanhar **faturas** de cartão com geração automática, fechamento e controle de status
 - Organizar gastos por **categorias** personalizadas
 - Registrar e acompanhar **investimentos e metas de poupança**
-- Verificar identidade via **código OTP por e-mail** no cadastro
+- Pré-registro com **OTP obrigatório por e-mail** e validação antes do login
 - **Autenticação JWT** com access token + refresh token
 - **Reativação de conta** após desativação (soft delete), com validação de senha
 - **Internacionalização (i18n)** de mensagens de erro (pt-BR e EN)
@@ -105,12 +105,20 @@ A API usa **JWT (JSON Web Tokens)** para autenticação stateless.
 ### Fluxo de autenticação
 
 ```
-1. POST /api/auth/registrar                → Cria conta (emailVerificado=false)
-2. POST /api/auth/verificar-email          → Valida código OTP de 6 dígitos
-3. POST /api/auth/login                    → Retorna accessToken + refreshToken + expiresIn
+1. POST /api/auth/pre-registrar            → Cria pré-registro e envia OTP (se permitido)
+2. POST /api/auth/verificar-email          → Valida OTP e cria usuário definitivo
+3. POST /api/auth/login                    → Se verificado, retorna tokens; se não, 403 e dispara OTP
 4. Requisições protegidas                  → Header "Authorization: Bearer <accessToken>"
 5. POST /api/auth/refresh                  → Renova accessToken usando refreshToken
 ```
+
+### Regras do OTP e pré-registro
+
+- OTP expira em 15 min e existe apenas 1 ativo por e-mail
+- 5 erros → lockout de 30 min (inclui reenvio)
+- Rate limit: 1 tentativa/min e 1 reenvio/5 min
+- Status do OTP: ATIVO, EXPIRADO, BLOQUEADO, USADO
+- Respostas do pré-registro são genéricas para evitar enumeração de e-mail
 
 ### Rotas públicas (sem autenticação)
 
@@ -150,6 +158,8 @@ A aplicação foi rigorosamente auditada via Pentest (Black-Box), contemplando:
 
 - **Anti-Timing Attacks**: Delay dinâmico/fatorado (~1200ms) nas rotas de Registro e Recuperação de Senha, impedindo a engenharia reversa para descobrir quais e-mails estão cadastrados no sistema.
 - **Account Lockout & Brute Force Protection**: Bloqueio automático da conta (HTTP 423 Locked) por 15 minutos após 10 tentativas de login erradas consecutivas, aliado à interceptação de Rate Limit global `Bucket4j`.
+- **OTP Lockout e Cooldown**: 5 erros → 30 min de bloqueio; reenvio limitado a 1/5 min e tentativa a 1/min.
+- **Anti-Enumeração no Cadastro**: respostas neutras e sem confirmação de e-mail existente.
 - **Prevenção contra XSS e SQLi**: Campos de formulário abertos validados estritamente via `@Pattern` (ex: rejeição absoluta de tags e HTML entities `< >` e `{ }`). SQLi evitado por conversões nativas (UUID e Enum binding) usando Flyway seguro estático.
 - **Header HSTS e Segurança de Borda**: Configuração integral de headers via `SecurityFilterChain`, atestando HTTPS obrigatório 100% do tempo (Strict-Transport-Security preload + no-sniff content + DENY frame + Origin checks Restritos).
 - **Proteção Method Not Allowed**: Injeções de bad verbs (PUT/DELETE no /login) retornam formatação graciosa 405 invés do stacktrace 500 original.
@@ -162,11 +172,12 @@ A aplicação foi rigorosamente auditada via Pentest (Black-Box), contemplando:
 
 | Método | Rota | Descrição |
 |---|---|---|
-| `POST` | `/api/auth/registrar` | Cadastra novo usuário |
+| `POST` | `/api/auth/pre-registrar` | Cria pré-registro e envia OTP |
 | `POST` | `/api/auth/login` | Autentica e retorna access + refresh tokens |
 | `POST` | `/api/auth/refresh` | Renova access token usando refresh token |
-| `POST` | `/api/auth/verificar-email` | Valida código OTP de 6 dígitos |
-| `POST` | `/api/auth/reenviar-codigo` | Reenvia código de verificação |
+| `POST` | `/api/auth/verificar-email` | Valida OTP e conclui cadastro |
+| `POST` | `/api/auth/reenviar-codigo` | Reenvia OTP respeitando cooldown |
+| `GET` | `/api/auth/otp-status` | Status do OTP por registroId |
 | `POST` | `/api/auth/reativar-conta` | Reativa conta desativada (exige senha) |
 
 ### Contas Bancárias (`/api/contas`)
@@ -295,6 +306,12 @@ Todas as exceções são capturadas pelo `GlobalExceptionHandler` e retornam um 
 | `CodigoVerificacaoInvalidoException` | 400 |
 | `RegraDeNegocioException` | 400 |
 | `MethodArgumentNotValidException` | 422 |
+
+Fluxo OTP tambem pode retornar:
+- 410 (OTP expirado)
+- 423 (bloqueado)
+- 429 (cooldown)
+- 404 (registro nao encontrado)
 
 ---
 

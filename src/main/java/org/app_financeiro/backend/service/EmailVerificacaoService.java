@@ -59,49 +59,44 @@ public class EmailVerificacaoService {
 
     @Transactional
     public void verificarEmail(VerificarEmailRequestDTO dto) {
-        CodigoVerificacaoEntity codigoEntity = codigoVerificacaoRepository
-                .findTopByEmailAndIsUtilizadoFalseOrderByDataCriacaoDesc(dto.email())
-                .orElseThrow(() -> new CodigoVerificacaoInvalidoException("Nenhum código ativo. Solicite um novo código."));
-
-        // Bloqueado após MAX_TENTATIVAS_OTP erros (B1-C1)
-        if (codigoEntity.getTentativasFalhas() >= MAX_TENTATIVAS_OTP) {
-            log.warn("OTP bloqueado por excesso de tentativas para e-mail {}", dto.email());
-            throw new CodigoVerificacaoInvalidoException("Código bloqueado após múltiplas tentativas. Solicite um novo código.");
-        }
-
-        if (codigoEntity.getDataExpiracao().isBefore(LocalDateTime.now())) {
-            log.warn("Código de verificação expirado para e-mail {}", dto.email());
-            throw new CodigoVerificacaoInvalidoException("Código expirado. Solicite um novo código.");
-        }
-
-        // Código incorreto → incrementa tentativas; invalida ao atingir limite
-        if (!codigoEntity.getCodigo().equals(dto.codigo())) {
-            codigoEntity.setTentativasFalhas(codigoEntity.getTentativasFalhas() + 1);
-            if (codigoEntity.getTentativasFalhas() >= MAX_TENTATIVAS_OTP) {
-                codigoEntity.setUtilizado(true);
-                log.warn("OTP invalidado após {} tentativas falhas para e-mail {}", MAX_TENTATIVAS_OTP, dto.email());
-            }
-            codigoVerificacaoRepository.save(codigoEntity);
-            throw new CodigoVerificacaoInvalidoException("Código inválido ou já utilizado");
-        }
-
-        codigoEntity.setUtilizado(true);
+        validarCodigoSimples(dto.email(), dto.codigo());
 
         UsuarioEntity usuario = usuarioRepository.findByEmail(dto.email())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado"));
 
         usuario.setEmailVerificado(true);
-
-        codigoVerificacaoRepository.save(codigoEntity);
         usuarioRepository.save(usuario);
         log.info("E-mail {} verificado com sucesso", dto.email());
+    }
+
+    /**
+     * Valida o código OTP sem realizar atualizações na entidade de Usuário.
+     * Útil para o fluxo de pré-registro.
+     */
+    @Transactional
+    public void validarCodigoSimples(String email, String codigo) {
+        CodigoVerificacaoEntity codigoEntity = codigoVerificacaoRepository
+                .findTopByEmailAndIsUtilizadoFalseOrderByDataCriacaoDesc(email)
+                .orElseThrow(() -> new CodigoVerificacaoInvalidoException("Nenhum código ativo. Solicite um novo código."));
+
+        if (codigoEntity.getDataExpiracao().isBefore(LocalDateTime.now())) {
+            log.warn("Código de verificação expirado para e-mail {}", email);
+            throw new CodigoVerificacaoInvalidoException("Código expirado. Solicite um novo código.");
+        }
+
+        if (!codigoEntity.getCodigo().equals(codigo)) {
+            log.warn("Código inválido para e-mail {}", email);
+            throw new CodigoVerificacaoInvalidoException("Código inválido.");
+        }
+
+        codigoEntity.setUtilizado(true);
+        codigoVerificacaoRepository.save(codigoEntity);
     }
 
     @Transactional
     public void reenviarCodigo(ReenviarCodigoRequestDTO dto) {
         UsuarioEntity usuario = usuarioRepository.findByEmail(dto.email()).orElse(null);
 
-        // Anti-enumeração: silencioso quando e-mail não cadastrado (B1-A2)
         if (usuario == null) {
             log.warn("Reenvio solicitado para e-mail não cadastrado (silenciado)");
             return;
@@ -112,7 +107,6 @@ public class EmailVerificacaoService {
             throw new RegraDeNegocioException("Este e-mail já foi verificado");
         }
 
-        // Invalida TODOS os códigos pendentes — evita múltiplos OTPs ativos (B1-A3)
         codigoVerificacaoRepository.invalidarTodosPendentes(dto.email());
 
         gerarCodigo(dto.email());

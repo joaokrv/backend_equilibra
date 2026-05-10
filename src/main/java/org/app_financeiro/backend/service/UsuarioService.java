@@ -16,6 +16,7 @@ import org.app_financeiro.backend.repository.ContaRepository;
 import org.app_financeiro.backend.repository.InvestimentoRepository;
 import org.app_financeiro.backend.repository.TransacaoRepository;
 import org.app_financeiro.backend.repository.UsuarioRepository;
+import org.app_financeiro.backend.entity.UsuarioPendenteEntity;
 
 import java.util.List;
 import org.app_financeiro.backend.dto.response.PerfilResumoResponseDTO;
@@ -79,6 +80,28 @@ public class UsuarioService {
 
         log.info("Usuário registrado com sucesso: id={}, email={}", savedUser.getId(), savedUser.getEmail());
         return true;
+    }
+
+    /**
+     * Finaliza o registro de um usuário a partir dos dados do pré-cadastro validado.
+     */
+    @Transactional
+    public UsuarioEntity finalizarRegistro(UsuarioPendenteEntity pendente) {
+        if (usuarioRepository.existsByEmailIncludingInactive(pendente.getEmail())) {
+            throw new RegraDeNegocioException("Este e-mail já possui uma conta ativa.");
+        }
+
+        UsuarioEntity usuario = new UsuarioEntity();
+        usuario.setNome(pendente.getNome());
+        usuario.setEmail(pendente.getEmail());
+        usuario.setSenha(pendente.getSenhaHash());
+        usuario.setEmailVerificado(true);
+
+        UsuarioEntity savedUser = usuarioRepository.save(usuario);
+        criarCategoriasPadrao(savedUser);
+
+        log.info("Usuário finalizado via pré-registro: id={}, email={}", savedUser.getId(), savedUser.getEmail());
+        return savedUser;
     }
 
     public UsuarioResponseDTO loginUsuario(String email, String senha) {
