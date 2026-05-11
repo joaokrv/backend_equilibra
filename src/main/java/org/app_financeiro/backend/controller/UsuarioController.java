@@ -15,6 +15,7 @@ import org.app_financeiro.backend.dto.response.AuthResponseDTO;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.exception.CredenciaisInvalidasException;
+import org.app_financeiro.backend.exception.CodigoVerificacaoInvalidoException;
 import org.app_financeiro.backend.enums.TipoCodigoVerificacao;
 import org.app_financeiro.backend.entity.CodigoVerificacaoEntity;
 import org.app_financeiro.backend.repository.CodigoVerificacaoRepository;
@@ -352,7 +353,7 @@ public class UsuarioController {
 
     @PostMapping("/verificar-email")
     @Operation(summary = "Verificar e-mail", description = "Valida a conta usando o código de 6 dígitos. Suporta fluxo de pré-registro.")
-    @Transactional
+    @Transactional(noRollbackFor = CodigoVerificacaoInvalidoException.class)
     public ResponseEntity<?> verificarEmail(@Valid @RequestBody VerificarEmailRequestDTO dto) {
         // Fluxo via registroId (Pré-registro)
         if (dto.registroId() != null && !dto.registroId().isBlank()) {
