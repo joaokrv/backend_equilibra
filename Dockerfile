@@ -11,6 +11,9 @@ RUN chmod +x mvnw && ./mvnw -B -DskipTests clean package
 FROM eclipse-temurin:25-jre
 WORKDIR /app
 
+ENV TZ=America/Sao_Paulo
+ENV JAVA_TOOL_OPTIONS=-Duser.timezone=America/Sao_Paulo
+
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
 COPY --from=build /app/target/backend-0.0.1-SNAPSHOT.jar app.jar

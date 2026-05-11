@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
+import java.time.ZoneId;
 
 /** Fluxo de verificação de e-mail via OTP de 6 dígitos (15 min). Vincula código por e-mail, não por FK, pois o usuário ainda não está autenticado nesta etapa. */
 @Service
@@ -28,6 +29,8 @@ public class EmailVerificacaoService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailVerificacaoService.class);
     private static final int MAX_TENTATIVAS_OTP = 5;
+    private static final ZoneId FUSO_BRASIL = ZoneId.of("America/Sao_Paulo");
+    private static final DateTimeFormatter HORARIO_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
 
     private final CodigoVerificacaoRepository codigoVerificacaoRepository;
     private final UsuarioRepository usuarioRepository;
@@ -134,7 +137,9 @@ public class EmailVerificacaoService {
         try {
             ClassPathResource resource = new ClassPathResource("templates/verificacao-email.html");
             String htmlTemplate = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            String horarioExpiracao = expiracao.format(DateTimeFormatter.ofPattern("HH:mm"));
+            String horarioExpiracao = expiracao.atZone(ZoneId.systemDefault())
+                    .withZoneSameInstant(FUSO_BRASIL)
+                    .format(HORARIO_FORMATTER) + " (UTC-3)";
             String htmlContent = htmlTemplate
                     .replace("{{CODIGO}}", codigo)
                     .replace("{{HORARIO_EXPIRACAO}}", horarioExpiracao);
