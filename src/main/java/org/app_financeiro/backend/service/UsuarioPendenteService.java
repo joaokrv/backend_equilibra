@@ -11,6 +11,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.UUID;
 
 @Service
@@ -45,16 +47,23 @@ public class UsuarioPendenteService {
         Integer tentativasRestantes = MAX_TENTATIVAS - (pendente.getTentativasFalhas() != null ? pendente.getTentativasFalhas() : 0);
         if (tentativasRestantes < 0) tentativasRestantes = 0;
 
-        LocalDateTime proximoReenvio = pendente.getUltimoEnvioEm() != null ? pendente.getUltimoEnvioEm().plusMinutes(5) : null;
-        LocalDateTime proximaTentativa = pendente.getUltimaTentativaEm() != null ? pendente.getUltimaTentativaEm().plusMinutes(1) : null;
+        LocalDateTime proximoReenvio = pendente.getUltimoEnvioEm() != null ? pendente.getUltimoEnvioEm().plusMinutes(1) : null;
+
+        OffsetDateTime expiraEm = pendente.getExpiraEm().atZone(ZoneId.systemDefault()).toOffsetDateTime();
+        OffsetDateTime bloqueadoAte = pendente.getBloqueadoAte() != null
+            ? pendente.getBloqueadoAte().atZone(ZoneId.systemDefault()).toOffsetDateTime()
+            : null;
+        OffsetDateTime proximoReenvioEm = proximoReenvio != null
+            ? proximoReenvio.atZone(ZoneId.systemDefault()).toOffsetDateTime()
+            : null;
 
         return new OtpStatusResponseDTO(
                 status,
                 tentativasRestantes,
-                pendente.getExpiraEm(),
-                pendente.getBloqueadoAte(),
-                proximoReenvio,
-                proximaTentativa,
+            expiraEm,
+            bloqueadoAte,
+            proximoReenvioEm,
+            null,
                 pendente.getId().toString()
         );
     }

@@ -4,6 +4,7 @@ import org.app_financeiro.backend.dto.request.ReenviarCodigoRequestDTO;
 import org.app_financeiro.backend.dto.request.VerificarEmailRequestDTO;
 import org.app_financeiro.backend.entity.CodigoVerificacaoEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
+import org.app_financeiro.backend.enums.TipoCodigoVerificacao;
 import org.app_financeiro.backend.exception.CodigoVerificacaoInvalidoException;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.exception.RegraDeNegocioException;
@@ -19,6 +20,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 
 /** Fluxo de verificação de e-mail via OTP de 6 dígitos (15 min). Vincula código por e-mail, não por FK, pois o usuário ainda não está autenticado nesta etapa. */
 @Service
@@ -26,7 +28,6 @@ public class EmailVerificacaoService {
 
     private static final Logger log = LoggerFactory.getLogger(EmailVerificacaoService.class);
     private static final int MAX_TENTATIVAS_OTP = 5;
-    private static final int MAX_TENTATIVAS_CODIGO = 3;
 
     private final CodigoVerificacaoRepository codigoVerificacaoRepository;
     private final UsuarioRepository usuarioRepository;
@@ -43,24 +44,30 @@ public class EmailVerificacaoService {
 
     @Transactional
     public void gerarCodigo(String email) {
+        gerarCodigo(email, TipoCodigoVerificacao.VERIFICACAO_EMAIL);
+    }
+
+    public void gerarCodigo(String email, TipoCodigoVerificacao tipo) {
         int numero = secureRandom.nextInt(1_000_000);
         String codigo = String.format("%06d", numero);
+        LocalDateTime expiracao = LocalDateTime.now().plusMinutes(15);
 
         CodigoVerificacaoEntity codigoEntity = new CodigoVerificacaoEntity();
         codigoEntity.setEmail(email);
         codigoEntity.setCodigo(codigo);
-        codigoEntity.setDataExpiracao(LocalDateTime.now().plusMinutes(15));
+        codigoEntity.setDataExpiracao(expiracao);
+        codigoEntity.setTipo(tipo);
         codigoEntity.setUtilizado(false);
 
         codigoVerificacaoRepository.save(codigoEntity);
         log.info("Código de verificação gerado para e-mail {}", email);
 
-        enviarEmail(email, codigo);
+        enviarEmail(email, codigo, expiracao, tipo);
     }
 
     @Transactional
     public void verificarEmail(VerificarEmailRequestDTO dto) {
-        validarCodigoSimples(dto.email(), dto.codigo());
+        validarCodigoSimples(dto.email(), dto.codigo(), TipoCodigoVerificacao.VERIFICACAO_EMAIL);
 
         UsuarioEntity usuario = usuarioRepository.findByEmail(dto.email())
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado"));
@@ -75,10 +82,16 @@ public class EmailVerificacaoService {
      * Útil para o fluxo de pré-registro.
      */
     @Transactional
-    public void validarCodigoSimples(String email, String codigo) {
+    public void validarCodigoSimples(String email, String codigo, TipoCodigoVerificacao tipo) {
         CodigoVerificacaoEntity codigoEntity = codigoVerificacaoRepository
-                .findTopByEmailAndIsUtilizadoFalseOrderByDataCriacaoDesc(email)
+                .findTopByEmailAndTipoAndIsUtilizadoFalseOrderByDataCriacaoDesc(email, tipo)
                 .orElseThrow(() -> new CodigoVerificacaoInvalidoException("Nenhum código ativo. Solicite um novo código."));
+
+        if (codigoEntity.getTentativasFalhas() >= MAX_TENTATIVAS_OTP) {
+            codigoEntity.setUtilizado(true);
+            codigoVerificacaoRepository.save(codigoEntity);
+            throw new CodigoVerificacaoInvalidoException("Código bloqueado após múltiplas tentativas. Solicite um novo código.");
+        }
 
         if (codigoEntity.getDataExpiracao().isBefore(LocalDateTime.now())) {
             log.warn("Código de verificação expirado para e-mail {}", email);
@@ -86,7 +99,12 @@ public class EmailVerificacaoService {
         }
 
         if (!codigoEntity.getCodigo().equals(codigo)) {
-            log.warn("Código inválido para e-mail {}", email);
+            int tentativas = codigoEntity.getTentativasFalhas() + 1;
+            codigoEntity.setTentativasFalhas(tentativas);
+            if (tentativas >= MAX_TENTATIVAS_OTP) {
+                codigoEntity.setUtilizado(true);
+            }
+            codigoVerificacaoRepository.save(codigoEntity);
             throw new CodigoVerificacaoInvalidoException("Código inválido.");
         }
 
@@ -108,22 +126,33 @@ public class EmailVerificacaoService {
             throw new RegraDeNegocioException("Este e-mail já foi verificado");
         }
 
-        codigoVerificacaoRepository.invalidarTodosPendentes(dto.email());
-
-        gerarCodigo(dto.email());
+        codigoVerificacaoRepository.invalidarTodosPendentesPorTipo(dto.email(), TipoCodigoVerificacao.VERIFICACAO_EMAIL);
+        gerarCodigo(dto.email(), TipoCodigoVerificacao.VERIFICACAO_EMAIL);
     }
 
-    private void enviarEmail(String destinatario, String codigo) {
+    private void enviarEmail(String destinatario, String codigo, LocalDateTime expiracao, TipoCodigoVerificacao tipo) {
         try {
             ClassPathResource resource = new ClassPathResource("templates/verificacao-email.html");
             String htmlTemplate = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            String htmlContent = htmlTemplate.replace("{{CODIGO}}", codigo);
+            String horarioExpiracao = expiracao.format(DateTimeFormatter.ofPattern("HH:mm"));
+            String htmlContent = htmlTemplate
+                    .replace("{{CODIGO}}", codigo)
+                    .replace("{{HORARIO_EXPIRACAO}}", horarioExpiracao);
 
-            externalEmailSenderService.sendHtml(destinatario, "Equilibra - Codigo de Verificacao", htmlContent);
+            externalEmailSenderService.sendHtml(destinatario, assuntoPorTipo(tipo), htmlContent);
             log.info("E-mail de verificação enviado para {}", destinatario);
 
         } catch (IOException e) {
             log.warn("Falha ao montar template de verificação para {}: {}", destinatario, e.getMessage());
         }
+    }
+
+    private String assuntoPorTipo(TipoCodigoVerificacao tipo) {
+        return switch (tipo) {
+            case EXCLUSAO_CONTA -> "Confirme a exclusão da sua conta — Equilibra";
+            case DESATIVACAO_CONTA -> "Confirme a desativação da sua conta — Equilibra";
+            case REATIVACAO_CONTA -> "Reative sua conta — Equilibra";
+            case VERIFICACAO_EMAIL -> "Equilibra - Codigo de Verificacao";
+        };
     }
 }

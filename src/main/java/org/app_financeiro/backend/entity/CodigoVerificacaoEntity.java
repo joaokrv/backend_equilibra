@@ -6,6 +6,7 @@ import lombok.Setter;
 import lombok.NoArgsConstructor;
 import lombok.EqualsAndHashCode;
 import org.hibernate.annotations.CreationTimestamp;
+import org.app_financeiro.backend.enums.TipoCodigoVerificacao;
 
 import java.time.LocalDateTime;
 
@@ -34,6 +35,10 @@ public class CodigoVerificacaoEntity {
 
     @Column(nullable = false)
     private LocalDateTime dataExpiracao;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private TipoCodigoVerificacao tipo = TipoCodigoVerificacao.VERIFICACAO_EMAIL;
 
     @Column(name = "utilizado", nullable = false)
     private boolean isUtilizado = false;

@@ -1,6 +1,6 @@
 package org.app_financeiro.backend.dto.response;
 
-import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 
 /**
  * Representa o estado atual do OTP para o frontend.
@@ -9,9 +9,9 @@ import java.time.LocalDateTime;
 public record OtpStatusResponseDTO(
     String status,
     Integer tentativasRestantes,
-    LocalDateTime expiraEm,
-    LocalDateTime bloqueadoAte,
-    LocalDateTime proximoReenvioEm,
-    LocalDateTime proximaTentativaEm,
+    OffsetDateTime expiraEm,
+    OffsetDateTime bloqueadoAte,
+    OffsetDateTime proximoReenvioEm,
+    OffsetDateTime proximaTentativaEm,
     String registroId
 ) {}

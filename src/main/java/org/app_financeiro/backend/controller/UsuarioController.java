@@ -5,6 +5,8 @@ import jakarta.validation.Valid;
 import org.app_financeiro.backend.dto.request.ReativarContaRequestDTO;
 import org.app_financeiro.backend.dto.request.ReenviarCodigoRequestDTO;
 import org.app_financeiro.backend.dto.request.ResetarSenhaRequestDTO;
+import org.app_financeiro.backend.dto.request.SolicitarAcaoContaRequestDTO;
+import org.app_financeiro.backend.dto.request.ConfirmarAcaoContaRequestDTO;
 import org.app_financeiro.backend.dto.request.SolicitarRecuperacaoSenhaRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioLoginRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioRegistroRequestDTO;
@@ -12,6 +14,10 @@ import org.app_financeiro.backend.dto.request.VerificarEmailRequestDTO;
 import org.app_financeiro.backend.dto.response.AuthResponseDTO;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
+import org.app_financeiro.backend.exception.CredenciaisInvalidasException;
+import org.app_financeiro.backend.enums.TipoCodigoVerificacao;
+import org.app_financeiro.backend.entity.CodigoVerificacaoEntity;
+import org.app_financeiro.backend.repository.CodigoVerificacaoRepository;
 import org.app_financeiro.backend.repository.UsuarioRepository;
 import org.app_financeiro.backend.service.EmailVerificacaoService;
 import org.app_financeiro.backend.service.JwtService;
@@ -30,15 +36,19 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import io.jsonwebtoken.JwtException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.CookieValue;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -90,6 +100,7 @@ public class UsuarioController {
     private final PasswordEncoder passwordEncoder;
     private final UsuarioPendenteService usuarioPendenteService;
     private final UsuarioPendenteRepository usuarioPendenteRepository;
+    private final CodigoVerificacaoRepository codigoVerificacaoRepository;
     private final UsuarioMapper usuarioMapper;
 
     public UsuarioController(UsuarioService usuarioService,
@@ -101,6 +112,7 @@ public class UsuarioController {
                              PasswordEncoder passwordEncoder,
                              UsuarioPendenteService usuarioPendenteService,
                              UsuarioPendenteRepository usuarioPendenteRepository,
+                             CodigoVerificacaoRepository codigoVerificacaoRepository,
                              UsuarioMapper usuarioMapper) {
         this.usuarioService = usuarioService;
         this.emailVerificacaoService = emailVerificacaoService;
@@ -111,6 +123,7 @@ public class UsuarioController {
         this.passwordEncoder = passwordEncoder;
         this.usuarioPendenteService = usuarioPendenteService;
         this.usuarioPendenteRepository = usuarioPendenteRepository;
+        this.codigoVerificacaoRepository = codigoVerificacaoRepository;
         this.usuarioMapper = usuarioMapper;
     }
 
@@ -126,7 +139,8 @@ public class UsuarioController {
             log.warn("[SECURITY] Tentativa de pré-registro com e-mail já existente: {}", emailNorm);
             // Anti-timing: simula latência de envio de e-mail
             try { Thread.sleep(1200); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
-            return ResponseEntity.ok(new OtpStatusResponseDTO("ATIVO", 5, agora.plusMinutes(15), null, null, null, UUID.randomUUID().toString()));
+            OffsetDateTime expiraEm = agora.plusMinutes(15).atZone(ZoneId.systemDefault()).toOffsetDateTime();
+            return ResponseEntity.ok(new OtpStatusResponseDTO("ATIVO", 5, expiraEm, null, null, null, UUID.randomUUID().toString()));
         }
 
         UsuarioPendenteEntity pendente = usuarioPendenteRepository.findByEmail(emailNorm)
@@ -144,7 +158,7 @@ public class UsuarioController {
             return ResponseEntity.status(423).body(usuarioPendenteService.mapearParaStatus(pendente));
         }
 
-        if (pendente.getUltimoEnvioEm() != null && pendente.getUltimoEnvioEm().plusMinutes(5).isAfter(agora)) {
+        if (pendente.getUltimoEnvioEm() != null && pendente.getUltimoEnvioEm().plusMinutes(1).isAfter(agora)) {
             return ResponseEntity.status(429).body(usuarioPendenteService.mapearParaStatus(pendente));
         }
 
@@ -209,7 +223,7 @@ public class UsuarioController {
                             return usuarioPendenteRepository.save(p);
                         });
 
-                if (pendente.getUltimoEnvioEm() == null || pendente.getUltimoEnvioEm().plusMinutes(5).isBefore(LocalDateTime.now())) {
+                if (pendente.getUltimoEnvioEm() == null || pendente.getUltimoEnvioEm().plusMinutes(1).isBefore(LocalDateTime.now())) {
                     emailVerificacaoService.gerarCodigo(pendente.getEmail());
                     pendente.setUltimoEnvioEm(LocalDateTime.now());
                     usuarioPendenteRepository.save(pendente);
@@ -352,7 +366,7 @@ public class UsuarioController {
             }
 
             try {
-                emailVerificacaoService.validarCodigoSimples(pendente.getEmail(), dto.codigo());
+                emailVerificacaoService.validarCodigoSimples(pendente.getEmail(), dto.codigo(), TipoCodigoVerificacao.VERIFICACAO_EMAIL);
                 
                 // OTP Válido -> Promover para usuário real e limpar rastro
                 UsuarioEntity usuario = usuarioService.finalizarRegistro(pendente);
@@ -385,8 +399,8 @@ public class UsuarioController {
                         .body(usuarioPendenteService.mapearParaStatus(pendente));
             }
 
-            if (pendente.getUltimoEnvioEm() != null && pendente.getUltimoEnvioEm().plusMinutes(5).isAfter(LocalDateTime.now())) {
-                long segundos = ChronoUnit.SECONDS.between(LocalDateTime.now(), pendente.getUltimoEnvioEm().plusMinutes(5));
+            if (pendente.getUltimoEnvioEm() != null && pendente.getUltimoEnvioEm().plusMinutes(1).isAfter(LocalDateTime.now())) {
+                long segundos = ChronoUnit.SECONDS.between(LocalDateTime.now(), pendente.getUltimoEnvioEm().plusMinutes(1));
                 return ResponseEntity.status(429)
                         .header("Retry-After", String.valueOf(segundos))
                         .body(usuarioPendenteService.mapearParaStatus(pendente));
@@ -401,6 +415,65 @@ public class UsuarioController {
 
         emailVerificacaoService.reenviarCodigo(dto);
         return ResponseEntity.ok("Novo código de verificação enviado!");
+    }
+
+    // ─── Ações de Conta (Desativar / Excluir) ─────────────────────────────
+
+    @PostMapping("/solicitar-acao-conta")
+    @Operation(summary = "Solicitar ação de conta", description = "Valida senha e envia OTP para confirmar exclusão ou desativação.")
+    @Transactional
+    public ResponseEntity<?> solicitarAcaoConta(@Valid @RequestBody SolicitarAcaoContaRequestDTO dto,
+                                                @AuthenticationPrincipal UsuarioEntity usuario) {
+        if (usuario == null || !passwordEncoder.matches(dto.senha(), usuario.getSenha())) {
+            log.warn("[SECURITY] Solicitação de ação de conta com senha inválida: {}", mascararEmail(usuario != null ? usuario.getEmail() : null));
+            throw new CredenciaisInvalidasException();
+        }
+
+        TipoCodigoVerificacao tipo = "EXCLUIR".equalsIgnoreCase(dto.acao())
+                ? TipoCodigoVerificacao.EXCLUSAO_CONTA
+                : TipoCodigoVerificacao.DESATIVACAO_CONTA;
+
+        ResponseEntity<Map<String, Object>> cooldown = validarCooldownAcaoConta(usuario.getEmail(), tipo);
+        if (cooldown != null) {
+            return cooldown;
+        }
+
+        codigoVerificacaoRepository.invalidarTodosPendentesPorTipo(usuario.getEmail(), tipo);
+        emailVerificacaoService.gerarCodigo(usuario.getEmail(), tipo);
+
+        return ResponseEntity.ok(Map.of("mensagem", "Código de confirmação enviado."));
+    }
+
+    @DeleteMapping("/excluir-conta")
+    @Operation(summary = "Excluir conta", description = "Confirma OTP e exclui a conta permanentemente.")
+    @Transactional
+    public ResponseEntity<?> excluirConta(@Valid @RequestBody ConfirmarAcaoContaRequestDTO dto,
+                                          @AuthenticationPrincipal UsuarioEntity usuario) {
+        if (usuario == null || !passwordEncoder.matches(dto.senha(), usuario.getSenha())) {
+            log.warn("[SECURITY] Confirmação de exclusão com senha inválida: {}", mascararEmail(usuario != null ? usuario.getEmail() : null));
+            throw new CredenciaisInvalidasException();
+        }
+
+        emailVerificacaoService.validarCodigoSimples(usuario.getEmail(), dto.codigo(), TipoCodigoVerificacao.EXCLUSAO_CONTA);
+        usuarioService.excluirConta(usuario.getId(), usuario.getEmail());
+
+        return ResponseEntity.ok(Map.of("mensagem", "Conta excluída com sucesso."));
+    }
+
+    @PostMapping("/desativar-conta")
+    @Operation(summary = "Desativar conta", description = "Confirma OTP e desativa a conta (soft delete).")
+    @Transactional
+    public ResponseEntity<?> desativarConta(@Valid @RequestBody ConfirmarAcaoContaRequestDTO dto,
+                                            @AuthenticationPrincipal UsuarioEntity usuario) {
+        if (usuario == null || !passwordEncoder.matches(dto.senha(), usuario.getSenha())) {
+            log.warn("[SECURITY] Confirmação de desativação com senha inválida: {}", mascararEmail(usuario != null ? usuario.getEmail() : null));
+            throw new CredenciaisInvalidasException();
+        }
+
+        emailVerificacaoService.validarCodigoSimples(usuario.getEmail(), dto.codigo(), TipoCodigoVerificacao.DESATIVACAO_CONTA);
+        usuarioService.desativarConta(usuario.getId());
+
+        return ResponseEntity.ok(Map.of("mensagem", "Conta desativada com sucesso."));
     }
 
     /** Exige confirmação de senha antes de reativar. */
@@ -444,6 +517,41 @@ public class UsuarioController {
     public ResponseEntity<String> resetarSenha(@Valid @RequestBody ResetarSenhaRequestDTO dto) {
         recuperacaoSenhaService.resetarSenha(dto);
         return ResponseEntity.ok("Senha redefinida com sucesso! Faça login com sua nova senha.");
+    }
+
+    private ResponseEntity<Map<String, Object>> validarCooldownAcaoConta(String email, TipoCodigoVerificacao tipo) {
+        if (email == null || email.isBlank()) {
+            return null;
+        }
+
+        CodigoVerificacaoEntity ultimo = codigoVerificacaoRepository
+                .findTopByEmailAndTipoOrderByDataCriacaoDesc(email, tipo)
+                .orElse(null);
+
+        if (ultimo == null || ultimo.getDataCriacao() == null) {
+            return null;
+        }
+
+        LocalDateTime proximoEnvio = ultimo.getDataCriacao().plusMinutes(1);
+        if (!proximoEnvio.isAfter(LocalDateTime.now())) {
+            return null;
+        }
+
+        long segundos = ChronoUnit.SECONDS.between(LocalDateTime.now(), proximoEnvio);
+        return ResponseEntity.status(429)
+                .header("Retry-After", String.valueOf(segundos))
+                .body(Map.of("mensagem", "Aguarde para solicitar novo código."));
+    }
+
+    private String mascararEmail(String email) {
+        if (email == null || email.isBlank()) {
+            return "***";
+        }
+        int at = email.indexOf('@');
+        if (at <= 1) {
+            return "***";
+        }
+        return email.charAt(0) + "***" + email.substring(at);
     }
 
     // ─── Helpers de Cookie ────────────────────────────────────────────────

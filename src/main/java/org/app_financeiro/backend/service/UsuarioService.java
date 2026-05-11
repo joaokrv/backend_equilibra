@@ -12,9 +12,12 @@ import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.app_financeiro.backend.entity.CategoriaEntity;
 import org.app_financeiro.backend.enums.TipoTransacao;
 import org.app_financeiro.backend.repository.CategoriaRepository;
+import org.app_financeiro.backend.repository.CodigoVerificacaoRepository;
 import org.app_financeiro.backend.repository.ContaRepository;
 import org.app_financeiro.backend.repository.InvestimentoRepository;
+import org.app_financeiro.backend.repository.TokenRecuperacaoSenhaRepository;
 import org.app_financeiro.backend.repository.TransacaoRepository;
+import org.app_financeiro.backend.repository.UsuarioPendenteRepository;
 import org.app_financeiro.backend.repository.UsuarioRepository;
 import org.app_financeiro.backend.entity.UsuarioPendenteEntity;
 
@@ -43,6 +46,9 @@ public class UsuarioService {
     private final ContaRepository contaRepository;
     private final InvestimentoRepository investimentoRepository;
     private final CategoriaRepository categoriaRepository;
+    private final TokenRecuperacaoSenhaRepository tokenRecuperacaoSenhaRepository;
+    private final CodigoVerificacaoRepository codigoVerificacaoRepository;
+    private final UsuarioPendenteRepository usuarioPendenteRepository;
 
     public UsuarioService(UsuarioRepository usuarioRepository,
                           PasswordEncoder passwordEncoder,
@@ -50,7 +56,10 @@ public class UsuarioService {
                           TransacaoRepository transacaoRepository,
                           ContaRepository contaRepository,
                           InvestimentoRepository investimentoRepository,
-                          CategoriaRepository categoriaRepository) {
+                          CategoriaRepository categoriaRepository,
+                          TokenRecuperacaoSenhaRepository tokenRecuperacaoSenhaRepository,
+                          CodigoVerificacaoRepository codigoVerificacaoRepository,
+                          UsuarioPendenteRepository usuarioPendenteRepository) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.usuarioMapper = usuarioMapper;
@@ -58,6 +67,9 @@ public class UsuarioService {
         this.contaRepository = contaRepository;
         this.categoriaRepository = categoriaRepository;
         this.investimentoRepository = investimentoRepository;
+        this.tokenRecuperacaoSenhaRepository = tokenRecuperacaoSenhaRepository;
+        this.codigoVerificacaoRepository = codigoVerificacaoRepository;
+        this.usuarioPendenteRepository = usuarioPendenteRepository;
     }
 
     /** Anti-enumeração: retorna false silenciosamente se e-mail já cadastrado (B1-A2). */
@@ -134,9 +146,28 @@ public class UsuarioService {
     public void desativarConta(Long usuarioId) {
         UsuarioEntity usuario = buscarPorIdOuFalhar(usuarioId);
         usuario.setAtivo(false);
+        usuario.setChaveSessao(null);
 
         usuarioRepository.save(usuario);
         log.info("Conta desativada (soft delete): usuarioId={}", usuarioId);
+    }
+
+    /**
+     * Exclusao definitiva com limpeza de tabelas que nao possuem FK para usuarios.
+     */
+    @Transactional
+    public void excluirConta(Long usuarioId, String email) {
+        UsuarioEntity usuario = buscarPorIdOuFalhar(usuarioId);
+
+        String emailNormalizado = (email != null ? email : usuario.getEmail());
+        if (emailNormalizado != null && !emailNormalizado.isBlank()) {
+            tokenRecuperacaoSenhaRepository.deleteByEmail(emailNormalizado);
+            codigoVerificacaoRepository.deleteByEmail(emailNormalizado);
+            usuarioPendenteRepository.deleteByEmail(emailNormalizado);
+        }
+
+        usuarioRepository.deleteById(usuarioId);
+        log.info("Conta excluida (hard delete): usuarioId={}, email={}", usuarioId, emailNormalizado);
     }
 
     @Transactional

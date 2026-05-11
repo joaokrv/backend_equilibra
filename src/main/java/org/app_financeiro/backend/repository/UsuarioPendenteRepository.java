@@ -25,4 +25,6 @@ public interface UsuarioPendenteRepository extends JpaRepository<UsuarioPendente
     @Modifying
     @Query("DELETE FROM UsuarioPendenteEntity u WHERE u.expiraEm < :data AND (u.bloqueadoAte IS NULL OR u.bloqueadoAte < :data)")
     void deleteExpiredAndNotLocked(@Param("data") LocalDateTime data);
+
+    void deleteByEmail(String email);
 }

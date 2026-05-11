@@ -18,6 +18,8 @@ public interface TokenRecuperacaoSenhaRepository extends JpaRepository<TokenRecu
     @Query("UPDATE TokenRecuperacaoSenhaEntity t SET t.isUtilizado = true WHERE t.email = :email AND t.isUtilizado = false")
     void invalidarTokensAnteriores(String email);
 
+    void deleteByEmail(String email);
+
     /** Usado para validar o throttle (tempo de espera) entre solicitações. */
     java.util.Optional<TokenRecuperacaoSenhaEntity> findFirstByEmailOrderByDataCriacaoDesc(String email);
 }
