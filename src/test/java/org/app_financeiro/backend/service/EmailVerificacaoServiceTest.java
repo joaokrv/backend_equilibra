@@ -3,6 +3,7 @@ package org.app_financeiro.backend.service;
 import org.app_financeiro.backend.dto.request.VerificarEmailRequestDTO;
 import org.app_financeiro.backend.entity.CodigoVerificacaoEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
+import org.app_financeiro.backend.enums.TipoCodigoVerificacao;
 import org.app_financeiro.backend.exception.CodigoVerificacaoInvalidoException;
 import org.app_financeiro.backend.repository.CodigoVerificacaoRepository;
 import org.app_financeiro.backend.repository.UsuarioRepository;
@@ -70,13 +71,14 @@ class EmailVerificacaoServiceTest {
         entity.setEmail(email);
         entity.setCodigo(codigo);
         entity.setDataExpiracao(LocalDateTime.now().plusMinutes(10));
+        entity.setTipo(TipoCodigoVerificacao.VERIFICACAO_EMAIL);
         entity.setUtilizado(false);
 
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setEmail(email);
         usuario.setEmailVerificado(false);
 
-        when(codigoVerificacaoRepository.findTopByEmailAndIsUtilizadoFalseOrderByDataCriacaoDesc(email))
+        when(codigoVerificacaoRepository.findTopByEmailAndTipoAndIsUtilizadoFalseOrderByDataCriacaoDesc(email, TipoCodigoVerificacao.VERIFICACAO_EMAIL))
                 .thenReturn(Optional.of(entity));
         when(usuarioRepository.findByEmail(email)).thenReturn(Optional.of(usuario));
 
@@ -99,9 +101,10 @@ class EmailVerificacaoServiceTest {
 
         CodigoVerificacaoEntity entity = new CodigoVerificacaoEntity();
         entity.setDataExpiracao(LocalDateTime.now().minusMinutes(1)); // Expirado
+        entity.setTipo(TipoCodigoVerificacao.VERIFICACAO_EMAIL);
         entity.setUtilizado(false);
 
-        when(codigoVerificacaoRepository.findTopByEmailAndIsUtilizadoFalseOrderByDataCriacaoDesc(email))
+        when(codigoVerificacaoRepository.findTopByEmailAndTipoAndIsUtilizadoFalseOrderByDataCriacaoDesc(email, TipoCodigoVerificacao.VERIFICACAO_EMAIL))
                 .thenReturn(Optional.of(entity));
 
         // Act & Assert
@@ -117,9 +120,10 @@ class EmailVerificacaoServiceTest {
         CodigoVerificacaoEntity entity = new CodigoVerificacaoEntity();
         entity.setCodigo("999999");
         entity.setDataExpiracao(LocalDateTime.now().plusMinutes(10));
+        entity.setTipo(TipoCodigoVerificacao.VERIFICACAO_EMAIL);
         entity.setUtilizado(false);
 
-        when(codigoVerificacaoRepository.findTopByEmailAndIsUtilizadoFalseOrderByDataCriacaoDesc(any()))
+        when(codigoVerificacaoRepository.findTopByEmailAndTipoAndIsUtilizadoFalseOrderByDataCriacaoDesc(any(), eq(TipoCodigoVerificacao.VERIFICACAO_EMAIL)))
                 .thenReturn(Optional.of(entity));
 
         // Act & Assert
@@ -142,13 +146,14 @@ class EmailVerificacaoServiceTest {
         entity.setEmail(email);
         entity.setCodigo(codigo);
         entity.setDataExpiracao(LocalDateTime.now().plusMinutes(10));
+        entity.setTipo(TipoCodigoVerificacao.VERIFICACAO_EMAIL);
         entity.setUtilizado(false);
 
-        when(codigoVerificacaoRepository.findTopByEmailAndIsUtilizadoFalseOrderByDataCriacaoDesc(email))
+        when(codigoVerificacaoRepository.findTopByEmailAndTipoAndIsUtilizadoFalseOrderByDataCriacaoDesc(email, TipoCodigoVerificacao.VERIFICACAO_EMAIL))
                 .thenReturn(Optional.of(entity));
 
         // Act
-        emailVerificacaoService.validarCodigoSimples(email, codigo);
+        emailVerificacaoService.validarCodigoSimples(email, codigo, TipoCodigoVerificacao.VERIFICACAO_EMAIL);
 
         // Assert — OTP marcado como utilizado, mas sem tocar em UsuarioRepository
         assertThat(entity.isUtilizado()).isTrue();
