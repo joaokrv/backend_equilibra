@@ -46,6 +46,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import io.jsonwebtoken.JwtException;
+import java.util.Optional;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.CookieValue;
@@ -253,7 +254,25 @@ public class UsuarioController {
                     null
             );
             return ResponseEntity.ok(response);
-        } catch (BadCredentialsException ex) {
+        } catch (BadCredentialsException e) {
+            // Se falhou, verificar se é uma conta desativada (soft delete)
+            Optional<UsuarioEntity> inativoOpt = usuarioRepository.findInactiveByEmail(dto.email());
+            if (inativoOpt.isPresent()) {
+                UsuarioEntity inativo = inativoOpt.get();
+                // Validar senha manualmente (já que o authenticationManager falhou pois o UserDetailsService não achou o inativo)
+                if (passwordEncoder.matches(dto.senha(), inativo.getSenha())) {
+                    // Disparar OTP de reativação
+                    emailVerificacaoService.gerarCodigo(inativo.getEmail(), TipoCodigoVerificacao.REATIVACAO_CONTA);
+                    
+                    return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                            .body(Map.of(
+                                "codigo", "CONTA_DESATIVADA",
+                                "mensagem", "Sua conta está desativada. Enviamos um código para seu e-mail para reativá-la.",
+                                "email", mascararEmail(inativo.getEmail())
+                            ));
+                }
+            }
+            
             UsuarioEntity usuarioFailed = usuarioRepository.findByEmailWithLock(dto.email()).orElse(null);
             if (usuarioFailed != null) {
                 int tentativas = (usuarioFailed.getLoginAttempts() != null ? usuarioFailed.getLoginAttempts() : 0) + 1;
@@ -266,7 +285,7 @@ public class UsuarioController {
             }
             // Anti-timing delay
             try { Thread.sleep(1200); } catch (InterruptedException ignored) {}
-            throw ex;
+            throw e;
         }
     }
 
@@ -487,10 +506,11 @@ public class UsuarioController {
 
     /** Exige confirmação de senha antes de reativar. */
     @PostMapping("/reativar-conta")
-    @Operation(summary = "Reativar conta", description = "Reativa uma conta desativada após confirmação de identidade via senha.")
+    @Operation(summary = "Reativar conta", description = "Reativa uma conta desativada após confirmação de identidade via senha e código OTP.")
     public ResponseEntity<String> reativarConta(@Valid @RequestBody ReativarContaRequestDTO dto) {
+        emailVerificacaoService.validarCodigoSimples(dto.email(), dto.codigo(), TipoCodigoVerificacao.REATIVACAO_CONTA);
         usuarioService.reativarConta(dto.email(), dto.senha());
-        return ResponseEntity.ok("Conta reativada com sucesso!");
+        return ResponseEntity.ok("Conta reativada com sucesso! Agora você pode fazer login.");
     }
 
     // ─── Recuperação de Senha ──────────────────────────────────────────────

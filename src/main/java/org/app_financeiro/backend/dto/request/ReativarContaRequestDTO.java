@@ -15,5 +15,8 @@ public record ReativarContaRequestDTO(
     String email,
 
     @NotBlank(message = "A senha é obrigatória")
-    String senha
+    String senha,
+
+    @NotBlank(message = "O código de verificação é obrigatório")
+    String codigo
 ) {}
