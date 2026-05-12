@@ -31,8 +31,8 @@ Todas as exceções são tratadas pelo `GlobalExceptionHandler` e retornam um JS
 
 ## Fluxo de Pre-Registro e OTP (status HTTP)
 
-- **400** — Código inválido ou solicitação inválida (mensagem neutra, sem confirmar e-mail)
-- **403** — `EMAIL_NAO_VERIFICADO` no login
+- **422** — Código inválido ou solicitação inválida (devolve `OtpStatusResponseDTO` no body)
+- **403** — `EMAIL_NAO_VERIFICADO` no login (devolve `otpStatus` no body)
 - **404** — `REGISTRO_NAO_ENCONTRADO` para `registroId` inválido
 - **410** — OTP expirado
 - **423** — Bloqueio ativo por tentativas

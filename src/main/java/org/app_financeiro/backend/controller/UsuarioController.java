@@ -360,10 +360,7 @@ public class UsuarioController {
             UsuarioPendenteEntity pendente = usuarioPendenteService.buscarOuFalharComLock(UUID.fromString(dto.registroId()));
             
             if (pendente.getBloqueadoAte() != null && pendente.getBloqueadoAte().isAfter(LocalDateTime.now())) {
-                long segundos = ChronoUnit.SECONDS.between(LocalDateTime.now(), pendente.getBloqueadoAte());
-                return ResponseEntity.status(423)
-                        .header("Retry-After", String.valueOf(segundos))
-                        .body(usuarioPendenteService.mapearParaStatus(pendente));
+                return responderOtpStatus(pendente, HttpStatus.LOCKED, pendente.getBloqueadoAte());
             }
 
             try {
@@ -375,9 +372,13 @@ public class UsuarioController {
                 
                 log.info("E-mail verificado com sucesso via pré-registro: {}", usuario.getEmail());
                 return ResponseEntity.ok(Map.of("mensagem", "E-mail verificado com sucesso!", "email", usuario.getEmail()));
-            } catch (Exception e) {
+            } catch (CodigoVerificacaoInvalidoException ex) {
                 usuarioPendenteService.registrarTentativaFalha(pendente);
-                throw e;
+                if (pendente.getBloqueadoAte() != null && pendente.getBloqueadoAte().isAfter(LocalDateTime.now())) {
+                    return responderOtpStatus(pendente, HttpStatus.LOCKED, pendente.getBloqueadoAte());
+                }
+                return ResponseEntity.status(HttpStatus.UNPROCESSABLE_ENTITY)
+                        .body(usuarioPendenteService.mapearParaStatus(pendente));
             }
         }
 
@@ -394,17 +395,11 @@ public class UsuarioController {
             UsuarioPendenteEntity pendente = usuarioPendenteService.buscarOuFalhar(UUID.fromString(dto.registroId()));
             
             if (pendente.getBloqueadoAte() != null && pendente.getBloqueadoAte().isAfter(LocalDateTime.now())) {
-                long segundos = ChronoUnit.SECONDS.between(LocalDateTime.now(), pendente.getBloqueadoAte());
-                return ResponseEntity.status(423)
-                        .header("Retry-After", String.valueOf(segundos))
-                        .body(usuarioPendenteService.mapearParaStatus(pendente));
+                return responderOtpStatus(pendente, HttpStatus.LOCKED, pendente.getBloqueadoAte());
             }
 
             if (pendente.getUltimoEnvioEm() != null && pendente.getUltimoEnvioEm().plusMinutes(1).isAfter(LocalDateTime.now())) {
-                long segundos = ChronoUnit.SECONDS.between(LocalDateTime.now(), pendente.getUltimoEnvioEm().plusMinutes(1));
-                return ResponseEntity.status(429)
-                        .header("Retry-After", String.valueOf(segundos))
-                        .body(usuarioPendenteService.mapearParaStatus(pendente));
+                return responderOtpStatus(pendente, HttpStatus.TOO_MANY_REQUESTS, pendente.getUltimoEnvioEm().plusMinutes(1));
             }
 
             emailVerificacaoService.gerarCodigo(pendente.getEmail());
@@ -416,6 +411,19 @@ public class UsuarioController {
 
         emailVerificacaoService.reenviarCodigo(dto);
         return ResponseEntity.ok("Novo código de verificação enviado!");
+    }
+
+    private ResponseEntity<OtpStatusResponseDTO> responderOtpStatus(UsuarioPendenteEntity pendente, HttpStatus status, LocalDateTime retryAte) {
+        ResponseEntity.BodyBuilder builder = ResponseEntity.status(status);
+
+        if (retryAte != null) {
+            long segundos = ChronoUnit.SECONDS.between(LocalDateTime.now(), retryAte);
+            if (segundos > 0) {
+                builder.header("Retry-After", String.valueOf(segundos));
+            }
+        }
+
+        return builder.body(usuarioPendenteService.mapearParaStatus(pendente));
     }
 
     // ─── Ações de Conta (Desativar / Excluir) ─────────────────────────────

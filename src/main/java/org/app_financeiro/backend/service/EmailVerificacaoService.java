@@ -68,7 +68,7 @@ public class EmailVerificacaoService {
         enviarEmail(email, codigo, expiracao, tipo);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = CodigoVerificacaoInvalidoException.class)
     public void verificarEmail(VerificarEmailRequestDTO dto) {
         validarCodigoSimples(dto.email(), dto.codigo(), TipoCodigoVerificacao.VERIFICACAO_EMAIL);
 
@@ -84,7 +84,6 @@ public class EmailVerificacaoService {
      * Valida o código OTP sem realizar atualizações na entidade de Usuário.
      * Útil para o fluxo de pré-registro.
      */
-    @Transactional
     public void validarCodigoSimples(String email, String codigo, TipoCodigoVerificacao tipo) {
         CodigoVerificacaoEntity codigoEntity = codigoVerificacaoRepository
                 .findTopByEmailAndTipoAndIsUtilizadoFalseOrderByDataCriacaoDesc(email, tipo)

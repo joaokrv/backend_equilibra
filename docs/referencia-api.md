@@ -37,10 +37,10 @@ Aqui está a lista detalhada de todas as "portas" de entrada do servidor. Todas 
     *   **O que faz:** Cria pré-registro e envia OTP (se permitido), retornando `registroId`.
 *   `POST /api/auth/login`
     *   **Body:** `{ "email", "senha" }`
-    *   **O que faz:** Se verificado, retorna `{ accessToken, expiresIn }`. Se não verificado, retorna 403 `EMAIL_NAO_VERIFICADO` e dispara OTP (respeitando cooldown/bloqueio).
+    *   **O que faz:** Se verificado, retorna `{ accessToken, expiraEm, usuario }`. Se não verificado, retorna 403 `EMAIL_NAO_VERIFICADO` e dispara OTP (respeitando cooldown/bloqueio), incluindo `otpStatus` no corpo da resposta.
 *   `POST /api/auth/verificar-email`
     *   **Body:** `{ "registroId", "codigo" }`
-    *   **O que faz:** Valida o OTP e cria o usuário definitivo.
+    *   **O que faz:** Valida o OTP e cria o usuário definitivo. Em caso de código inválido, retorna 422 `UNPROCESSABLE_ENTITY` com o `OtpStatusResponseDTO` atualizado.
 *   `POST /api/auth/reenviar-codigo`
     *   **Body:** `{ "registroId" }`
     *   **O que faz:** Reenvia OTP respeitando cooldown e lockout.
@@ -48,7 +48,7 @@ Aqui está a lista detalhada de todas as "portas" de entrada do servidor. Todas 
     *   **O que faz:** Retorna status do OTP (ATIVO, EXPIRADO, BLOQUEADO, USADO) e datas.
 *   `POST /api/auth/refresh`
     *   **Cookie:** `refreshToken=<rt>` (HttpOnly, enviado automaticamente pelo browser)
-    *   **O que faz:** Lê o refresh token via cookie HttpOnly, rotaciona-o e devolve um novo access token. O refresh token **nunca** é enviado no body — apenas via cookie.
+    *   **O que faz:** Lê o refresh token via cookie HttpOnly, rotaciona-o e devolve um novo access token e os dados do usuário. Resposta: `{ accessToken, expiraEm, usuario }`. O refresh token **nunca** é enviado no body — apenas via cookie.
 
 **Observação de segurança:** respostas do pré-registro são neutras para evitar enumeração de e-mail.
 

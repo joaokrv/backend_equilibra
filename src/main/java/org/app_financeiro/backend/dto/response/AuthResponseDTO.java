@@ -5,7 +5,7 @@ import org.app_financeiro.backend.dto.response.UsuarioResponseDTO;
 public record AuthResponseDTO(
         String accessToken,
         String refreshToken,
-        long expiresIn,
-        UsuarioResponseDTO user,
+        long expiraEm,
+        UsuarioResponseDTO usuario,
         OtpStatusResponseDTO otpStatus
 ) {}
