@@ -60,10 +60,8 @@ class AccountIntegrationTest extends AbstractIntegrationTest {
         usuarioPendenteRepository.deleteAll();
         usuarioRepository.deleteAll();
 
-        // Configura o mock do e-mail
         when(mailSender.createMimeMessage()).thenReturn(new JavaMailSenderImpl().createMimeMessage());
 
-        // Registrar e autenticar um usuário verificado
         String email = "test@email.com";
         String senha = "SenhaSegura123";
 
@@ -75,7 +73,6 @@ class AccountIntegrationTest extends AbstractIntegrationTest {
     void deveCriarEListarContasComSucesso() throws Exception {
         ContaRegistroRequestDTO contaReq = new ContaRegistroRequestDTO("Conta Corrente Teste", new BigDecimal("100.50"));
 
-        // Criar Conta
         mockMvc.perform(post("/api/contas")
                 .header("Authorization", "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -84,7 +81,6 @@ class AccountIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.nome").value("Conta Corrente Teste"))
                 .andExpect(jsonPath("$.saldo").value(100.50));
 
-        // Listar Contas
         mockMvc.perform(get("/api/contas")
                 .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())
@@ -94,8 +90,6 @@ class AccountIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void deveCriarEListarCartoesComSucesso() throws Exception {
-        // Para criar um cartão, geralmente não precisa de conta dependendo da regra, 
-        // mas vamos ver se o DTO exige algo.
         CartaoRegistroRequestDTO cartaoReq = new CartaoRegistroRequestDTO(
                 "NuBank Teste",
                 new BigDecimal("5000.00"),
@@ -105,7 +99,6 @@ class AccountIntegrationTest extends AbstractIntegrationTest {
                 null
         );
 
-        // Criar Cartão
         mockMvc.perform(post("/api/cartoes")
                 .header("Authorization", "Bearer " + accessToken)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -114,7 +107,6 @@ class AccountIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.nome").value("NuBank Teste"))
                 .andExpect(jsonPath("$.limite").value(5000.00));
 
-        // Listar Cartões
         mockMvc.perform(get("/api/cartoes")
                 .header("Authorization", "Bearer " + accessToken))
                 .andExpect(status().isOk())

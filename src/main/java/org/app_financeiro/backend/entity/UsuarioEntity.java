@@ -77,7 +77,6 @@ public class UsuarioEntity implements UserDetails {
     @Column(name = "locked_until")
     private LocalDateTime lockedUntil;
 
-    // Métodos da interface UserDetails
     
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
@@ -111,8 +110,6 @@ public class UsuarioEntity implements UserDetails {
 
     @Override
     public boolean isEnabled() {
-        // Apenas o soft delete impede o login.
-        // O campo isEmailVerificado é gerenciado pelo frontend (VerifiedRoute).
         return isAtivo;
     }
 }

@@ -49,7 +49,6 @@ class TransacaoRepositoryTest extends BaseRepositoryTest {
     @Test
     @DisplayName("Deve salvar uma Transação de Despesa Pix associada a uma Conta Mapeada")
     void deveSalvarTransacaoDespesaPix() {
-        // Arrange
         TransacaoEntity transacao = new TransacaoEntity();
         transacao.setDescricao("Pizza");
         transacao.setValor(new BigDecimal("95.50"));
@@ -58,12 +57,10 @@ class TransacaoRepositoryTest extends BaseRepositoryTest {
         transacao.setStatus(StatusTransacao.PAGO);
         transacao.setMetodoPagamento(MetodoPagamento.PIX);
         transacao.setConta(contaSalva);
-        transacao.setUsuario(usuarioSalvo); // Removido setFormaPagamentoId
+        transacao.setUsuario(usuarioSalvo);
 
-        // Act
         TransacaoEntity transacaoSalva = transacaoRepository.save(transacao);
 
-        // Assert
         assertThat(transacaoSalva.getId()).isNotNull();
         assertThat(transacaoSalva.getDescricao()).isEqualTo("Pizza");
         assertThat(transacaoSalva.getValor()).isEqualByComparingTo(new BigDecimal("95.50"));

@@ -43,8 +43,6 @@ class ContaRepositoryConcurrencyTest {
         ContaEntity c1 = contaRepository.findById(conta.getId()).get();
         ContaEntity c2 = contaRepository.findById(conta.getId()).get();
 
-        // detach c2 antes de modificar c1 — sem detach, Hibernate usa mesma sessão
-        // e não detecta conflito de versão entre instâncias do mesmo ID
         em.detach(c2);
 
         c1.setSaldo(c1.getSaldo().subtract(new BigDecimal("10")));

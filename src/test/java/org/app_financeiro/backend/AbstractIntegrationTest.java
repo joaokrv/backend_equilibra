@@ -69,14 +69,12 @@ public abstract class AbstractIntegrationTest {
         registry.add("spring.flyway.password", postgres::getPassword);
     }
 
-    // ─── Helpers Compartilhados ──────────────────────────────────────────
 
     /**
      * Fluxo completo de registro: pré-registrar → verificar OTP → usuário verificado.
      * Retorna o accessToken para uso nos testes.
      */
     protected String setupUsuarioVerificado(String nome, String email, String senha) throws Exception {
-        // 1. Pré-registrar
         UsuarioRegistroRequestDTO reg = new UsuarioRegistroRequestDTO(nome, email, senha);
         MvcResult preRegistro = mockMvc.perform(post("/api/auth/pre-registrar")
                 .contentType(MediaType.APPLICATION_JSON)
@@ -87,7 +85,6 @@ public abstract class AbstractIntegrationTest {
         String registroId = objectMapper.readTree(preRegistro.getResponse().getContentAsString())
                 .get("registroId").asText();
 
-        // 2. Buscar OTP gerado e verificar
         CodigoVerificacaoEntity codigoEntity = codigoVerificacaoRepository.findAll()
                 .stream()
                 .filter(c -> c.getEmail().equals(email))
@@ -100,7 +97,6 @@ public abstract class AbstractIntegrationTest {
                 .content(objectMapper.writeValueAsString(verificarReq)))
                 .andExpect(status().isOk());
 
-        // 3. Login e obter token
         UsuarioLoginRequestDTO login = new UsuarioLoginRequestDTO(email, senha);
         MvcResult loginResult = mockMvc.perform(post("/api/auth/login")
                 .contentType(MediaType.APPLICATION_JSON)

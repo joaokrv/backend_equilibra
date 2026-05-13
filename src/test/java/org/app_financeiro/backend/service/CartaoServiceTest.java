@@ -83,7 +83,6 @@ class CartaoServiceTest {
 
     @Test
     void deveCriarCartaoComSucessoELimiteDisponivelTotal() {
-        // Arrange
         CartaoRegistroRequestDTO request = new CartaoRegistroRequestDTO("Nubank", new BigDecimal("1000.00"), 3, 10, BandeiraCartao.NUBANK, null);
         CartaoResponseDTO responseEsperada = new CartaoResponseDTO(10L, "Nubank", new BigDecimal("1000.00"), new BigDecimal("1000.00"), 3, 10, BandeiraCartao.NUBANK, null, null);
 
@@ -94,14 +93,11 @@ class CartaoServiceTest {
             return c;
         });
 
-        // Na criação, espera-se que o limite disponível seja igual ao limite total (pois não há faturas)
         when(cartaoMapper.toResponse(any(CartaoEntity.class), eq(new BigDecimal("1000.00"))))
                 .thenReturn(responseEsperada);
 
-        // Act
         CartaoResponseDTO result = cartaoService.criarCartao(request, 1L);
 
-        // Assert
         assertThat(result).isNotNull();
         assertThat(result.id()).isEqualTo(10L);
         assertThat(result.limite()).isEqualTo(new BigDecimal("1000.00"));
@@ -112,55 +108,47 @@ class CartaoServiceTest {
 
     @Test
     void deveBucarPorIdECalcularLimiteDisponivelCorretamenteCenarioZeroDividas() {
-        // Arrange
         when(cartaoRepository.findById(10L)).thenReturn(Optional.of(cartaoPadrao));
         when(faturaRepository.findByCartaoIdAndStatusNot(10L, StatusFatura.PAGA)).thenReturn(List.of());
 
         CartaoResponseDTO responseEsperada = new CartaoResponseDTO(10L, "Nubank", new BigDecimal("1000.00"), new BigDecimal("1000.00"), 3, 10, BandeiraCartao.VISA, null, null);
         when(cartaoMapper.toResponse(cartaoPadrao, new BigDecimal("1000.00"))).thenReturn(responseEsperada);
 
-        // Act
         CartaoResponseDTO result = cartaoService.buscarPorId(10L, 1L);
 
-        // Assert
         assertThat(result.limiteDisponivel()).isEqualTo(new BigDecimal("1000.00"));
     }
 
     @Test
     void deveBucarPorIdECalcularLimiteDisponivelDiminuidoVariosMeses() {
-        // Arrange
         FaturaEntity faturaJan = new FaturaEntity();
         faturaJan.setValorTotal(new BigDecimal("500.00"));
-        faturaJan.setValorPago(new BigDecimal("200.00")); // Resta 300 de dívida
+        faturaJan.setValorPago(new BigDecimal("200.00"));
 
         FaturaEntity faturaFev = new FaturaEntity();
         faturaFev.setValorTotal(new BigDecimal("400.00"));
-        faturaFev.setValorPago(BigDecimal.ZERO); // Resta 400 de dívida
+        faturaFev.setValorPago(BigDecimal.ZERO);
 
         when(cartaoRepository.findById(10L)).thenReturn(Optional.of(cartaoPadrao));
         when(faturaRepository.findByCartaoIdAndStatusNot(10L, StatusFatura.PAGA))
-                .thenReturn(List.of(faturaJan, faturaFev)); // Soma = 700 de dívida atual. 1000 - 700 = 300
+                .thenReturn(List.of(faturaJan, faturaFev));
 
         CartaoResponseDTO responseEsperada = new CartaoResponseDTO(10L, "Nubank", new BigDecimal("1000.00"), new BigDecimal("300.00"), 3, 10, BandeiraCartao.VISA, null, null);
         when(cartaoMapper.toResponse(cartaoPadrao, new BigDecimal("300.00"))).thenReturn(responseEsperada);
 
-        // Act
         CartaoResponseDTO result = cartaoService.buscarPorId(10L, 1L);
 
-        // Assert
         assertThat(result.limiteDisponivel()).isEqualByComparingTo(new BigDecimal("300.00"));
     }
 
     @Test
     void deveRetornarTodosCartoesDoUsuarioUsandoProjectionsParaEvitarNPlus1MuitasFaturas() {
-        // Arrange
         CartaoEntity cartao2 = new CartaoEntity();
         cartao2.setId(20L);
         cartao2.setLimite(new BigDecimal("500.00"));
 
         when(cartaoRepository.findByUsuarioId(1L)).thenReturn(List.of(cartaoPadrao, cartao2));
 
-        // Mock projections interface
         DividaCartaoProjection div1 = new DividaCartaoProjection(10L, new BigDecimal("600.00"));
         DividaCartaoProjection div2 = new DividaCartaoProjection(20L, BigDecimal.ZERO);
 
@@ -172,10 +160,8 @@ class CartaoServiceTest {
         when(cartaoMapper.toResponse(cartaoPadrao, new BigDecimal("400.00"))).thenReturn(resp1);
         when(cartaoMapper.toResponse(cartao2, new BigDecimal("500.00"))).thenReturn(resp2);
 
-        // Act
         List<CartaoResponseDTO> result = cartaoService.buscarTodosDoUsuario(1L);
 
-        // Assert
         assertThat(result).hasSize(2);
         assertThat(result.get(0).limiteDisponivel()).isEqualByComparingTo(new BigDecimal("400.00"));
         assertThat(result.get(1).limiteDisponivel()).isEqualByComparingTo(new BigDecimal("500.00"));
@@ -183,32 +169,25 @@ class CartaoServiceTest {
 
     @Test
     void deveConsumirLimiteDoCartaoQuandoTemSaldoSuficiente() {
-        // Arrange — consumirLimite usa bloqueio pessimista (findByIdWithLock), não findById
         when(cartaoRepository.findByIdWithLock(10L)).thenReturn(Optional.of(cartaoPadrao));
         when(faturaRepository.findByCartaoIdAndStatusNot(10L, StatusFatura.PAGA)).thenReturn(List.of());
 
-        // Lembre-se que o consumirLimite() não faz save() dele, retorna a entity e apenas previne o gasto
 
-        // Act
         CartaoEntity result = cartaoService.consumirLimite(10L, new BigDecimal("250.00"), 1L);
 
-        // Assert
         assertThat(result).isNotNull();
-        // Nenhuma exception lançada
     }
 
 
     @Test
     void deveLancarLimiteInsuficienteQuandoFaturasComemTodoLimite() {
-        // Arrange
         FaturaEntity fatura = new FaturaEntity();
         fatura.setValorTotal(new BigDecimal("950.00"));
         fatura.setValorPago(BigDecimal.ZERO);
 
         when(cartaoRepository.findByIdWithLock(10L)).thenReturn(Optional.of(cartaoPadrao));
-        when(faturaRepository.findByCartaoIdAndStatusNot(10L, StatusFatura.PAGA)).thenReturn(List.of(fatura)); // Sobrou 50 conto
+        when(faturaRepository.findByCartaoIdAndStatusNot(10L, StatusFatura.PAGA)).thenReturn(List.of(fatura));
 
-        // Act & Assert
         assertThatThrownBy(() -> cartaoService.consumirLimite(10L, new BigDecimal("51.00"), 1L))
                 .isInstanceOf(LimiteInsuficienteException.class)
                 .hasMessageContaining("Limite insuficiente no cartão");
@@ -216,7 +195,6 @@ class CartaoServiceTest {
 
     @Test
     void deveDeletarCartaoSemDividasPendentes() {
-        // Arrange
         when(cartaoRepository.findById(10L)).thenReturn(Optional.of(cartaoPadrao));
         when(faturaRepository.existsByCartaoIdAndStatusNot(10L, StatusFatura.PAGA)).thenReturn(false);
         when(faturaRepository.inativarPorCartao(1L, 10L)).thenReturn(2);
@@ -224,10 +202,8 @@ class CartaoServiceTest {
         when(transacaoRecorrenteRepository.inativarPorCartao(1L, 10L)).thenReturn(1);
         when(cartaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
-        // Act
         cartaoService.deletarCartao(10L, 1L);
 
-        // Assert
         assertThat(cartaoPadrao.isAtivo()).isFalse();
         verify(cartaoRepository).save(cartaoPadrao);
         verify(faturaRepository).inativarPorCartao(1L, 10L);
@@ -237,11 +213,9 @@ class CartaoServiceTest {
 
     @Test
     void deveBarraoSoftDeleteSeTiverFaturaAbertaOuAtrasada() {
-        // Arrange
         when(cartaoRepository.findById(10L)).thenReturn(Optional.of(cartaoPadrao));
         when(faturaRepository.existsByCartaoIdAndStatusNot(10L, StatusFatura.PAGA)).thenReturn(true);
 
-        // Act & Assert
         assertThatThrownBy(() -> cartaoService.deletarCartao(10L, 1L))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("Não é possível deletar um cartão que possui faturas pendentes");
@@ -254,7 +228,6 @@ class CartaoServiceTest {
 
     @Test
     void deveCalcularLimiteDisponivelSemNPEQuandoFaturaPossuiCamposNulos() {
-        // Arrange — fatura com valorTotal e valorPago nulos (estado inválido mas defensivo)
         FaturaEntity faturaComNulos = new FaturaEntity();
         faturaComNulos.setValorTotal(null);
         faturaComNulos.setValorPago(null);
@@ -262,19 +235,15 @@ class CartaoServiceTest {
         when(faturaRepository.findByCartaoIdAndStatusNot(10L, StatusFatura.PAGA))
                 .thenReturn(List.of(faturaComNulos));
 
-        // Act — não deve lançar NullPointerException; trata null como ZERO
         BigDecimal resultado = cartaoService.calcularLimiteDisponivel(cartaoPadrao);
 
-        // Assert — sem dívida contabilizável, limite disponível = limite total
         assertThat(resultado).isEqualByComparingTo(new BigDecimal("1000.00"));
     }
 
     @Test
     void deveLancarExcecaoAoBuscarDeOutroUsuario() {
-        // Arrange
         when(cartaoRepository.findById(10L)).thenReturn(Optional.of(cartaoPadrao));
 
-        // Act & Assert
         assertThatThrownBy(() -> cartaoService.buscarCartaoValidado(10L, 99L))
                 .isInstanceOf(RecursoNaoEncontradoException.class)
                 .hasMessageContaining("pertence ao usuário");
@@ -282,7 +251,6 @@ class CartaoServiceTest {
 
         @Test
         void deveAtualizarCartaoComSucesso() {
-        // Arrange
         CartaoRegistroRequestDTO request = new CartaoRegistroRequestDTO(
             "Cartão Atualizado",
             new BigDecimal("1200.00"),
@@ -309,10 +277,8 @@ class CartaoServiceTest {
         );
         when(cartaoMapper.toResponse(cartaoPadrao, new BigDecimal("1200.00"))).thenReturn(responseEsperada);
 
-        // Act
         CartaoResponseDTO result = cartaoService.atualizarCartao(10L, request, 1L);
 
-        // Assert
         assertThat(result.nome()).isEqualTo("Cartão Atualizado");
         assertThat(result.limite()).isEqualByComparingTo("1200.00");
         assertThat(result.diaFechamento()).isEqualTo(5);
@@ -323,7 +289,6 @@ class CartaoServiceTest {
 
         @Test
         void deveImpedirAtualizacaoQuandoNovoLimiteForMenorQueValorUtilizado() {
-        // Arrange
         CartaoRegistroRequestDTO request = new CartaoRegistroRequestDTO(
             "Nubank",
             new BigDecimal("600.00"),
@@ -340,7 +305,6 @@ class CartaoServiceTest {
         when(cartaoRepository.findById(10L)).thenReturn(Optional.of(cartaoPadrao));
         when(faturaRepository.findByCartaoIdAndStatusNot(10L, StatusFatura.PAGA)).thenReturn(List.of(fatura));
 
-        // Act & Assert
         assertThatThrownBy(() -> cartaoService.atualizarCartao(10L, request, 1L))
             .isInstanceOf(RegraDeNegocioException.class)
             .hasMessageContaining("novo limite não pode ser menor");

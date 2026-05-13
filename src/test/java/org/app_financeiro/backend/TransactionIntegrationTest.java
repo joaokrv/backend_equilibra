@@ -79,7 +79,6 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
 
         when(mailSender.createMimeMessage()).thenReturn(new JavaMailSenderImpl().createMimeMessage());
 
-        // Criar Usuário A e recursos
         tokenA = setupUsuarioVerificado("User A", "usera@email.com", "SenhaSegura123");
         usuarioAId = usuarioRepository.findByEmail("usera@email.com").get().getId();
         
@@ -88,7 +87,6 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
         catDespesaAId = criarCategoria(tokenA, "Alimentação", TipoTransacao.DESPESA);
         catReceitaAId = criarCategoria(tokenA, "Salário", TipoTransacao.RECEITA);
 
-        // Criar Usuário B
         tokenB = setupUsuarioVerificado("User B", "userb@email.com", "SenhaSegura123");
         usuarioBId = usuarioRepository.findByEmail("userb@email.com").get().getId();
     }
@@ -149,7 +147,6 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated());
 
-        // O limite do cartão é calculado dinamicamente via faturas. Buscamos pelo endpoint para validar o limite disponível.
         mockMvc.perform(get("/api/cartoes/" + cartaoAId).header("Authorization", "Bearer " + tokenA))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.limiteDisponivel").value(4000.00));
@@ -208,14 +205,12 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
             "Invasao", new BigDecimal("10.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, null, null, null, null, null, "key-int-6"
         );
 
-        // Usuario B tenta usar contaAId
         mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenB).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isNotFound());
     }
 
     @Test
     void deveReverterSaldoAoDeletarTransacao() throws Exception {
-        // ... (resto do código existente)
     }
 
     @Test
@@ -282,7 +277,6 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void naoDeveDeletarTransacaoDeOutroUsuario() throws Exception {
-        // 1. User A cria transação
         TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
             "Segredo A", new BigDecimal("10.00"), LocalDate.now(), TipoTransacao.DESPESA, null, MetodoPagamento.PIX, contaAId, null, null, null, null, null, "key-int-9"
         );
@@ -292,7 +286,6 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
         
         Long idA = ((Number) objectMapper.readValue(res.getResponse().getContentAsString(), Map.class).get("id")).longValue();
 
-        // 2. User B tenta deletar idA
         mockMvc.perform(delete("/api/transacoes/" + idA).header("Authorization", "Bearer " + tokenB))
                 .andExpect(status().isNotFound());
     }

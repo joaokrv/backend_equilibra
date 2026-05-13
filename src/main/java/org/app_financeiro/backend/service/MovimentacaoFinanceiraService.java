@@ -59,7 +59,6 @@ public class MovimentacaoFinanceiraService {
 
     @Transactional
     public ResultadoMovimentacaoCartao processarEstornoCartao(Long cartaoId, LocalDate data, BigDecimal valor, Long usuarioId) {
-        // Lock exclusivo evita lost update em estornos simultâneos (B3-A4)
         CartaoEntity cartao = cartaoService.obterCartaoComBloqueioExclusivo(cartaoId, usuarioId);
         FaturaEntity fatura = faturaService.registrarCredito(cartao, data, valor);
         log.info("Crédito/Estorno de R$ {} processado no cartão {}", valor, cartaoId);

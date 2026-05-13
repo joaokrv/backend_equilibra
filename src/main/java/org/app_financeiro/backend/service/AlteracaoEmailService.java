@@ -84,7 +84,6 @@ public class AlteracaoEmailService {
                 .findTopByUsuarioIdAndIsUtilizadoFalseOrderByDataCriacaoDesc(usuarioId)
                 .orElseThrow(() -> new CodigoVerificacaoInvalidoException("Nenhuma solicitação ativa. Solicite uma nova alteração."));
 
-        // Bloqueado após MAX_TENTATIVAS_OTP erros (B1-C1)
         if (solicitacao.getTentativasFalhas() >= MAX_TENTATIVAS_OTP) {
             log.warn("OTP de alteração de e-mail bloqueado por excesso de tentativas: usuarioId={}", usuarioId);
             throw new CodigoVerificacaoInvalidoException("Código bloqueado após múltiplas tentativas. Solicite uma nova alteração.");
@@ -94,7 +93,6 @@ public class AlteracaoEmailService {
             throw new CodigoVerificacaoInvalidoException("Código expirado. Solicite uma nova alteração de e-mail.");
         }
 
-        // Código incorreto → incrementa tentativas; invalida ao atingir limite
         if (!solicitacao.getCodigo().equals(dto.codigo())) {
             solicitacao.setTentativasFalhas(solicitacao.getTentativasFalhas() + 1);
             if (solicitacao.getTentativasFalhas() >= MAX_TENTATIVAS_OTP) {

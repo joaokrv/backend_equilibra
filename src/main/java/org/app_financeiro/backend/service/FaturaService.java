@@ -41,16 +41,13 @@ public class FaturaService {
 
     @Transactional
     public FaturaEntity adicionarTransacao(CartaoEntity cartao, LocalDate dataTransacao, BigDecimal valor) {
-        // 1. Descobre a qual mês/ano essa transação pertence (considerando fechamento)
         LocalDate dataReferencia = calcularDataReferenciaFatura(dataTransacao, cartao.getDiaFechamento());
         int mes = dataReferencia.getMonthValue();
         int ano = dataReferencia.getYear();
         
-        // 2. Busca a fatura desse mês/ano. Se não existir, cria dinamicamente ("Lazy Creation")
         FaturaEntity fatura = faturaRepository.findByCartaoIdAndMesAndAno(cartao.getId(), mes, ano)
                 .orElseGet(() -> criarNovaFatura(cartao, mes, ano));
                 
-        // 3. Adiciona o valor à fatura e salva
         fatura.setValorTotal(fatura.getValorTotal().add(valor));
         log.info("Transação adicionada à fatura {}/{} do cartão {}. Valor: R$ {}", mes, ano, cartao.getId(), valor);
         return faturaRepository.save(fatura);
@@ -99,20 +96,16 @@ public class FaturaService {
             throw new RegraDeNegocioException("Esta fatura já está totalmente paga.");
         }
 
-        // Verifica se o usuário não está tentando pagar mais do que deve
         BigDecimal dividaRestante = fatura.getValorTotal().subtract(fatura.getValorPago());
         if (dto.valorPago().compareTo(dividaRestante) > 0) {
             log.warn("Pagamento de R$ {} excede dívida restante de R$ {} na fatura {}", dto.valorPago(), dividaRestante, faturaId);
             throw new RegraDeNegocioException("O valor do pagamento não pode ser maior que o restante da fatura (R$ " + dividaRestante + ").");
         }
         
-        // 1. Debita o valor do pagamento da Conta selecionada
         contaService.debitarSaldo(dto.contaId(), dto.valorPago(), usuarioId);
         
-        // 2. Registra o pagamento na fatura
         fatura.setValorPago(fatura.getValorPago().add(dto.valorPago()));
         
-        // 3. Se o que foi pago for Maior ou Igual à divida total, quita a fatura
         if (fatura.getValorPago().compareTo(fatura.getValorTotal()) >= 0) {
             fatura.setStatus(StatusFatura.PAGA);
         }
@@ -172,9 +165,9 @@ public class FaturaService {
 
     private LocalDate calcularDataReferenciaFatura(LocalDate dataTransacao, int diaFechamento) {
         if (dataTransacao.getDayOfMonth() >= diaFechamento) {
-            return dataTransacao.plusMonths(1); // Fatura virou, cai no próximo mês
+            return dataTransacao.plusMonths(1);
         }
-        return dataTransacao; // Cai no mês atual da transação
+        return dataTransacao;
     }
 
     private FaturaEntity criarNovaFatura(CartaoEntity cartao, int mes, int ano) {
@@ -187,19 +180,17 @@ public class FaturaService {
         nova.setValorPago(BigDecimal.ZERO);
         nova.setStatus(StatusFatura.ABERTA);
         
-        // Data de Fechamento: No mês da fatura, no dia estabelecido pelo cartão
         LocalDate dataFechamento = calcularDataComLimite(ano, mes, cartao.getDiaFechamento());
         
-        // Lógica do Vencimento (Verifica se vence no mesmo mês ou no mês seguinte)
         int mesVencimento = mes;
         int anoVencimento = ano;
         
         if (cartao.getDiaVencimento() < cartao.getDiaFechamento()) {
-            mesVencimento++; // Joga para o próximo mês
+            mesVencimento++;
             if (mesVencimento > 12) { 
                 mesVencimento = 1; 
                 anoVencimento++; 
-            } // Tratamento de Virada de Ano
+            }
         }
         
         LocalDate dataVencimento = calcularDataComLimite(anoVencimento, mesVencimento, cartao.getDiaVencimento());

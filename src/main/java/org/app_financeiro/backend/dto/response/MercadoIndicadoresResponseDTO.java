@@ -8,9 +8,9 @@ import java.util.Map;
  * Utilizado para alimentar a barra dinâmica do Dashboard.
  */
 public record MercadoIndicadoresResponseDTO(
-    Map<String, BigDecimal> taxas,      // SELIC, CDI, IPCA
-    Map<String, MoedaInfoDTO> moedas,   // USD, EUR (valor=cotação, variacao=%)
-    Map<String, MoedaInfoDTO> indices   // IBOVESPA, IFIX (valor=pontos, variacao=%)
+    Map<String, BigDecimal> taxas,
+    Map<String, MoedaInfoDTO> moedas,
+    Map<String, MoedaInfoDTO> indices
 ) {
     public record MoedaInfoDTO(
         BigDecimal valor,

@@ -56,20 +56,16 @@ class AlteracaoEmailServiceTest {
         usuario.setChaveSessao("sessao-ativa");
     }
 
-    // ─── Solicitar Alteração ───────────────────────────────────
 
     @Test
     void deveSolicitarAlteracaoDeEmailComSucesso() {
-        // Arrange
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("Senha1!", "hash_senha")).thenReturn(true);
         when(usuarioRepository.existsByEmailIncludingInactive("novo@email.com")).thenReturn(false);
 
-        // Act
         alteracaoEmailService.solicitarAlteracao(1L,
                 new SolicitarAlteracaoEmailRequestDTO("novo@email.com", "Senha1!"));
 
-        // Assert
         verify(solicitacaoRepository).invalidarSolicitacoesAnteriores(1L);
 
         ArgumentCaptor<SolicitacaoAlteracaoEmailEntity> captor = ArgumentCaptor.forClass(SolicitacaoAlteracaoEmailEntity.class);
@@ -116,11 +112,9 @@ class AlteracaoEmailServiceTest {
                 .hasMessageContaining("já está vinculado");
     }
 
-    // ─── Confirmar Alteração ───────────────────────────────────
 
     @Test
     void deveConfirmarAlteracaoDeEmailComSucesso() {
-        // Arrange
         SolicitacaoAlteracaoEmailEntity solicitacao = new SolicitacaoAlteracaoEmailEntity();
         solicitacao.setUsuarioId(1L);
         solicitacao.setNovoEmail("novo@email.com");
@@ -131,10 +125,8 @@ class AlteracaoEmailServiceTest {
                 .thenReturn(Optional.of(solicitacao));
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
 
-        // Act
         alteracaoEmailService.confirmarAlteracao(1L, new ConfirmarAlteracaoEmailRequestDTO("123456"));
 
-        // Assert
         assertThat(usuario.getEmail()).isEqualTo("novo@email.com");
         assertThat(usuario.isEmailVerificado()).isTrue();
         assertThat(usuario.getChaveSessao()).isNull();

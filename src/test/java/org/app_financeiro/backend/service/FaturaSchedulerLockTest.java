@@ -41,7 +41,6 @@ class FaturaSchedulerLockTest extends org.app_financeiro.backend.AbstractIntegra
         cartaoRepository.deleteAll();
         usuarioRepository.deleteAll();
 
-        // create a user, card and two faturas past due date
         UsuarioEntity u = new UsuarioEntity();
         u.setNome("u");
         u.setEmail("u.scheduler@email.com");
@@ -92,7 +91,6 @@ class FaturaSchedulerLockTest extends org.app_financeiro.backend.AbstractIntegra
         t2.start();
         latch.await();
 
-        // only one invocation should have successfully updated faturas
         assertThat(updatedCount.get()).isEqualTo(1);
     }
 }

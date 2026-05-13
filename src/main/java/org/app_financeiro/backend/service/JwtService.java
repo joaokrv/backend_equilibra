@@ -108,7 +108,6 @@ public class JwtService {
     private SecretKey getSignInKey() {
         byte[] keyBytes;
 
-        // Aceita chave em HEX (preferencial no projeto) ou BASE64 por compatibilidade.
         if (secretKey != null && HEX_64_PATTERN.matcher(secretKey).matches()) {
             keyBytes = HexFormat.of().parseHex(secretKey);
         } else {

@@ -18,17 +18,14 @@ class CodigoVerificacaoRepositoryTest extends BaseRepositoryTest {
     @Test
     @DisplayName("Deve salvar um Código de Verificação Onetime Password")
     void deveSalvarCodigoComSucesso() {
-        // Arrange
         CodigoVerificacaoEntity codigo = new CodigoVerificacaoEntity();
         codigo.setEmail("mario@email.com");
         codigo.setCodigo("ABC123");
         codigo.setDataExpiracao(LocalDateTime.now().plusMinutes(15));
         codigo.setUtilizado(false);
 
-        // Act
         CodigoVerificacaoEntity salvo = codigoVerificacaoRepository.save(codigo);
 
-        // Assert
         assertThat(salvo.getId()).isNotNull();
         assertThat(salvo.getEmail()).isEqualTo("mario@email.com");
         assertThat(salvo.getCodigo()).isEqualTo("ABC123");

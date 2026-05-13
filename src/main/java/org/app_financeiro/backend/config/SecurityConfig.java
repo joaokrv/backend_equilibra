@@ -31,7 +31,6 @@ public class SecurityConfig {
     private final AuthenticationProvider authenticationProvider;
 
     private static final String[] WHITE_LIST_URL = {
-            // Endpoints públicos de autenticação e registro
             "/api/auth/login",
             "/api/auth/registrar",
             "/api/auth/pre-registrar",
@@ -44,7 +43,7 @@ public class SecurityConfig {
             "/api/auth/reativar-conta",
             "/api/auth/otp-status",
             "/api/auth/validar-token",
-            // Swagger (desabilitado em prod via application-prod.properties)
+            "/actuator/health",
             "/v2/api-docs",
             "/v3/api-docs",
             "/v3/api-docs/**",
@@ -57,7 +56,6 @@ public class SecurityConfig {
             "/swagger-ui.html"
     };
 
-    // ─── Security Filter Chain ────────────────────────────────────────────
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {

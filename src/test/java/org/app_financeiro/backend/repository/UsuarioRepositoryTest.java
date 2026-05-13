@@ -25,7 +25,7 @@ public class UsuarioRepositoryTest extends BaseRepositoryTest {
 
         assertThat(salvo.getId()).isNotNull();
         assertThat(salvo.getNome()).isEqualTo("Joao Silva");
-        assertThat(salvo.isAtivo()).isTrue(); // Testando default constraint do SQL e Java
+        assertThat(salvo.isAtivo()).isTrue();
         assertThat(salvo.getDataCriacao()).isNotNull();
     }
 
@@ -42,7 +42,6 @@ public class UsuarioRepositoryTest extends BaseRepositoryTest {
         u2.setEmail("unico@email.com");
         u2.setSenha("senha");
 
-        // O SQL V1 tem a constraint UNIQUE em email, isso deve lançar um erro
         assertThrows(DataIntegrityViolationException.class, () -> {
             usuarioRepository.saveAndFlush(u2);
         });

@@ -42,14 +42,12 @@ public class MarketDataService {
     @Value("${awesome-api.key:}")
     private String awesomeApiKey;
 
-    // Cache granular em memória (Ticker -> Dados de Resultado)
     private final Map<String, CachedData<BrapiResponseDTO.StockResultDTO>> quotesCache = new ConcurrentHashMap<>();
     private final Map<String, CachedData<Map<String, Object>>> exchangeCache = new ConcurrentHashMap<>();
 
     private static final int CACHE_MINUTES_STOCKS = 15;
     private static final int CACHE_HOURS_CURRENCY = 12;
 
-    // Allowlist de pares de câmbio permitidos — impede SSRF via parâmetro livre
     private static final Set<String> PARES_PERMITIDOS = Set.of(
             "USD-BRL", "EUR-BRL", "GBP-BRL", "USD-BRL,EUR-BRL"
     );
@@ -138,14 +136,12 @@ public class MarketDataService {
         HgFinanceResponseDTO.Results results = response.results();
         LocalDate hoje = LocalDate.now();
 
-        // 1. Processar Taxas (SELIC e CDI)
         if (results.taxes() != null && !results.taxes().isEmpty()) {
             HgFinanceResponseDTO.TaxDTO taxes = results.taxes().get(0);
             salvarIndicador("SELIC", taxes.selic(), null, hoje, "HG_BRASIL");
             salvarIndicador("CDI", taxes.cdi(), null, hoje, "HG_BRASIL");
         }
 
-        // 2. Processar Moedas (USD e EUR)
         if (results.currencies() != null) {
             results.currencies().forEach((key, data) -> {
                 if (List.of("USD", "EUR").contains(key)) {
@@ -154,7 +150,6 @@ public class MarketDataService {
             });
         }
 
-        // 3. Processar Índices de Bolsa (IBOVESPA, IFIX, BITCOIN)
         if (results.stocks() != null) {
             results.stocks().forEach((key, data) -> {
                 if (List.of("IBOVESPA", "IFIX", "BITCOIN", "NASDAQ", "DOWJONES").contains(key) && data.points() != null) {
@@ -222,7 +217,6 @@ public class MarketDataService {
 
     private void salvarIndicador(String nome, BigDecimal valor, BigDecimal variacao, LocalDate data, String provedor) {
         try {
-            // JPA save() usa a sequência BIGSERIAL — elimina race condition do MAX(id)+1 (B4-A1)
             IndicadorEconomicoEntity indicador = new IndicadorEconomicoEntity(nome, valor, variacao, data, provedor);
             indicadorRepository.save(indicador);
             log.debug("Indicador {} atualizado: {} (Provedor: {})", nome, valor, provedor);

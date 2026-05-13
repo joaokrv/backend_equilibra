@@ -24,7 +24,7 @@ public class SchedulingConfig {
         return new JdbcTemplateLockProvider(
                 JdbcTemplateLockProvider.Configuration.builder()
                         .withJdbcTemplate(new JdbcTemplate(dataSource))
-                        .usingDbTime() // Usa o relógio do DB para evitar problemas de skew de relógio entre nós
+                        .usingDbTime()
                         .build()
         );
     }

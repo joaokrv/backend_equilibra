@@ -83,8 +83,6 @@ class TransacaoServiceTest {
 
     @Test
     void deveCriarTransacaoEmContaComSucesso() {
-        // Arrange
-        // Ordem: descricao, valor, data, tipo, status, metodoPagamento, contaId, cartaoId, categoriaId, numParc, totParc
         TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                 "Mercado", new BigDecimal("100.00"), LocalDate.now(), TipoTransacao.DESPESA,
                 StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null, null, "key-1");
@@ -101,10 +99,8 @@ class TransacaoServiceTest {
                 "Alimentação", null, "Conta Principal", null, null, null, false, null, null, false);
         when(transacaoMapper.toResponse(any())).thenReturn(responseDTO);
 
-        // Act
         TransacaoResponseDTO result = transacaoService.criarTransacao(request, 1L);
 
-        // Assert
         assertThat(result).isNotNull();
         verify(movimentacaoFinanceiraService).processarTransacaoConta(TipoTransacao.DESPESA, StatusTransacao.PAGO, 10L, new BigDecimal("100.00"), 1L);
         verify(transacaoRepository).save(any(TransacaoEntity.class));
@@ -112,7 +108,6 @@ class TransacaoServiceTest {
 
     @Test
     void deveCriarTransacaoEmCartaoComSucessoEForcarStatusPendente() {
-        // Arrange
         TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                 "Netflix", new BigDecimal("55.00"), LocalDate.now(), TipoTransacao.DESPESA,
                 StatusTransacao.PAGO, MetodoPagamento.CARTAO_CREDITO, null, 20L, 5L, null, null, null, "key-2");
@@ -126,28 +121,24 @@ class TransacaoServiceTest {
 
         when(transacaoRepository.save(any())).thenAnswer(i -> {
             TransacaoEntity t = i.getArgument(0);
-            assertThat(t.getStatus()).isEqualTo(StatusTransacao.PENDENTE); // Valida que forçou pendente
+            assertThat(t.getStatus()).isEqualTo(StatusTransacao.PENDENTE);
             return t;
         });
 
-        // Act
         transacaoService.criarTransacao(request, 1L);
 
-        // Assert
         verify(movimentacaoFinanceiraService).processarDespesaCartao(eq(20L), any(), eq(new BigDecimal("55.00")), eq(1L));
         verify(transacaoRepository).save(any());
     }
 
     @Test
     void deveLancarExcecaoSeInformarContaECartao() {
-        // Arrange
         TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                 "Erro", BigDecimal.TEN, LocalDate.now(), TipoTransacao.DESPESA,
                 null, null, 10L, 20L, 5L, null, null, null, "key-3");
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
 
-        // Act & Assert
         assertThatThrownBy(() -> transacaoService.criarTransacao(request, 1L))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("Não é permitido informar contaId e cartaoId ao mesmo tempo");
@@ -155,8 +146,7 @@ class TransacaoServiceTest {
 
     @Test
     void deveLancarExcecaoSeCategoriaForIncompativelComTipo() {
-        // Arrange
-        categoriaDespesa.setTipo(TipoTransacao.RECEITA); // Incompatível com o tipo da transação (DESPESA)
+        categoriaDespesa.setTipo(TipoTransacao.RECEITA);
         TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                 "Erro", BigDecimal.TEN, LocalDate.now(), TipoTransacao.DESPESA,
                 null, null, 10L, null, 5L, null, null, null, "key-4");
@@ -164,7 +154,6 @@ class TransacaoServiceTest {
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(categoriaService.buscarPorIdOuFalhar(5L, 1L)).thenReturn(categoriaDespesa);
 
-        // Act & Assert
         assertThatThrownBy(() -> transacaoService.criarTransacao(request, 1L))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("não pode ser usada em transação do tipo DESPESA");
@@ -172,7 +161,6 @@ class TransacaoServiceTest {
 
     @Test
     void deveDeletarTransacaoEReverterImpacto() {
-        // Arrange
         TransacaoEntity transacao = new TransacaoEntity();
         transacao.setId(100L);
         transacao.setUsuario(usuarioPadrao);
@@ -180,10 +168,8 @@ class TransacaoServiceTest {
 
         when(transacaoRepository.findById(100L)).thenReturn(Optional.of(transacao));
 
-        // Act
         transacaoService.deletarTransacao(100L, 1L);
 
-        // Assert
         assertThat(transacao.isAtivo()).isFalse();
         verify(movimentacaoFinanceiraService).desfazerEfeitoFinanceiro(transacao, 1L);
         verify(transacaoRepository).save(transacao);
@@ -191,7 +177,6 @@ class TransacaoServiceTest {
 
     @Test
     void deveListarPaginado() {
-        // Arrange
         org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 2);
         TransacaoEntity t1 = new TransacaoEntity(); t1.setId(1L);
         TransacaoEntity t2 = new TransacaoEntity(); t2.setId(2L);
@@ -201,10 +186,8 @@ class TransacaoServiceTest {
         when(transacaoMapper.toResponse(t1)).thenReturn(new TransacaoResponseDTO(1L, "Desc1", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null, null, null, null, false, null, null, false));
         when(transacaoMapper.toResponse(t2)).thenReturn(new TransacaoResponseDTO(2L, "Desc2", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null, null, null, null, false, null, null, false));
 
-        // Act
         var result = transacaoService.listarPorUsuario(1L, pageable);
 
-        // Assert
         assertThat(result.getTotalElements()).isEqualTo(2);
         assertThat(result.getContent()).hasSize(2);
         verify(transacaoRepository).findByUsuarioId(1L, pageable);
@@ -212,7 +195,6 @@ class TransacaoServiceTest {
 
     @Test
     void deveAtualizarTransacaoDesfazendoAntigaEAplicandoNova() {
-        // Arrange
         TransacaoEntity transacaoAntiga = new TransacaoEntity();
         transacaoAntiga.setId(100L);
         transacaoAntiga.setUsuario(usuarioPadrao);
@@ -227,10 +209,8 @@ class TransacaoServiceTest {
         when(movimentacaoFinanceiraService.processarTransacaoConta(any(), any(), any(), any(), any()))
                 .thenReturn(contaPadrao);
 
-        // Act
         transacaoService.atualizarTransacao(100L, requestNovo, 1L);
 
-        // Assert
         verify(movimentacaoFinanceiraService).desfazerEfeitoFinanceiro(transacaoAntiga, 1L);
         verify(movimentacaoFinanceiraService).processarTransacaoConta(TipoTransacao.DESPESA, StatusTransacao.PAGO, 10L, new BigDecimal("100.00"), 1L);
         verify(transacaoRepository).save(transacaoAntiga);
@@ -238,7 +218,6 @@ class TransacaoServiceTest {
 
     @Test
     void deveLancarExcecaoSeTransacaoNaoPertencerAoUsuario() {
-        // Arrange
         TransacaoEntity transacao = new TransacaoEntity();
         UsuarioEntity outroUsuario = new UsuarioEntity();
         outroUsuario.setId(99L);
@@ -246,14 +225,12 @@ class TransacaoServiceTest {
 
         when(transacaoRepository.findById(100L)).thenReturn(Optional.of(transacao));
 
-        // Act & Assert
         assertThatThrownBy(() -> transacaoService.deletarTransacao(100L, 1L))
                 .isInstanceOf(RecursoNaoEncontradoException.class)
                 .hasMessageContaining("não pertence ao usuário");
     }
     @Test
     void deveLancarExcecaoSeIdempotencyKeyJaExistir() {
-        // Arrange
         TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                 "Mercado", new BigDecimal("100.00"), LocalDate.now(), TipoTransacao.DESPESA,
                 StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null, null, "unique-key");
@@ -261,7 +238,6 @@ class TransacaoServiceTest {
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(transacaoRepository.existsByIdempotencyKey("unique-key")).thenReturn(true);
 
-        // Act & Assert
         assertThatThrownBy(() -> transacaoService.criarTransacao(request, 1L))
                 .isInstanceOf(OperacaoNaoPermitidaException.class)
                 .hasMessageContaining("Esta transação já foi processada anteriormente.");
@@ -315,7 +291,6 @@ class TransacaoServiceTest {
 
         @Test
         void deveCriarTransacaoComRecorrenteIdEVincularARecorrencia() {
-                // Arrange
                 TransacaoRecorrenteEntity recorrencia = new TransacaoRecorrenteEntity();
                 recorrencia.setId(7L);
 
@@ -333,10 +308,8 @@ class TransacaoServiceTest {
                         50L, "Salário", new BigDecimal("3000.00"), LocalDate.now(), TipoTransacao.RECEITA,
                         StatusTransacao.PAGO, MetodoPagamento.PIX, null, null, "Conta Principal", 10L, null, null, true, null, null, false));
 
-                // Act
                 TransacaoResponseDTO result = transacaoService.criarTransacao(request, 1L);
 
-                // Assert
                 assertThat(result.isRecorrente()).isTrue();
                 verify(transacaoRecorrenteRepository).findById(7L);
                 verify(transacaoRepository).save(argThat(t -> t.getRecorrente() != null && Long.valueOf(7L).equals(t.getRecorrente().getId())));
@@ -344,7 +317,6 @@ class TransacaoServiceTest {
 
         @Test
         void deveCriarTransacaoSemRecorrenteIdComRecorrenteNulo() {
-                // Arrange
                 TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
                         "Compra Manual", new BigDecimal("50.00"), LocalDate.now(), TipoTransacao.DESPESA,
                         StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, 5L, null, null, null, "manual-1");
@@ -359,10 +331,8 @@ class TransacaoServiceTest {
                         51L, "Compra Manual", new BigDecimal("50.00"), LocalDate.now(), TipoTransacao.DESPESA,
                         StatusTransacao.PAGO, MetodoPagamento.PIX, "Alimentação", 5L, "Conta Principal", 10L, null, null, false, null, null, false));
 
-                // Act
                 TransacaoResponseDTO result = transacaoService.criarTransacao(request, 1L);
 
-                // Assert
                 assertThat(result.isRecorrente()).isFalse();
                 verify(transacaoRepository).save(argThat(t -> t.getRecorrente() == null));
         }

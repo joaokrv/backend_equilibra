@@ -51,8 +51,6 @@ public class ApplicationConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        // Argon2id com parâmetros OWASP mínimos: memória 19 MB, 2 iterações, paralelismo 1.
-        // Não invalida hashes existentes — Argon2 embute os parâmetros no próprio hash.
         return new PepperedPasswordEncoder(
                 new Argon2PasswordEncoder(16, 32, 1, 19456, 2),
                 pepper

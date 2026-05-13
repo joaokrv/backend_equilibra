@@ -75,7 +75,6 @@ class InvestimentoServiceTest {
 
     @Test
     void deveCriarInvestimentoComSucesso() {
-        // Arrange
         InvestimentoRegistroRequestDTO request = new InvestimentoRegistroRequestDTO(
             "Viagem Japão", new BigDecimal("500.00"), new BigDecimal("10000.00"), 1L, null,
             TipoInvestimento.CDB, null);
@@ -98,10 +97,8 @@ class InvestimentoServiceTest {
 
         when(investimentoMapper.toResponse(any())).thenReturn(responseEsperada);
 
-        // Act
         InvestimentoResponseDTO result = investimentoService.criarInvestimento(request, 1L);
 
-        // Assert
         assertThat(result.descricao()).isEqualTo("Viagem Japão");
         assertThat(result.valorAtual()).isEqualTo(new BigDecimal("500.00"));
         verify(investimentoRepository).save(any());
@@ -111,9 +108,8 @@ class InvestimentoServiceTest {
 
     @Test
     void deveDepositarNoInvestimentoComSucesso() {
-        // Arrange
         BigDecimal deposito = new BigDecimal("200.00");
-        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao)); // Valor Atual: 1500
+        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
         when(transacaoService.criarTransacao(any(TransacaoRegistroRequestDTO.class), eq(1L))).thenReturn(null);
 
         when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -122,10 +118,8 @@ class InvestimentoServiceTest {
             10L, "Viagem Japão", TipoInvestimento.CDB, null, new BigDecimal("500.00"), new BigDecimal("1700.00"), new BigDecimal("10000.00"), null, null);
         when(investimentoMapper.toResponse(any())).thenReturn(responseEsperada);
 
-        // Act
         InvestimentoResponseDTO result = investimentoService.adicionarDeposito(10L, deposito, 5L, 1L);
 
-        // Assert
         assertThat(result.valorAtual()).isEqualTo(new BigDecimal("1700.00"));
         assertThat(investimentoPadrao.getValorAtual()).isEqualByComparingTo(new BigDecimal("1700.00"));
 
@@ -136,38 +130,30 @@ class InvestimentoServiceTest {
 
     @Test
     void deveFalharODepositoSeAcontaNaoTiverSaldo() {
-        // Arrange
         BigDecimal deposito = new BigDecimal("20000.00");
         when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
         when(transacaoService.criarTransacao(any(TransacaoRegistroRequestDTO.class), eq(1L)))
                 .thenThrow(new SaldoInsuficienteException("Saldo INSUFICIENTE"));
 
-        // Act & Assert
         assertThatThrownBy(() -> investimentoService.adicionarDeposito(10L, deposito, 5L, 1L))
                 .isInstanceOf(SaldoInsuficienteException.class);
 
-        // Não deve ter salvo o aumento do ativo
         verify(investimentoRepository, never()).save(any());
     }
 
     @Test
     void deveResgatarDoInvestimentoComSucesso() {
-        // Arrange
-        // Investimento tem 1500 de ValorAtual
         BigDecimal resgate = new BigDecimal("500.00");
         when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
         when(transacaoService.criarTransacao(any(TransacaoRegistroRequestDTO.class), eq(1L))).thenReturn(null);
 
         when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
-        // Esperamos 1500 - 500 = 1000
         InvestimentoResponseDTO responseEsperada = new InvestimentoResponseDTO(
             10L, "Viagem Japão", TipoInvestimento.CDB, null, new BigDecimal("500.00"), new BigDecimal("1000.00"), new BigDecimal("10000.00"), null, null);
         when(investimentoMapper.toResponse(any())).thenReturn(responseEsperada);
 
-        // Act
         InvestimentoResponseDTO result = investimentoService.resgatarInvestimento(10L, resgate, 5L, 1L);
 
-        // Assert
         assertThat(result.valorAtual()).isEqualTo(new BigDecimal("1000.00"));
         verify(transacaoService).criarTransacao(any(TransacaoRegistroRequestDTO.class), eq(1L));
         verify(investimentoRepository).save(investimentoPadrao);
@@ -176,11 +162,9 @@ class InvestimentoServiceTest {
 
     @Test
     void deveLancarExcecaoGraveSeTentarResgatarMaisQueOValorDessaMetaPoupanca() {
-        // Arrange
-        BigDecimal resgateAlemDoLimite = new BigDecimal("2000.00"); // Só tem 1500
+        BigDecimal resgateAlemDoLimite = new BigDecimal("2000.00");
         when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
 
-        // Act & Assert
         assertThatThrownBy(() -> investimentoService.resgatarInvestimento(10L, resgateAlemDoLimite, 5L, 1L))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("excede o saldo do investimento");
@@ -191,7 +175,6 @@ class InvestimentoServiceTest {
 
     @Test
     void deveAtualizarMetaComSucesso() {
-        // Arrange
         BigDecimal novaMeta = new BigDecimal("15000.00");
         when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
         when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -200,21 +183,17 @@ class InvestimentoServiceTest {
             10L, "Viagem Japão", TipoInvestimento.CDB, null, new BigDecimal("500.00"), new BigDecimal("1500.00"), new BigDecimal("15000.00"), null, null);
         when(investimentoMapper.toResponse(any())).thenReturn(responseEsperada);
 
-        // Act
         InvestimentoResponseDTO result = investimentoService.atualizarMeta(10L, novaMeta, 1L);
 
-        // Assert
         assertThat(result.metaAtual()).isEqualByComparingTo(new BigDecimal("15000.00"));
         verify(investimentoRepository).save(investimentoPadrao);
     }
 
     @Test
     void deveLancarExcecaoSeTentarDefinirAMetaZeradaOuNegativa() {
-        // Arrange
         BigDecimal novaMeta = new BigDecimal("-100.00");
         when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
 
-        // Act & Assert
         assertThatThrownBy(() -> investimentoService.atualizarMeta(10L, novaMeta, 1L))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("meta deve ser maior que zero");
@@ -222,26 +201,20 @@ class InvestimentoServiceTest {
 
     @Test
     void deveDeletarOInvestimentoApenasSeEleEstiverZeradinhoSemSaldo() {
-        // Arrange
-        investimentoPadrao.setValorAtual(BigDecimal.ZERO); // Simular que já resgatamos
+        investimentoPadrao.setValorAtual(BigDecimal.ZERO);
         when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
         when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
-        // Act
         investimentoService.deletarInvestimento(10L, 1L);
 
-        // Assert
         assertThat(investimentoPadrao.isAtivo()).isFalse();
         verify(investimentoRepository).save(investimentoPadrao);
     }
 
     @Test
     void deveBloquearTentativaDoMelianteDeDeleterAContaComOSaldoNeleOuAborrecidoDesativar() {
-        // Arrange
-        // (Já tem 1500.00 nele)
         when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
 
-        // Act & Assert
         assertThatThrownBy(() -> investimentoService.deletarInvestimento(10L, 1L))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("Resgate o saldo restante");
@@ -251,14 +224,10 @@ class InvestimentoServiceTest {
 
     @Test
     void buscarTodosDoUsuarioRetornaVazIOSeSoZerarOuNaoExistir() {
-        // Arrange
         when(investimentoRepository.findByUsuarioId(1L)).thenReturn(List.of(investimentoPadrao));
-        // ... omitted mappings for brevity for this specific integration rule test
 
-        // Act
         List<InvestimentoResponseDTO> result = investimentoService.buscarTodosDoUsuario(1L);
 
-        // Assert
         assertThat(result).hasSize(1);
     }
 

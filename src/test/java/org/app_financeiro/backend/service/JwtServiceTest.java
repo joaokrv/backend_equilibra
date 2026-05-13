@@ -19,9 +19,8 @@ class JwtServiceTest {
     @InjectMocks
     private JwtService jwtService;
 
-    // Chave de 256 bits (32 bytes) em Base64
     private static final String SECRET_KEY = Base64.getEncoder().encodeToString("test-secret-key-32-chars-long-!!!".getBytes());
-    private static final long EXPIRATION = 3600000; // 1 hora
+    private static final long EXPIRATION = 3600000;
 
     @BeforeEach
     void setUp() {
@@ -32,15 +31,12 @@ class JwtServiceTest {
 
     @Test
     void deveGerarTokenValido() {
-        // Arrange
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setId(123L);
         usuario.setEmail("test@email.com");
 
-        // Act
         String token = jwtService.generateAccessToken(usuario);
 
-        // Assert
         assertThat(token).isNotBlank();
         assertThat(jwtService.extractUsername(token)).isEqualTo("test@email.com");
         assertThat(jwtService.extractUsuarioId(token)).isEqualTo(123L);
@@ -48,21 +44,17 @@ class JwtServiceTest {
 
     @Test
     void deveValidarTokenCorretamente() {
-        // Arrange
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setEmail("test@email.com");
         String token = jwtService.generateAccessToken(usuario);
 
-        // Act
         boolean isValid = jwtService.isTokenValid(token, usuario);
 
-        // Assert
         assertThat(isValid).isTrue();
     }
 
     @Test
     void deveInvalidarTokenParaUsuarioDiferente() {
-        // Arrange
         UsuarioEntity usuario1 = new UsuarioEntity();
         usuario1.setEmail("user1@email.com");
         
@@ -71,10 +63,8 @@ class JwtServiceTest {
 
         String token = jwtService.generateAccessToken(usuario1);
 
-        // Act
         boolean isValid = jwtService.isTokenValid(token, usuario2);
 
-        // Assert
         assertThat(isValid).isFalse();
     }
 }

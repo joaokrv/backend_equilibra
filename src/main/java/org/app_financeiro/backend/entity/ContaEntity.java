@@ -34,7 +34,7 @@ public class ContaEntity {
     private String nome;
 
     @Column(nullable = false, precision = 19, scale = 2)
-    private BigDecimal saldo; // Equivalente ao balance
+    private BigDecimal saldo;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "usuario_id", nullable = false)

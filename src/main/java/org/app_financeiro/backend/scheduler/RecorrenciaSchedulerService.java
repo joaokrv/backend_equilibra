@@ -62,10 +62,8 @@ public class RecorrenciaSchedulerService {
         int diaReal = data.getDayOfMonth();
         int ultimoDiaMes = YearMonth.from(data).lengthOfMonth();
 
-        // Busca recorrências cujo dia é hoje OU cujo dia > último dia do mês (ex: dia 31 em fevereiro)
         List<TransacaoRecorrenteEntity> recorrencias = recorrenteRepository.findAtivasParaProcessar(diaReal, data);
 
-        // Também processa recorrências com dia > último dia do mês no último dia do mês
         if (diaReal == ultimoDiaMes) {
             for (int dia = ultimoDiaMes + 1; dia <= 31; dia++) {
                 recorrencias.addAll(recorrenteRepository.findAtivasParaProcessar(dia, data));
@@ -80,24 +78,20 @@ public class RecorrenciaSchedulerService {
                 int ano = data.getYear();
                 int mes = data.getMonthValue();
 
-                // Verificar se o mês está cancelado
                 if (canceladaRepository.existsByRecorrenteIdAndAnoAndMes(rec.getId(), ano, mes)) {
                     puladas++;
                     continue;
                 }
 
-                // Verificar idempotência — evita duplicata
                 String idempotencyKey = "REC-" + rec.getId() + "-" + ano + "-" + mes;
                 if (transacaoRepository.existsByIdempotencyKey(idempotencyKey)) {
                     puladas++;
                     continue;
                 }
 
-                // Determinar data real da transação
                 int diaLancamento = Math.min(rec.getDiaLancamento(), ultimoDiaMes);
                 LocalDate dataTransacao = LocalDate.of(ano, mes, diaLancamento);
 
-                // Se vinculada a cartão: contaId deve ser null (regra: não aceita ambos)
                 Long contaId = rec.getCartao() != null ? null : rec.getConta().getId();
                 Long cartaoId = rec.getCartao() != null ? rec.getCartao().getId() : null;
 
@@ -106,14 +100,14 @@ public class RecorrenciaSchedulerService {
                         rec.getValor(),
                         dataTransacao,
                         rec.getTipo(),
-                        null, // Permite que o TransacaoService aplique as regras automáticas de status baseadas no método de pagamento
+                        null,
                         rec.getMetodoPagamento(),
                         contaId,
                         cartaoId,
                         rec.getCategoria() != null ? rec.getCategoria().getId() : null,
-                        rec.getId(), // recorrenteId — vincula a transação à recorrência
-                        null, // numeroParcela
-                        null, // totalParcelas
+                        rec.getId(),
+                        null,
+                        null,
                         idempotencyKey
                 );
 

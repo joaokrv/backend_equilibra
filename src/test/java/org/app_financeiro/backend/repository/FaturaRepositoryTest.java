@@ -48,7 +48,6 @@ class FaturaRepositoryTest extends BaseRepositoryTest {
     @Test
     @DisplayName("Deve salvar uma Fatura de Cartão de Crédito corretamente no banco")
     void deveSalvarFaturaComSucesso() {
-        // Arrange
         FaturaEntity fatura = new FaturaEntity();
         fatura.setCartao(cartaoSalvo);
         fatura.setUsuario(cartaoSalvo.getUsuario());
@@ -59,10 +58,8 @@ class FaturaRepositoryTest extends BaseRepositoryTest {
         fatura.setValorTotal(new BigDecimal("150.00"));
         fatura.setStatus(StatusFatura.ABERTA);
 
-        // Act
         FaturaEntity faturaSalva = faturaRepository.save(fatura);
 
-        // Assert
         assertThat(faturaSalva.getId()).isNotNull();
         assertThat(faturaSalva.getStatus()).isEqualTo(StatusFatura.ABERTA);
         assertThat(faturaSalva.getValorTotal()).isEqualByComparingTo(new BigDecimal("150.00"));

@@ -68,7 +68,6 @@ class CategoriaServiceTest {
 
     @Test
     void deveCriarCategoriaComSucesso() {
-        // Arrange
         CategoriaRegistroRequestDTO request = new CategoriaRegistroRequestDTO("Salário", TipoTransacao.RECEITA);
         CategoriaResponseDTO responseEsperada = new CategoriaResponseDTO(11L, "Salário", TipoTransacao.RECEITA);
 
@@ -83,10 +82,8 @@ class CategoriaServiceTest {
 
         when(categoriaMapper.toResponse(any(CategoriaEntity.class))).thenReturn(responseEsperada);
 
-        // Act
         CategoriaResponseDTO result = categoriaService.criarCategoria(request, 1L);
 
-        // Assert
         assertThat(result).isNotNull();
         assertThat(result.nome()).isEqualTo("Salário");
         assertThat(result.tipo()).isEqualTo(TipoTransacao.RECEITA);
@@ -100,14 +97,12 @@ class CategoriaServiceTest {
 
     @Test
     void deveLancarOperacaoNaoPermitidaExceptionAoCriarCategoriaDuplicada() {
-        // Arrange
         CategoriaRegistroRequestDTO request = new CategoriaRegistroRequestDTO("ALImentaÇÃO", TipoTransacao.DESPESA);
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(categoriaRepository.findByUsuarioIdAndTipo(1L, TipoTransacao.DESPESA))
-                .thenReturn(List.of(categoriaDespesa)); // Categoria "Alimentação" já existe
+                .thenReturn(List.of(categoriaDespesa));
 
-        // Act & Assert
         assertThatThrownBy(() -> categoriaService.criarCategoria(request, 1L))
                 .isInstanceOf(OperacaoNaoPermitidaException.class)
                 .hasMessageContaining("Já existe uma categoria com este nome");
@@ -117,13 +112,10 @@ class CategoriaServiceTest {
 
     @Test
     void deveBuscarPorIdOuFalharComSucesso() {
-        // Arrange
         when(categoriaRepository.findById(10L)).thenReturn(Optional.of(categoriaDespesa));
 
-        // Act
         CategoriaEntity result = categoriaService.buscarPorIdOuFalhar(10L, 1L);
 
-        // Assert
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(10L);
         assertThat(result.getNome()).isEqualTo("Alimentação");
@@ -131,10 +123,8 @@ class CategoriaServiceTest {
 
     @Test
     void deveLancarRecursoNaoEncontradoExceptionAoBuscarCategoriaInexistente() {
-        // Arrange
         when(categoriaRepository.findById(99L)).thenReturn(Optional.empty());
 
-        // Act & Assert
         assertThatThrownBy(() -> categoriaService.buscarPorIdOuFalhar(99L, 1L))
                 .isInstanceOf(RecursoNaoEncontradoException.class)
                 .hasMessageContaining("Categoria não encontrada");
@@ -142,28 +132,23 @@ class CategoriaServiceTest {
 
     @Test
     void deveLancarRecursoNaoEncontradoExceptionAoBuscarCategoriaDeOutroUsuario() {
-        // Arrange
         when(categoriaRepository.findById(10L)).thenReturn(Optional.of(categoriaDespesa));
 
-        // Act & Assert
-        assertThatThrownBy(() -> categoriaService.buscarPorIdOuFalhar(10L, 2L)) // Usuario 2 tenta ler do Usuario 1
+        assertThatThrownBy(() -> categoriaService.buscarPorIdOuFalhar(10L, 2L))
                 .isInstanceOf(RecursoNaoEncontradoException.class)
                 .hasMessageContaining("Categoria não pertence ao usuário");
     }
 
     @Test
     void deveDeletarCategoriaComSucesso() {
-        // Arrange
         when(categoriaRepository.findById(10L)).thenReturn(Optional.of(categoriaDespesa));
         when(transacaoRepository.desassociarCategoria(1L, 10L)).thenReturn(4);
         when(transacaoRecorrenteRepository.desassociarCategoria(1L, 10L)).thenReturn(2);
         when(categoriaRepository.save(any(CategoriaEntity.class))).thenAnswer(i -> i.getArgument(0));
 
-        // Act
         categoriaService.deletarCategoria(10L, 1L);
 
-        // Assert
-        assertThat(categoriaDespesa.isAtivo()).isFalse(); // Testa o soft delete
+        assertThat(categoriaDespesa.isAtivo()).isFalse();
         verify(categoriaRepository).save(categoriaDespesa);
         verify(transacaoRepository).desassociarCategoria(1L, 10L);
         verify(transacaoRecorrenteRepository).desassociarCategoria(1L, 10L);
@@ -171,34 +156,28 @@ class CategoriaServiceTest {
 
     @Test
     void deveRetornarTodasCategoriasDoUsuario() {
-        // Arrange
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(categoriaRepository.findByUsuarioId(1L)).thenReturn(List.of(categoriaDespesa));
 
         CategoriaResponseDTO response = new CategoriaResponseDTO(10L, "Alimentação", TipoTransacao.DESPESA);
         when(categoriaMapper.toResponse(categoriaDespesa)).thenReturn(response);
 
-        // Act
         List<CategoriaResponseDTO> result = categoriaService.buscarTodasDoUsuario(1L);
 
-        // Assert
         assertThat(result).hasSize(1);
         assertThat(result.get(0).nome()).isEqualTo("Alimentação");
     }
 
     @Test
     void deveBuscarCategoriasPorTipo() {
-        // Arrange
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(categoriaRepository.findByUsuarioIdAndTipo(1L, TipoTransacao.DESPESA)).thenReturn(List.of(categoriaDespesa));
 
         CategoriaResponseDTO response = new CategoriaResponseDTO(10L, "Alimentação", TipoTransacao.DESPESA);
         when(categoriaMapper.toResponse(categoriaDespesa)).thenReturn(response);
 
-        // Act
         List<CategoriaResponseDTO> result = categoriaService.buscarPorTipo(1L, TipoTransacao.DESPESA);
 
-        // Assert
         assertThat(result).hasSize(1);
         assertThat(result.get(0).tipo()).isEqualTo(TipoTransacao.DESPESA);
     }

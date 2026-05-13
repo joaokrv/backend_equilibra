@@ -75,7 +75,6 @@ class ContaServiceTest {
 
     @Test
     void deveCriarContaComSucesso() {
-        // Arrange
         ContaRegistroRequestDTO request = new ContaRegistroRequestDTO("Nova Conta", new BigDecimal("500.00"));
         ContaResponseDTO responseEsperada = new ContaResponseDTO(10L, "Nova Conta", new BigDecimal("500.00"));
 
@@ -87,10 +86,8 @@ class ContaServiceTest {
         });
         when(contaMapper.toResponse(any(ContaEntity.class))).thenReturn(responseEsperada);
 
-        // Act
         ContaResponseDTO result = contaService.criarConta(request, 1L);
 
-        // Assert
         assertThat(result).isNotNull();
         assertThat(result.nome()).isEqualTo("Nova Conta");
         assertThat(result.saldo()).isEqualTo(new BigDecimal("500.00"));
@@ -99,7 +96,6 @@ class ContaServiceTest {
 
     @Test
     void deveCriarContaComSaldoZeroQuandoNaoInformado() {
-        // Arrange
         ContaRegistroRequestDTO request = new ContaRegistroRequestDTO("Conta Sem Saldo", null);
         ContaResponseDTO responseEsperada = new ContaResponseDTO(11L, "Conta Sem Saldo", BigDecimal.ZERO);
 
@@ -111,32 +107,25 @@ class ContaServiceTest {
         });
         when(contaMapper.toResponse(any(ContaEntity.class))).thenReturn(responseEsperada);
 
-        // Act
         ContaResponseDTO result = contaService.criarConta(request, 1L);
 
-        // Assert
         assertThat(result.saldo()).isEqualTo(BigDecimal.ZERO);
     }
 
     @Test
     void deveBuscarContaValidadaComSucesso() {
-        // Arrange
         when(contaRepository.findById(10L)).thenReturn(Optional.of(contaPadrao));
 
-        // Act
         ContaEntity result = contaService.buscarContaValidada(10L, 1L);
 
-        // Assert
         assertThat(result).isNotNull();
         assertThat(result.getId()).isEqualTo(10L);
     }
 
     @Test
     void deveLancarExcecaoQuandoBuscarContaDeOutroUsuario() {
-        // Arrange
         when(contaRepository.findById(10L)).thenReturn(Optional.of(contaPadrao));
 
-        // Act & Assert
         assertThatThrownBy(() -> contaService.buscarContaValidada(10L, 99L))
                 .isInstanceOf(RecursoNaoEncontradoException.class)
                 .hasMessageContaining("Conta não pertence ao usuário");
@@ -144,41 +133,33 @@ class ContaServiceTest {
 
     @Test
     void deveBuscarTodasContasDoUsuario() {
-        // Arrange
         when(contaRepository.findByUsuarioId(1L)).thenReturn(List.of(contaPadrao));
         ContaResponseDTO responseDto = new ContaResponseDTO(10L, "Conta Corrente", new BigDecimal("100.00"));
         when(contaMapper.toResponse(contaPadrao)).thenReturn(responseDto);
 
-        // Act
         List<ContaResponseDTO> result = contaService.buscarTodasDoUsuario(1L);
 
-        // Assert
         assertThat(result).hasSize(1);
         assertThat(result.get(0).nome()).isEqualTo("Conta Corrente");
     }
 
     @Test
     void deveDebitarSaldoComSucesso() {
-        // Arrange
         BigDecimal valorSaque = new BigDecimal("40.00");
         when(contaRepository.findByIdWithLock(10L)).thenReturn(Optional.of(contaPadrao));
         when(contaRepository.save(any(ContaEntity.class))).thenAnswer(i -> i.getArgument(0));
 
-        // Act
         ContaEntity result = contaService.debitarSaldo(10L, valorSaque, 1L);
 
-        // Assert
         assertThat(result.getSaldo()).isEqualByComparingTo(new BigDecimal("60.00"));
         verify(contaRepository).save(contaPadrao);
     }
 
     @Test
     void deveLancarSaldoInsuficienteExceptionAoTentarDebitarAlemDoLimite() {
-        // Arrange
-        BigDecimal valorSaque = new BigDecimal("150.00"); // Saldo é 100
+        BigDecimal valorSaque = new BigDecimal("150.00");
         when(contaRepository.findByIdWithLock(10L)).thenReturn(Optional.of(contaPadrao));
 
-        // Act & Assert
         assertThatThrownBy(() -> contaService.debitarSaldo(10L, valorSaque, 1L))
                 .isInstanceOf(SaldoInsuficienteException.class)
                 .hasMessageContaining("Saldo insuficiente");
@@ -188,22 +169,18 @@ class ContaServiceTest {
 
     @Test
     void deveCreditarSaldoComSucesso() {
-        // Arrange
         BigDecimal deposito = new BigDecimal("50.00");
         when(contaRepository.findByIdWithLock(10L)).thenReturn(Optional.of(contaPadrao));
         when(contaRepository.save(any(ContaEntity.class))).thenAnswer(i -> i.getArgument(0));
 
-        // Act
         ContaEntity result = contaService.creditarSaldo(10L, deposito, 1L);
 
-        // Assert
         assertThat(result.getSaldo()).isEqualByComparingTo(new BigDecimal("150.00"));
         verify(contaRepository).save(contaPadrao);
     }
 
     @Test
     void deveInativarContaComSucessoQuandoSaldoZero() {
-        // Arrange
         contaPadrao.setSaldo(BigDecimal.ZERO);
         when(contaRepository.findById(10L)).thenReturn(Optional.of(contaPadrao));
         when(contaRepository.save(any())).thenAnswer(i -> i.getArgument(0));
@@ -212,10 +189,8 @@ class ContaServiceTest {
         when(transacaoRecorrenteRepository.inativarPorConta(1L, 10L)).thenReturn(1);
         when(cartaoRepository.desvincularConta(1L, 10L)).thenReturn(1);
 
-        // Act
         contaService.deletarConta(10L, 1L);
 
-        // Assert
         assertThat(contaPadrao.isAtivo()).isFalse();
         verify(contaRepository).save(contaPadrao);
         verify(investimentoRepository).inativarVinculadosAConta(1L, 10L);
@@ -226,11 +201,8 @@ class ContaServiceTest {
 
     @Test
     void deveBloquearSoftDeleteDeContaComSaldoPositivo() {
-        // Arrange
-        // contaPadrao já tem saldo 100.00 no setUp()
         when(contaRepository.findById(10L)).thenReturn(Optional.of(contaPadrao));
 
-        // Act & Assert
         assertThatThrownBy(() -> contaService.deletarConta(10L, 1L))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("Não é possível inativar uma conta que ainda possui saldo");
@@ -244,10 +216,8 @@ class ContaServiceTest {
 
     @Test
     void deveLancarExcecaoAoAtualizarSaldoComValorNegativo() {
-        // Arrange
         when(contaRepository.findByIdWithLock(10L)).thenReturn(Optional.of(contaPadrao));
 
-        // Act & Assert
         assertThatThrownBy(() -> contaService.atualizarSaldo(10L, new BigDecimal("-50.00"), 1L))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("O saldo não pode ser negativo");

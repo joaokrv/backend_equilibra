@@ -112,7 +112,6 @@ public class DashboardResumoService {
             return 100.0;
         }
 
-        // Período anterior muito pequeno → variação percentual sem significado prático
         if (anterior.abs().compareTo(new BigDecimal("1.00")) < 0) {
             return null;
         }

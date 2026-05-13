@@ -38,11 +38,10 @@ class MarketDataServiceTest {
     @Test
     @DisplayName("Deve processar e salvar indicadores macroeconômicos corretamente")
     void deveProcessarESalvarIndicadores() {
-        // GIVEN
         HgFinanceResponseDTO.TaxDTO tax = new HgFinanceResponseDTO.TaxDTO(
             "2024-03-29",
-            new BigDecimal("10.65"),  // cdi
-            new BigDecimal("10.75"),  // selic
+            new BigDecimal("10.65"),
+            new BigDecimal("10.75"),
             null, null, null
         );
         HgFinanceResponseDTO.Results results = new HgFinanceResponseDTO.Results(
@@ -54,10 +53,8 @@ class MarketDataServiceTest {
 
         when(hgFinanceClient.fetchFinanceData()).thenReturn(Optional.of(response));
 
-        // WHEN
         marketDataService.syncIndicadoresMacro();
 
-        // THEN — service agora usa save() com IndicadorEconomicoEntity (B4-A1)
         verify(indicadorRepository).save(argThat((IndicadorEconomicoEntity e) ->
             "SELIC".equals(e.getNome()) &&
             new BigDecimal("10.75").compareTo(e.getValor()) == 0 &&

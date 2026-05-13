@@ -48,23 +48,18 @@ class EmailVerificacaoServiceTest {
 
     @Test
     void deveGerarCodigoESalvarNoBanco() {
-        // Arrange
         String email = "test@email.com";
 
-        // Act
         emailVerificacaoService.gerarCodigo(email);
 
-        // Assert
         verify(codigoVerificacaoRepository).save(any(CodigoVerificacaoEntity.class));
         verify(externalEmailSenderService).sendHtml(eq(email), any(), any());
     }
 
     @Test
     void deveVerificarEmailComSucesso() {
-        // Arrange
         String email = "test@email.com";
         String codigo = "123456";
-        // O 3º argumento (registroId) é null para o fluxo legado
         VerificarEmailRequestDTO dto = new VerificarEmailRequestDTO(email, codigo, null);
 
         CodigoVerificacaoEntity entity = new CodigoVerificacaoEntity();
@@ -82,10 +77,8 @@ class EmailVerificacaoServiceTest {
                 .thenReturn(Optional.of(entity));
         when(usuarioRepository.findByEmail(email)).thenReturn(Optional.of(usuario));
 
-        // Act
         emailVerificacaoService.verificarEmail(dto);
 
-        // Assert
         assertThat(entity.isUtilizado()).isTrue();
         assertThat(usuario.isEmailVerificado()).isTrue();
         verify(codigoVerificacaoRepository).save(entity);
@@ -94,20 +87,18 @@ class EmailVerificacaoServiceTest {
 
     @Test
     void deveLancarExceptionSeCodigoExpirado() {
-        // Arrange
         String email = "test@email.com";
         String codigo = "123456";
         VerificarEmailRequestDTO dto = new VerificarEmailRequestDTO(email, codigo, null);
 
         CodigoVerificacaoEntity entity = new CodigoVerificacaoEntity();
-        entity.setDataExpiracao(LocalDateTime.now().minusMinutes(1)); // Expirado
+        entity.setDataExpiracao(LocalDateTime.now().minusMinutes(1));
         entity.setTipo(TipoCodigoVerificacao.VERIFICACAO_EMAIL);
         entity.setUtilizado(false);
 
         when(codigoVerificacaoRepository.findTopByEmailAndTipoAndIsUtilizadoFalseOrderByDataCriacaoDesc(email, TipoCodigoVerificacao.VERIFICACAO_EMAIL))
                 .thenReturn(Optional.of(entity));
 
-        // Act & Assert
         assertThatThrownBy(() -> emailVerificacaoService.verificarEmail(dto))
                 .isInstanceOf(CodigoVerificacaoInvalidoException.class)
                 .hasMessageContaining("expirado");
@@ -115,7 +106,6 @@ class EmailVerificacaoServiceTest {
 
     @Test
     void deveLancarExceptionSeCodigoInexistente() {
-        // Arrange — código ativo existe mas com código diferente → "inválido"
         VerificarEmailRequestDTO dto = new VerificarEmailRequestDTO("test@email.com", "000000", null);
         CodigoVerificacaoEntity entity = new CodigoVerificacaoEntity();
         entity.setCodigo("999999");
@@ -126,7 +116,6 @@ class EmailVerificacaoServiceTest {
         when(codigoVerificacaoRepository.findTopByEmailAndTipoAndIsUtilizadoFalseOrderByDataCriacaoDesc(any(), eq(TipoCodigoVerificacao.VERIFICACAO_EMAIL)))
                 .thenReturn(Optional.of(entity));
 
-        // Act & Assert
         assertThatThrownBy(() -> emailVerificacaoService.verificarEmail(dto))
                 .isInstanceOf(CodigoVerificacaoInvalidoException.class)
                 .hasMessageContaining("inválido");
@@ -138,7 +127,6 @@ class EmailVerificacaoServiceTest {
      */
     @Test
     void deveValidarCodigoSimplesComSucesso() {
-        // Arrange
         String email = "preregistro@email.com";
         String codigo = "654321";
 
@@ -152,10 +140,8 @@ class EmailVerificacaoServiceTest {
         when(codigoVerificacaoRepository.findTopByEmailAndTipoAndIsUtilizadoFalseOrderByDataCriacaoDesc(email, TipoCodigoVerificacao.VERIFICACAO_EMAIL))
                 .thenReturn(Optional.of(entity));
 
-        // Act
         emailVerificacaoService.validarCodigoSimples(email, codigo, TipoCodigoVerificacao.VERIFICACAO_EMAIL);
 
-        // Assert — OTP marcado como utilizado, mas sem tocar em UsuarioRepository
         assertThat(entity.isUtilizado()).isTrue();
         verify(codigoVerificacaoRepository).save(entity);
         verifyNoInteractions(usuarioRepository);

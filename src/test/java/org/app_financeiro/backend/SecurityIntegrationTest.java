@@ -66,7 +66,6 @@ class SecurityIntegrationTest extends AbstractIntegrationTest {
         tokenUsuarioA = criarUsuarioEObterToken("user-a@security.test", "UserA@123Secure");
         tokenUsuarioB = criarUsuarioEObterToken("user-b@security.test", "UserB@123Secure");
 
-        // Usuário A cria uma conta
         ContaRegistroRequestDTO contaReq = new ContaRegistroRequestDTO("Conta de A", new BigDecimal("500.00"));
         MvcResult result = mockMvc.perform(post("/api/contas")
                         .header("Authorization", "Bearer " + tokenUsuarioA)
@@ -85,7 +84,6 @@ class SecurityIntegrationTest extends AbstractIntegrationTest {
         usuarioRepository.deleteAllInBatch();
     }
 
-    // ─── G12.1 — 401 sem autenticação ────────────────────────────────────
 
     @Test
     @DisplayName("G12.1 — GET /api/contas sem token → 401")
@@ -152,7 +150,6 @@ class SecurityIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    // ─── G12.2 — IDOR: usuário B não acessa recurso de A ─────────────────
 
     @Test
     @DisplayName("G12.2 — IDOR: usuário B não acessa conta de A")
@@ -161,7 +158,6 @@ class SecurityIntegrationTest extends AbstractIntegrationTest {
                         .header("Authorization", "Bearer " + tokenUsuarioB))
                 .andExpect(result -> {
                     int status = result.getResponse().getStatus();
-                    // 403 ou 404 são ambos aceitáveis para IDOR
                     assert status == 403 || status == 404
                             : "Esperado 403 ou 404, recebeu " + status;
                 });
@@ -179,12 +175,10 @@ class SecurityIntegrationTest extends AbstractIntegrationTest {
                 });
     }
 
-    // ─── G12.4 — Token com assinatura adulterada → 401 ───────────────────
 
     @Test
     @DisplayName("G12.4 — Token adulterado (assinatura falsa) → 401")
     void deveRetornar401ComTokenAdulterado() throws Exception {
-        // Cortar a assinatura e substituir por texto falso
         String tokenAdulterado = tokenUsuarioA.substring(0, tokenUsuarioA.lastIndexOf('.')) + ".assinatura_falsa_aqui";
 
         mockMvc.perform(get("/api/contas")
@@ -208,7 +202,6 @@ class SecurityIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
-    // ─── Helpers ─────────────────────────────────────────────────────────
 
     private String criarUsuarioEObterToken(String email, String senha) throws Exception {
         return setupUsuarioVerificado("Test User", email, senha);

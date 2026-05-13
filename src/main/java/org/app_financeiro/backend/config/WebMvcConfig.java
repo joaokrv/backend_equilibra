@@ -14,7 +14,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        // Rate limit apenas em endpoints sensíveis — mercado excluído para evitar 429 indevido em cadastro/verificação.
         registry.addInterceptor(rateLimitInterceptor)
                 .addPathPatterns(
                         "/api/auth/login",
@@ -32,10 +31,10 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/usuarios/perfil/me/senha",
                         "/api/usuarios/perfil/me/solicitar-alteracao-email",
                         "/api/market/**",
-                        "/api/mercado/**"
+                        "/api/mercado/**",
+                        "/actuator/health"
                 );
 
-        // CSRF por Origin em endpoints que lêem cookie HttpOnly (SameSite=None não protege cross-origin).
         registry.addInterceptor(csrfOriginInterceptor)
                 .addPathPatterns(
                         "/api/auth/refresh",

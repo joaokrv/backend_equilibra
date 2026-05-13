@@ -11,7 +11,6 @@ import java.util.Optional;
 public final class ValidacaoUtils {
 
     private ValidacaoUtils() {
-        // Utilitário, não instanciável
     }
 
     /**

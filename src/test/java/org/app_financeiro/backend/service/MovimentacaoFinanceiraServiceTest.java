@@ -55,42 +55,33 @@ class MovimentacaoFinanceiraServiceTest {
 
     @Test
     void deveProcessarTransacaoContaDespesaPaga() {
-        // Arrange
         when(contaService.debitarSaldo(10L, new BigDecimal("100.00"), 1L)).thenReturn(contaPadrao);
 
-        // Act
         ContaEntity result = movimentacaoFinanceiraService.processarTransacaoConta(
                 TipoTransacao.DESPESA, StatusTransacao.PAGO, 10L, new BigDecimal("100.00"), 1L);
 
-        // Assert
         assertThat(result).isEqualTo(contaPadrao);
         verify(contaService).debitarSaldo(10L, new BigDecimal("100.00"), 1L);
     }
 
     @Test
     void deveProcessarTransacaoContaReceitaPaga() {
-        // Arrange
         when(contaService.creditarSaldo(10L, new BigDecimal("500.00"), 1L)).thenReturn(contaPadrao);
 
-        // Act
         ContaEntity result = movimentacaoFinanceiraService.processarTransacaoConta(
                 TipoTransacao.RECEITA, StatusTransacao.PAGO, 10L, new BigDecimal("500.00"), 1L);
 
-        // Assert
         assertThat(result).isEqualTo(contaPadrao);
         verify(contaService).creditarSaldo(10L, new BigDecimal("500.00"), 1L);
     }
 
     @Test
     void naoDeveImpactarSaldoSeStatusForPendente() {
-        // Arrange
         when(contaService.buscarContaValidada(10L, 1L)).thenReturn(contaPadrao);
 
-        // Act
         movimentacaoFinanceiraService.processarTransacaoConta(
                 TipoTransacao.DESPESA, StatusTransacao.PENDENTE, 10L, new BigDecimal("100.00"), 1L);
 
-        // Assert
         verify(contaService, never()).debitarSaldo(any(), any(), any());
         verify(contaService, never()).creditarSaldo(any(), any(), any());
         verify(contaService).buscarContaValidada(10L, 1L);
@@ -98,15 +89,12 @@ class MovimentacaoFinanceiraServiceTest {
 
     @Test
     void deveProcessarDespesaCartao() {
-        // Arrange
         when(cartaoService.consumirLimite(eq(20L), eq(new BigDecimal("150.00")), eq(1L))).thenReturn(cartaoPadrao);
         when(faturaService.adicionarTransacao(eq(cartaoPadrao), any(), eq(new BigDecimal("150.00")))).thenReturn(faturaPadrao);
 
-        // Act
         ResultadoMovimentacaoCartao result = movimentacaoFinanceiraService.processarDespesaCartao(
                 20L, LocalDate.now(), new BigDecimal("150.00"), 1L);
 
-        // Assert
         assertThat(result.cartao()).isEqualTo(cartaoPadrao);
         assertThat(result.fatura()).isEqualTo(faturaPadrao);
         verify(cartaoService).consumirLimite(any(), any(), any());
@@ -115,48 +103,39 @@ class MovimentacaoFinanceiraServiceTest {
 
     @Test
     void deveProcessarEstornoCartao() {
-        // Arrange
         when(cartaoService.obterCartaoComBloqueioExclusivo(20L, 1L)).thenReturn(cartaoPadrao);
         when(faturaService.registrarCredito(eq(cartaoPadrao), any(), eq(new BigDecimal("50.00")))).thenReturn(faturaPadrao);
 
-        // Act
         ResultadoMovimentacaoCartao result = movimentacaoFinanceiraService.processarEstornoCartao(
                 20L, LocalDate.now(), new BigDecimal("50.00"), 1L);
 
-        // Assert
         assertThat(result.cartao()).isEqualTo(cartaoPadrao);
         verify(faturaService).registrarCredito(any(), any(), any());
     }
 
     @Test
     void deveDesfazerEfeitoFinanceiroContaDespesa() {
-        // Arrange
         TransacaoEntity t = new TransacaoEntity();
         t.setConta(contaPadrao);
         t.setStatus(StatusTransacao.PAGO);
         t.setTipo(TipoTransacao.DESPESA);
         t.setValor(new BigDecimal("100.00"));
 
-        // Act
         movimentacaoFinanceiraService.desfazerEfeitoFinanceiro(t, 1L);
 
-        // Assert
         verify(contaService).creditarSaldo(10L, new BigDecimal("100.00"), 1L);
     }
 
     @Test
     void deveDesfazerEfeitoFinanceiroCartaoDespesa() {
-        // Arrange
         TransacaoEntity t = new TransacaoEntity();
         t.setCartao(cartaoPadrao);
         t.setFatura(faturaPadrao);
         t.setTipo(TipoTransacao.DESPESA);
         t.setValor(new BigDecimal("150.00"));
 
-        // Act
         movimentacaoFinanceiraService.desfazerEfeitoFinanceiro(t, 1L);
 
-        // Assert
         verify(faturaService).removerTransacaoPorFatura(faturaPadrao, new BigDecimal("150.00"));
     }
 }

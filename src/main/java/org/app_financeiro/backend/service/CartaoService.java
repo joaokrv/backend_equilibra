@@ -79,7 +79,6 @@ public class CartaoService {
         CartaoEntity cartaoSalvo = cartaoRepository.save(cartao);
         
         log.info("Cartão criado: id={}, nome='{}', usuarioId={}", cartaoSalvo.getId(), cartaoSalvo.getNome(), usuarioId);
-        // Limite disponível inicial é 100% do limite total
         return cartaoMapper.toResponse(cartaoSalvo, cartaoSalvo.getLimite()); 
     }
 
@@ -106,10 +105,8 @@ public class CartaoService {
     public List<CartaoResponseDTO> buscarTodosDoUsuario(Long usuarioId) {
         List<CartaoEntity> cartoes = cartaoRepository.findByUsuarioId(usuarioId);
 
-        // Fetch all debts in a single query to avoid N+1
         List<DividaCartaoProjection> dividas = faturaRepository.somarDividasPorCartoes(usuarioId, StatusFatura.PAGA);
 
-        // Create a map for quick access O(1)
         Map<Long, BigDecimal> mapaDividas = dividas.stream()
                 .filter(d -> d.totalDivida() != null)
                 .collect(Collectors.toMap(DividaCartaoProjection::cartaoId, DividaCartaoProjection::totalDivida));
@@ -185,7 +182,6 @@ public class CartaoService {
      */
     @Transactional
     public CartaoEntity consumirLimite(Long cartaoId, BigDecimal valor, Long usuarioId) {
-        // Bloqueia o cartão para garantir que o cálculo do limite disponível seja atômico
         CartaoEntity cartao = obterCartaoComBloqueioExclusivo(cartaoId, usuarioId);
 
         BigDecimal limiteDisponivel = calcularLimiteDisponivel(cartao);

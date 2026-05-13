@@ -44,21 +44,18 @@ class MarketDataServiceIntegrationTest {
     @Test
     @DisplayName("Deve sincronizar e salvar indicadores macroeconômicos no banco")
     void deveSincronizarESalvarIndicadores() {
-        // GIVEN
         HgFinanceResponseDTO.TaxDTO tax = new HgFinanceResponseDTO.TaxDTO("2024-03-29", new BigDecimal("10.65"), new BigDecimal("10.75"), null, null, null);
         HgFinanceResponseDTO.Results results = new HgFinanceResponseDTO.Results(
             Map.of("USD", new HgFinanceResponseDTO.CurrencyDTO("Dollar", new BigDecimal("5.48"), null, new BigDecimal("0.12"))),
             List.of(tax),
-            null // stocks não testado neste cenário
+            null
         );
         HgFinanceResponseDTO response = new HgFinanceResponseDTO(true, results);
 
         when(hgFinanceClient.fetchFinanceData()).thenReturn(Optional.of(response));
 
-        // WHEN
         marketDataService.syncIndicadoresMacro();
 
-        // THEN
         List<IndicadorEconomicoEntity> salvos = indicadorRepository.findAll();
         assertFalse(salvos.isEmpty());
         

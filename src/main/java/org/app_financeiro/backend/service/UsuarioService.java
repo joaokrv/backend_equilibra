@@ -188,7 +188,6 @@ public class UsuarioService {
     public UsuarioResponseDTO atualizarPerfil(Long usuarioId, UsuarioAtualizacaoRequestDTO dto) {
         UsuarioEntity usuario = buscarPorIdOuFalhar(usuarioId);
 
-        // Validação de unicidade do celular
         if (dto.celular() != null && !dto.celular().isBlank()) {
             usuarioRepository.findByCelular(dto.celular())
                     .filter(outro -> !outro.getId().equals(usuarioId))
@@ -212,7 +211,7 @@ public class UsuarioService {
     public void atualizarFoto(Long usuarioId, MultipartFile file) {
         UsuarioEntity usuario = buscarPorIdOuFalhar(usuarioId);
 
-        if (file.getSize() > 2 * 1024 * 1024) { // Limite de 2MB
+        if (file.getSize() > 2 * 1024 * 1024) {
             throw new RegraDeNegocioException("A imagem é muito grande. Máximo de 2MB permitido.");
         }
 
@@ -241,9 +240,7 @@ public class UsuarioService {
                 throw new RegraDeNegocioException("Arquivo de imagem corrompido ou muito curto.");
             }
 
-            // JPEG: FF D8 FF
             boolean isJpeg = (header[0] & 0xFF) == 0xFF && (header[1] & 0xFF) == 0xD8 && (header[2] & 0xFF) == 0xFF;
-            // PNG: 89 50 4E 47
             boolean isPng = (header[0] & 0xFF) == 0x89 && (header[1] & 0xFF) == 0x50 && (header[2] & 0xFF) == 0x4E && (header[3] & 0xFF) == 0x47;
 
             if (!isJpeg && !isPng) {

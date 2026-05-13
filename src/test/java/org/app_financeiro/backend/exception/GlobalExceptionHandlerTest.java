@@ -19,7 +19,6 @@ class GlobalExceptionHandlerTest {
     @BeforeEach
     void setUp() {
         messageSource = new StaticMessageSource();
-        // register sample messages
         messageSource.addMessage("error.saldo_insuficiente", Locale.ENGLISH, "Insufficient balance");
         messageSource.addMessage("error.saldo_insuficiente", new Locale("pt","BR"), "Saldo insuficiente");
         handler = new GlobalExceptionHandler(messageSource);

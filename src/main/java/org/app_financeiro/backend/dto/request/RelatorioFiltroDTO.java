@@ -10,7 +10,7 @@ import java.time.temporal.ChronoUnit;
 
 public record RelatorioFiltroDTO(
         @NotNull(message = "A data de início é obrigatória")
-        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) // Força o padrão yyyy-MM-dd
+        @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
         LocalDate dataInicio,
 
         @NotNull(message = "A data de fim é obrigatória")

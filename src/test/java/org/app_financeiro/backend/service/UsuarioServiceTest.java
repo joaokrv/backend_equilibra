@@ -68,11 +68,9 @@ class UsuarioServiceTest {
     @InjectMocks
     private UsuarioService usuarioService;
 
-    // ─── Registro ──────────────────────────────────────────────
 
     @Test
     void deveRegistrarUsuarioComSucesso() {
-        // Arrange
         UsuarioRegistroRequestDTO request = new UsuarioRegistroRequestDTO("Joao", "joao@email.com", "senha123");
         when(usuarioRepository.existsByEmailIncludingInactive("joao@email.com")).thenReturn(false);
         when(passwordEncoder.encode("senha123")).thenReturn("senha_hash");
@@ -83,17 +81,14 @@ class UsuarioServiceTest {
             return u;
         });
 
-        // Act
         usuarioService.registrarUsuario(request);
 
-        // Assert
         verify(passwordEncoder).encode("senha123");
         verify(usuarioRepository).save(any(UsuarioEntity.class));
     }
 
     @Test
     void deveCriarCategoriaPadraoInvestimentoComoDespesaAoRegistrarUsuario() {
-        // Arrange
         UsuarioRegistroRequestDTO request = new UsuarioRegistroRequestDTO("Joao", "joao@email.com", "senha123");
         when(usuarioRepository.existsByEmailIncludingInactive("joao@email.com")).thenReturn(false);
         when(passwordEncoder.encode("senha123")).thenReturn("senha_hash");
@@ -104,10 +99,8 @@ class UsuarioServiceTest {
             return u;
         });
 
-        // Act
         usuarioService.registrarUsuario(request);
 
-        // Assert
         ArgumentCaptor<CategoriaEntity> categoriaCaptor = ArgumentCaptor.forClass(CategoriaEntity.class);
         verify(categoriaRepository, times(16)).save(categoriaCaptor.capture());
 
@@ -122,7 +115,6 @@ class UsuarioServiceTest {
 
     @Test
     void deveRetornarFalseAoRegistrarEmailJaExistente() {
-        // Anti-enumeração (B1-A2): email duplicado retorna false silenciosamente
         UsuarioRegistroRequestDTO request = new UsuarioRegistroRequestDTO("Joao", "joao@email.com", "senha123");
         when(usuarioRepository.existsByEmailIncludingInactive("joao@email.com")).thenReturn(true);
 
@@ -132,11 +124,9 @@ class UsuarioServiceTest {
         verify(usuarioRepository, never()).save(any());
     }
 
-    // ─── Login ─────────────────────────────────────────────────
 
     @Test
     void deveFazerLoginComSucesso() {
-        // Arrange
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setEmail("joao@email.com");
         usuario.setSenha("senha_hash");
@@ -147,16 +137,13 @@ class UsuarioServiceTest {
         UsuarioResponseDTO responseDTO = new UsuarioResponseDTO(1L, "Joao", "joao@email.com", true, null, null, MoedaEnum.BRL);
         when(usuarioMapper.toResponse(usuario)).thenReturn(responseDTO);
 
-        // Act
         UsuarioResponseDTO result = usuarioService.loginUsuario("joao@email.com", "senha123");
 
-        // Assert
         assertThat(result).isNotNull();
     }
 
     @Test
     void devePermitirLoginComEmailNaoVerificado() {
-        // Arrange — login agora funciona mesmo sem email verificado
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setEmail("joao@email.com");
         usuario.setSenha("senha_hash");
@@ -168,17 +155,14 @@ class UsuarioServiceTest {
                 "joao@email.com", false, null, null, MoedaEnum.BRL);
         when(usuarioMapper.toResponse(usuario)).thenReturn(responseDTO);
 
-        // Act
         UsuarioResponseDTO result = usuarioService.loginUsuario("joao@email.com", "senha123");
 
-        // Assert — login bem-sucedido, verificação é tratada no frontend
         assertThat(result).isNotNull();
         assertThat(result.isEmailVerificado()).isFalse();
     }
 
     @Test
     void deveLancarExceptionNoLoginSeSenhaInvalida() {
-        // Arrange
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setEmail("joao@email.com");
         usuario.setSenha("senha_hash");
@@ -186,34 +170,27 @@ class UsuarioServiceTest {
         when(usuarioRepository.findByEmail("joao@email.com")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches(anyString(), eq("senha_hash"))).thenReturn(false);
 
-        // Act & Assert
         assertThatThrownBy(() -> usuarioService.loginUsuario("joao@email.com", "senha_errada"))
                 .isInstanceOf(CredenciaisInvalidasException.class);
     }
 
-    // ─── Desativar Conta ───────────────────────────────────────
 
     @Test
     void deveDesativarContaComSucesso() {
-        // Arrange
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setId(1L);
         usuario.setAtivo(true);
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
 
-        // Act
         usuarioService.desativarConta(1L);
 
-        // Assert
         assertThat(usuario.isAtivo()).isFalse();
         verify(usuarioRepository).save(usuario);
     }
 
-    // ─── Reativar Conta ────────────────────────────────────────
 
     @Test
     void deveReativarContaComSenhaCorreta() {
-        // Arrange
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setId(1L);
         usuario.setEmail("joao@email.com");
@@ -223,17 +200,14 @@ class UsuarioServiceTest {
         when(usuarioRepository.findInactiveByEmail("joao@email.com")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("senha123", "senha_hash")).thenReturn(true);
 
-        // Act
         usuarioService.reativarConta("joao@email.com", "senha123");
 
-        // Assert
         assertThat(usuario.isAtivo()).isTrue();
         verify(usuarioRepository).save(usuario);
     }
 
     @Test
     void deveLancarExceptionAoReativarComSenhaIncorreta() {
-        // Arrange
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setEmail("joao@email.com");
         usuario.setSenha("senha_hash");
@@ -242,7 +216,6 @@ class UsuarioServiceTest {
         when(usuarioRepository.findInactiveByEmail("joao@email.com")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("senha_errada", "senha_hash")).thenReturn(false);
 
-        // Act & Assert
         assertThatThrownBy(() -> usuarioService.reativarConta("joao@email.com", "senha_errada"))
                 .isInstanceOf(CredenciaisInvalidasException.class);
 
@@ -251,19 +224,15 @@ class UsuarioServiceTest {
 
     @Test
     void deveLancarExceptionAoReativarContaInexistente() {
-        // Arrange
         when(usuarioRepository.findInactiveByEmail("naoexiste@email.com")).thenReturn(Optional.empty());
 
-        // Act & Assert
         assertThatThrownBy(() -> usuarioService.reativarConta("naoexiste@email.com", "senha123"))
                 .isInstanceOf(RecursoNaoEncontradoException.class);
     }
 
-    // ─── Upload de Foto (Segurança Binária) ─────────────────────
 
     @Test
     void deveLancarExceptionAoFazerUploadDeArquivoComAssinaturaInvalida() {
-        // Arrange: Um arquivo de texto fingindo ser PNG
         byte[] scriptMalicioso = "<?php echo 'Hacked'; ?>".getBytes();
         MockMultipartFile file = new MockMultipartFile("file", "foto.png", "image/png", scriptMalicioso);
         
@@ -271,7 +240,6 @@ class UsuarioServiceTest {
         usuario.setId(1L);
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
 
-        // Act & Assert: Deve falhar ao ler os Magic Bytes
         assertThatThrownBy(() -> usuarioService.atualizarFoto(1L, file))
                 .isInstanceOf(RegraDeNegocioException.class)
                 .hasMessageContaining("Formato de arquivo inválido");
@@ -281,7 +249,6 @@ class UsuarioServiceTest {
 
     @Test
     void deveFazerUploadDeFotoComAssinaturaValida() {
-        // Arrange: Assinatura PNG real (Magic Bytes: 89 50 4E 47)
         byte[] pngValido = new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
         MockMultipartFile file = new MockMultipartFile("file", "foto.png", "image/png", pngValido);
         
@@ -289,19 +256,15 @@ class UsuarioServiceTest {
         usuario.setId(1L);
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
 
-        // Act
         usuarioService.atualizarFoto(1L, file);
 
-        // Assert
         assertThat(usuario.getFoto()).isEqualTo(pngValido);
         verify(usuarioRepository).save(usuario);
     }
 
-    // ─── Alterar Senha ─────────────────────────────────────────
 
     @Test
     void deveAlterarSenhaComSucesso() {
-        // Arrange
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setId(1L);
         usuario.setSenha("hash_atual");
@@ -312,10 +275,8 @@ class UsuarioServiceTest {
         when(passwordEncoder.matches("NovaSenha1!", "hash_atual")).thenReturn(false);
         when(passwordEncoder.encode("NovaSenha1!")).thenReturn("hash_nova");
 
-        // Act
         usuarioService.alterarSenha(1L, new AlterarSenhaRequestDTO("SenhaAtual1!", "NovaSenha1!"));
 
-        // Assert
         assertThat(usuario.getSenha()).isEqualTo("hash_nova");
         assertThat(usuario.getChaveSessao()).isNull();
         verify(usuarioRepository).save(usuario);
@@ -323,7 +284,6 @@ class UsuarioServiceTest {
 
     @Test
     void deveLancarExceptionAoAlterarSenhaComSenhaAtualErrada() {
-        // Arrange
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setId(1L);
         usuario.setSenha("hash_atual");
@@ -331,7 +291,6 @@ class UsuarioServiceTest {
         when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("SenhaErrada1!", "hash_atual")).thenReturn(false);
 
-        // Act & Assert
         assertThatThrownBy(() -> usuarioService.alterarSenha(1L,
                 new AlterarSenhaRequestDTO("SenhaErrada1!", "NovaSenha1!")))
                 .isInstanceOf(CredenciaisInvalidasException.class);
@@ -341,7 +300,6 @@ class UsuarioServiceTest {
 
     @Test
     void deveLancarExceptionAoAlterarSenhaParaMesmaSenha() {
-        // Arrange
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setId(1L);
         usuario.setSenha("hash_atual");
@@ -350,7 +308,6 @@ class UsuarioServiceTest {
         when(passwordEncoder.matches("MesmaSenha1!", "hash_atual")).thenReturn(true);
         when(passwordEncoder.matches("MesmaSenha1!", "hash_atual")).thenReturn(true);
 
-        // Act & Assert
         assertThatThrownBy(() -> usuarioService.alterarSenha(1L,
                 new AlterarSenhaRequestDTO("MesmaSenha1!", "MesmaSenha1!")))
                 .isInstanceOf(RegraDeNegocioException.class)

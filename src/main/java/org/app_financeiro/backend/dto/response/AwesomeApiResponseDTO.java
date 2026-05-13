@@ -17,10 +17,10 @@ public record AwesomeApiResponseDTO(
         String code,
         String codein,
         String name,
-        String bid, // Valor de compra (cotação atual)
+        String bid,
         
         @JsonProperty("pctChange")
-        String pctChange, // Variação percentual
+        String pctChange,
         
         String high,
         String low,

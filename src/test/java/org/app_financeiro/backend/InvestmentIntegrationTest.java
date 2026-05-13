@@ -95,9 +95,6 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
         return investimentoRepository.saveAndFlush(inv).getId();
     }
 
-    // =============================================
-    // TESTES DE SUCESSO
-    // =============================================
 
     @Test
     void deveCriarInvestimentoComSucesso() throws Exception {
@@ -113,7 +110,6 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.valorAtual").value(500.0))
                 .andExpect(jsonPath("$.metaAtual").value(50000.0));
 
-        // Verifica que debitou da conta de origem
         ContaEntity conta = contaRepository.findById(idConta).orElseThrow();
         assertThat(conta.getSaldo()).isEqualByComparingTo("9500.00");
     }
@@ -141,7 +137,6 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.valorAtual").value(500.0));
 
-        // Verificar saldo da conta decrementado
         ContaEntity conta = contaRepository.findById(idConta).orElseThrow();
         assertThat(conta.getSaldo()).isEqualByComparingTo("600.00");
     }
@@ -158,7 +153,6 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.valorAtual").value(700.0));
 
-        // Verificar saldo da conta incrementado
         ContaEntity conta = contaRepository.findById(idConta).orElseThrow();
         assertThat(conta.getSaldo()).isEqualByComparingTo("300.00");
     }
@@ -188,9 +182,6 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
         assertThat(investimentoRepository.findById(idInv)).isEmpty();
     }
 
-    // =============================================
-    // TESTES DE ERRO E VALIDACAO
-    // =============================================
 
     @Test
     void naoDeveCriarInvestimentoComDescricaoEmBranco() throws Exception {
@@ -213,7 +204,7 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
                 .header("Authorization", tokenA)
                 .param("valor", "100.00")
                 .param("contaId", idConta.toString()))
-                .andExpect(status().isUnprocessableEntity()) // Regra de negócio
+                .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.erro").value("Saldo insuficiente"))
                 .andExpect(jsonPath("$.mensagem").value("Saldo insuficiente"));
     }
@@ -242,9 +233,6 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(jsonPath("$.erro").value("Erro de regra de negócio"));
     }
 
-    // =============================================
-    // TESTES DE SEGURANÇA E ISOLAMENTO
-    // =============================================
 
     @Test
     void usuarioBNaoDeveVerInvestimentosDoUsuarioA() throws Exception {
@@ -269,6 +257,6 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
                 .header("Authorization", tokenB)
                 .param("valor", "100.00")
                 .param("contaId", idContaB.toString()))
-                .andExpect(status().isNotFound()); // Ou Forbidden, mas geralmente Not Found para esconder existência
+                .andExpect(status().isNotFound());
     }
 }

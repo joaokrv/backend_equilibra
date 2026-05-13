@@ -61,7 +61,6 @@ public class InvestimentoService {
             throw new RegraDeNegocioException("O valor inicial não pode ser maior que a meta informada");
         }
 
-        // Se o valor inicial é maior que zero, debitar da conta de origem
         if (dto.valorInicial().compareTo(BigDecimal.ZERO) > 0) {
             registrarMovimentacaoInvestimento(
                     null,
@@ -202,9 +201,6 @@ public class InvestimentoService {
         investimentoRepository.save(investimento);
     }
 
-    // =============================================
-    // MÉTODO PRIVADO DE VALIDAÇÃO
-    // =============================================
 
     private InvestimentoEntity buscarInvestimentoValidado(Long investimentoId, Long usuarioId) {
         InvestimentoEntity investimento = investimentoRepository.findById(investimentoId)

@@ -49,13 +49,10 @@ class JwtAuthenticationFilterTest {
 
     @Test
     void deveSeguirSemAutenticarQuandoNaoHaToken() throws Exception {
-        // Arrange
         when(request.getHeader("Authorization")).thenReturn(null);
 
-        // Act
         filter.doFilterInternal(request, response, filterChain);
 
-        // Assert
         verify(filterChain).doFilter(request, response);
         verifyNoInteractions(jwtService);
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
@@ -63,23 +60,19 @@ class JwtAuthenticationFilterTest {
 
     @Test
     void deveSeguirSemAutenticarQuandoTokenInvalido() throws Exception {
-        // Arrange
         when(request.getHeader("Authorization")).thenReturn("Bearer token-invalido");
         when(jwtService.extractUsername("token-invalido")).thenThrow(new JwtException("Token malformado"));
 
         SecurityContextHolder.clearContext();
 
-        // Act
         filter.doFilterInternal(request, response, filterChain);
 
-        // Assert
         verify(filterChain).doFilter(request, response);
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }
 
     @Test
     void deveAutenticarQuandoTokenValido() throws Exception {
-        // Arrange
         when(request.getHeader("Authorization")).thenReturn("Bearer token-valido");
         when(jwtService.extractUsername("token-valido")).thenReturn("joao@email.com");
 
@@ -89,21 +82,17 @@ class JwtAuthenticationFilterTest {
 
         SecurityContextHolder.clearContext();
 
-        // Act
         filter.doFilterInternal(request, response, filterChain);
 
-        // Assert
         verify(filterChain).doFilter(request, response);
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNotNull();
         assertThat(SecurityContextHolder.getContext().getAuthentication().getName()).isEqualTo("joao@email.com");
 
-        // Cleanup
         SecurityContextHolder.clearContext();
     }
 
     @Test
     void naoDeveAutenticarQuandoTokenExpirado() throws Exception {
-        // Arrange
         when(request.getHeader("Authorization")).thenReturn("Bearer token-expirado");
         when(jwtService.extractUsername("token-expirado")).thenReturn("joao@email.com");
 
@@ -113,10 +102,8 @@ class JwtAuthenticationFilterTest {
 
         SecurityContextHolder.clearContext();
 
-        // Act
         filter.doFilterInternal(request, response, filterChain);
 
-        // Assert
         verify(filterChain).doFilter(request, response);
         assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
     }

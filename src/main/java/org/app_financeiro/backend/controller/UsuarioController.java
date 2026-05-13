@@ -136,10 +136,8 @@ public class UsuarioController {
         String emailNorm = dto.email().trim().toLowerCase();
         LocalDateTime agora = LocalDateTime.now();
         
-        // Anti-enumeração: se e-mail existe em 'usuarios', retorna sucesso genérico sem enviar OTP
         if (usuarioRepository.existsByEmailIncludingInactive(emailNorm)) {
             log.warn("[SECURITY] Tentativa de pré-registro com e-mail já existente: {}", emailNorm);
-            // Anti-timing: simula latência de envio de e-mail
             try { Thread.sleep(1200); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
             OffsetDateTime expiraEm = agora.plusMinutes(15).atZone(ZoneId.systemDefault()).toOffsetDateTime();
             return ResponseEntity.ok(new OtpStatusResponseDTO("ATIVO", 5, expiraEm, null, null, null, UUID.randomUUID().toString()));
@@ -152,7 +150,7 @@ public class UsuarioController {
                     p.setEmail(emailNorm);
                     p.setNome(dto.nome());
                     p.setSenhaHash(passwordEncoder.encode(dto.senha()));
-                    p.setExpiraEm(agora.minusMinutes(1)); // Força inicialização
+                    p.setExpiraEm(agora.minusMinutes(1));
                     return p;
                 });
 
@@ -190,7 +188,6 @@ public class UsuarioController {
     @Transactional(noRollbackFor = BadCredentialsException.class)
     public ResponseEntity<?> login(@Valid @RequestBody UsuarioLoginRequestDTO dto,
                                    HttpServletResponse httpResponse) {
-        // Verificar lockout antes de tentar autenticação (G4-A1)
         UsuarioEntity usuarioCheck = usuarioRepository.findByEmail(dto.email()).orElse(null);
         if (usuarioCheck != null
                 && usuarioCheck.getLockedUntil() != null
@@ -255,13 +252,10 @@ public class UsuarioController {
             );
             return ResponseEntity.ok(response);
         } catch (BadCredentialsException e) {
-            // Se falhou, verificar se é uma conta desativada (soft delete)
             Optional<UsuarioEntity> inativoOpt = usuarioRepository.findInactiveByEmail(dto.email());
             if (inativoOpt.isPresent()) {
                 UsuarioEntity inativo = inativoOpt.get();
-                // Validar senha manualmente (já que o authenticationManager falhou pois o UserDetailsService não achou o inativo)
                 if (passwordEncoder.matches(dto.senha(), inativo.getSenha())) {
-                    // Disparar OTP de reativação
                     emailVerificacaoService.gerarCodigo(inativo.getEmail(), TipoCodigoVerificacao.REATIVACAO_CONTA);
                     
                     return ResponseEntity.status(HttpStatus.FORBIDDEN)
@@ -283,7 +277,6 @@ public class UsuarioController {
                 }
                 usuarioRepository.save(usuarioFailed);
             }
-            // Anti-timing delay
             try { Thread.sleep(1200); } catch (InterruptedException ignored) {}
             throw e;
         }
@@ -308,11 +301,9 @@ public class UsuarioController {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        // Lock pessimista serializa /refresh concorrentes com mesmo RT (B2 — race condition).
         UsuarioEntity usuario = usuarioRepository.findByEmailWithLock(email)
                 .orElse(null);
         if (usuario == null) {
-            // Usuário deletado/desativado após emissão do RT → 401 silencioso, sem expor estado.
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
@@ -322,14 +313,12 @@ public class UsuarioController {
 
         String chaveSessaoToken = jwtService.extractChaveSessao(refreshToken);
         if (chaveSessaoToken == null || !chaveSessaoToken.equals(usuario.getChaveSessao())) {
-            // RT reuse attack detectado — invalida todas as sessões
             usuario.setChaveSessao(null);
             usuarioRepository.save(usuario);
             clearRefreshTokenCookie(httpResponse);
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
 
-        // Rotaciona: nova chaveSessao + novo RT
         usuario.setChaveSessao(UUID.randomUUID().toString());
         usuarioRepository.save(usuario);
 
@@ -357,13 +346,11 @@ public class UsuarioController {
         if (refreshToken != null && !refreshToken.isBlank()) {
             try {
                 String email = jwtService.extractUsername(refreshToken);
-                // Lock pessimista evita race com /refresh concorrente.
                 usuarioRepository.findByEmailWithLock(email).ifPresent(u -> {
                     u.setChaveSessao(null);
                     usuarioRepository.save(u);
                 });
             } catch (JwtException ignored) {
-                // Token inválido — limpar cookie mesmo assim
             }
         }
         clearRefreshTokenCookie(httpResponse);
@@ -374,7 +361,6 @@ public class UsuarioController {
     @Operation(summary = "Verificar e-mail", description = "Valida a conta usando o código de 6 dígitos. Suporta fluxo de pré-registro.")
     @Transactional(noRollbackFor = CodigoVerificacaoInvalidoException.class)
     public ResponseEntity<?> verificarEmail(@Valid @RequestBody VerificarEmailRequestDTO dto) {
-        // Fluxo via registroId (Pré-registro)
         if (dto.registroId() != null && !dto.registroId().isBlank()) {
             UsuarioPendenteEntity pendente = usuarioPendenteService.buscarOuFalharComLock(UUID.fromString(dto.registroId()));
             
@@ -385,7 +371,6 @@ public class UsuarioController {
             try {
                 emailVerificacaoService.validarCodigoSimples(pendente.getEmail(), dto.codigo(), TipoCodigoVerificacao.VERIFICACAO_EMAIL);
                 
-                // OTP Válido -> Promover para usuário real e limpar rastro
                 UsuarioEntity usuario = usuarioService.finalizarRegistro(pendente);
                 usuarioPendenteRepository.delete(pendente);
                 
@@ -401,7 +386,6 @@ public class UsuarioController {
             }
         }
 
-        // Fluxo Legado (apenas e-mail) - Mantido para compatibilidade interna
         emailVerificacaoService.verificarEmail(dto);
         return ResponseEntity.ok("E-mail verificado com sucesso!");
     }
@@ -445,7 +429,6 @@ public class UsuarioController {
         return builder.body(usuarioPendenteService.mapearParaStatus(pendente));
     }
 
-    // ─── Ações de Conta (Desativar / Excluir) ─────────────────────────────
 
     @PostMapping("/solicitar-acao-conta")
     @Operation(summary = "Solicitar ação de conta", description = "Valida senha e envia OTP para confirmar exclusão ou desativação.")
@@ -513,7 +496,6 @@ public class UsuarioController {
         return ResponseEntity.ok("Conta reativada com sucesso! Agora você pode fazer login.");
     }
 
-    // ─── Recuperação de Senha ──────────────────────────────────────────────
 
     /** Anti-enumeração: resposta sempre 200 OK independente de o e-mail existir. Timing fixo anti-enumeration. */
     @PostMapping("/solicitar-recuperacao")
@@ -583,7 +565,6 @@ public class UsuarioController {
         return email.charAt(0) + "***" + email.substring(at);
     }
 
-    // ─── Helpers de Cookie ────────────────────────────────────────────────
 
     private void setRefreshTokenCookie(HttpServletResponse response, String token) {
         ResponseCookie cookie = ResponseCookie.from("refreshToken", token)

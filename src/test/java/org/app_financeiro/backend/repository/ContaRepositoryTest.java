@@ -35,16 +35,13 @@ class ContaRepositoryTest extends BaseRepositoryTest {
     @Test
     @DisplayName("Deve salvar uma Conta corretamente no banco de dados e aplicar os defaults")
     void deveSalvarContaComSucesso() {
-        // Arrange
         ContaEntity novaConta = new ContaEntity();
         novaConta.setNome("Nubank");
         novaConta.setSaldo(BigDecimal.ZERO);
         novaConta.setUsuario(usuarioSalvo);
 
-        // Act
         ContaEntity contaSalva = contaRepository.save(novaConta);
 
-        // Assert
         assertThat(contaSalva.getId()).isNotNull();
         assertThat(contaSalva.getNome()).isEqualTo("Nubank");
         assertThat(contaSalva.getSaldo()).isEqualByComparingTo(BigDecimal.ZERO);
@@ -56,7 +53,6 @@ class ContaRepositoryTest extends BaseRepositoryTest {
     @Test
     @DisplayName("Deve inativar uma Conta (soft delete logic)")
     void deveInativarConta() {
-        // Arrange
         ContaEntity novaConta = new ContaEntity();
         novaConta.setNome("Inter");
         novaConta.setSaldo(new BigDecimal("150.00"));
@@ -65,17 +61,11 @@ class ContaRepositoryTest extends BaseRepositoryTest {
         ContaEntity contaSalva = contaRepository.save(novaConta);
         assertThat(contaSalva.isAtivo()).isTrue();
 
-        // Act
         contaSalva.setAtivo(false);
         contaRepository.save(contaSalva);
 
-        // Assert
-        // The @SQLRestriction("ativo = true") on ContaEntity will hide inactive entities
-        // However, findById might still find it directly depending on hibernate version, but let's test visibility in JPA
         Optional<ContaEntity> busca = contaRepository.findById(contaSalva.getId());
         
-        // Com o @SQLRestriction, o findById retornaria vazio (dependendo da versão do Hibernate, findById às vezes ignora Where/SQLRestriction,
-        // mas em cenários reais testamos repositórios que retornam listas). Para simplificar, verificamos a propriedade em si aqui.
         if (busca.isPresent()) {
             assertThat(busca.get().isAtivo()).isFalse();
         }

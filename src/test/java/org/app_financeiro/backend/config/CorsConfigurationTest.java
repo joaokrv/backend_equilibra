@@ -19,9 +19,8 @@ class CorsConfigurationTest {
     @Test
     void quandoPerfilTestBeanCorsNaoEhPrimario() {
         String[] names = context.getBeanNamesForType(CorsConfigurationSource.class);
-        assertThat(names).hasSize(1); // apenas o bean automático
+        assertThat(names).hasSize(1);
         CorsConfigurationSource bean = context.getBean(CorsConfigurationSource.class);
-        // nosso método define 'UrlBasedCorsConfigurationSource' também, mas no perfil test ele não é carregado
         assertThat(bean).isNotNull();
     }
 }

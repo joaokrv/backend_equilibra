@@ -101,7 +101,6 @@ class CsrfOriginInterceptorTest {
 
     @Test
     void deveBloquearOrigemNullString() throws Exception {
-        // "Origin: null" enviado por alguns browsers em contexto file://
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.addHeader("Origin", "null");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -114,7 +113,6 @@ class CsrfOriginInterceptorTest {
 
     @Test
     void deveIgnorarEspacosNasOrigensPermitidas() throws Exception {
-        // Garante que split+trim funciona mesmo se .env tiver espaços: "http://localhost:5173, https://app.equilibra.com"
         CsrfOriginInterceptor interceptorComEspacos = new CsrfOriginInterceptor(
                 "http://localhost:5173 , https://app.equilibra.com");
         MockHttpServletRequest request = new MockHttpServletRequest();

@@ -53,7 +53,6 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
         usuarioPendenteRepository.deleteAll();
         usuarioRepository.deleteAll();
 
-        // Configura o mock para evitar NullPointerException ao criar MimeMessage
         when(mailSender.createMimeMessage()).thenReturn(new JavaMailSenderImpl().createMimeMessage());
     }
 
@@ -65,7 +64,6 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
         String email = "joao@email.com";
         String senha = "SenhaSegura123!";
 
-        // 1. PRÉ-REGISTRAR — retorna registroId e status ATIVO (RFC 7.1)
         UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Joao Victor", email, senha);
 
         MvcResult preRegistroResult = mockMvc.perform(post("/api/auth/pre-registrar")
@@ -80,14 +78,12 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
         String registroId = objectMapper.readTree(preRegistroResult.getResponse().getContentAsString())
                 .get("registroId").asText();
 
-        // 2. BUSCAR CÓDIGO (Simulando recebimento de e-mail)
         CodigoVerificacaoEntity codigoEntity = codigoVerificacaoRepository.findAll()
                 .stream()
                 .filter(c -> c.getEmail().equals(email))
                 .findFirst()
                 .orElseThrow();
 
-        // 3. VERIFICAR E-MAIL via registroId (RFC 7.2)
         VerificarEmailRequestDTO verificarReq = new VerificarEmailRequestDTO(email, codigoEntity.getCodigo(), registroId);
 
         mockMvc.perform(post("/api/auth/verificar-email")
@@ -95,14 +91,11 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 .content(objectMapper.writeValueAsString(verificarReq)))
                 .andExpect(status().isOk());
 
-        // 4. Verifica que o usuário definitivo foi criado com emailVerificado=true (RFC 7.2)
         UsuarioEntity usuario = usuarioRepository.findByEmail(email).orElseThrow();
         assertThat(usuario.isEmailVerificado()).isTrue();
 
-        // 5. Verifica que o pré-registro foi removido (RFC 7.2)
         assertThat(usuarioPendenteRepository.findByEmail(email)).isEmpty();
 
-        // 6. LOGIN — accessToken no body, refreshToken no cookie HttpOnly (G5)
         UsuarioLoginRequestDTO loginReq = new UsuarioLoginRequestDTO(email, senha);
 
         mockMvc.perform(post("/api/auth/login")
@@ -110,7 +103,7 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 .content(objectMapper.writeValueAsString(loginReq)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.accessToken").exists())
-                .andExpect(jsonPath("$.refreshToken").value((Object) null)) // null no body — RT somente via cookie (G5)
+                .andExpect(jsonPath("$.refreshToken").value((Object) null))
                 .andExpect(jsonPath("$.usuario").exists())
                 .andExpect(jsonPath("$.usuario.email").value(email))
                 .andExpect(cookie().exists("refreshToken"))
@@ -125,15 +118,12 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
         String email = "pendente@email.com";
         String senha = "SenhaSegura123!";
 
-        // Pré-registrar sem verificar OTP
         UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Usuario Pendente", email, senha);
         mockMvc.perform(post("/api/auth/pre-registrar")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(registroReq)))
                 .andExpect(status().isOk());
 
-        // Simula que o usuário foi "promovido" parcialmente (cenário legado ou manual)
-        // Criando um usuário real com emailVerificado=false para testar a rota de login
         UsuarioPendenteEntity pendente = usuarioPendenteRepository.findByEmail(email).orElseThrow();
         UsuarioEntity usuario = new UsuarioEntity();
         usuario.setNome(pendente.getNome());
@@ -142,7 +132,6 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
         usuario.setEmailVerificado(false);
         usuarioRepository.save(usuario);
 
-        // Tentar Login — deve retornar 403 com otpStatus (RFC 7.5)
         UsuarioLoginRequestDTO loginReq = new UsuarioLoginRequestDTO(email, senha);
 
         mockMvc.perform(post("/api/auth/login")
@@ -199,7 +188,6 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
      */
     @Test
     void preRegistroComEmailExistenteRetornaSucessoGenerico() throws Exception {
-        // Criar usuário real já verificado
         UsuarioEntity existente = new UsuarioEntity();
         existente.setNome("Já Existe");
         existente.setEmail("existe@email.com");
@@ -207,16 +195,14 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
         existente.setEmailVerificado(true);
         usuarioRepository.save(existente);
 
-        // Tentar pré-registro com mesmo e-mail
         UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Outro Nome", "existe@email.com", "SenhaSegura123!");
         mockMvc.perform(post("/api/auth/pre-registrar")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(registroReq)))
-                .andExpect(status().isOk()) // Resposta genérica — sem revelar que existe
+                .andExpect(status().isOk())
                 .andExpect(jsonPath("$.registroId").exists())
                 .andExpect(jsonPath("$.status").value("ATIVO"));
 
-        // NÃO deve ter criado pré-registro
         assertThat(usuarioPendenteRepository.findByEmail("existe@email.com")).isEmpty();
     }
 
@@ -228,12 +214,10 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
         String email = "sessao@email.com";
         String senha = "SenhaSegura123!";
 
-        // Setup: criar usuário verificado diretamente no banco
         registrarEVerificarUsuario(email, senha, "Usuario Sessao");
 
         UsuarioLoginRequestDTO loginReq = new UsuarioLoginRequestDTO(email, senha);
 
-        // Primeiro login — captura cookie com RT antigo (G5)
         MvcResult primeiroLogin = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginReq)))
@@ -245,13 +229,11 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 : null;
         assertThat(rtAntigo).isNotBlank();
 
-        // Segundo login — gera nova chaveSessao, invalida RT antigo
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(loginReq)))
                 .andExpect(status().isOk());
 
-        // RT antigo enviado via cookie deve ser rejeitado (chaveSessao não bate)
         mockMvc.perform(post("/api/auth/refresh")
                         .header("Origin", "http://localhost:3000")
                         .cookie(new Cookie("refreshToken", rtAntigo)))
@@ -266,7 +248,6 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
         String email = "rotation@email.com";
         String senha = "SenhaSegura123!";
 
-        // Setup: criar usuário verificado diretamente no banco
         registrarEVerificarUsuario(email, senha, "Rotation User");
 
         UsuarioLoginRequestDTO loginReq = new UsuarioLoginRequestDTO(email, senha);
@@ -278,7 +259,6 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
 
         String rtInicial = login.getResponse().getCookie("refreshToken").getValue();
 
-        // Primeiro refresh — usa RT inicial, recebe novo RT
         MvcResult primeiroRefresh = mockMvc.perform(post("/api/auth/refresh")
                         .header("Origin", "http://localhost:3000")
                         .cookie(new Cookie("refreshToken", rtInicial)))
@@ -290,20 +270,17 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
         String rtRotacionado = primeiroRefresh.getResponse().getCookie("refreshToken").getValue();
         assertThat(rtRotacionado).isNotEqualTo(rtInicial);
 
-        // Reutilizar RT inicial (reuse attack) → 401 + sessão invalidada
         mockMvc.perform(post("/api/auth/refresh")
                         .header("Origin", "http://localhost:3000")
                         .cookie(new Cookie("refreshToken", rtInicial)))
                 .andExpect(status().isUnauthorized());
 
-        // RT rotacionado também deve ser rejeitado (chaveSessao foi zerada)
         mockMvc.perform(post("/api/auth/refresh")
                         .header("Origin", "http://localhost:3000")
                         .cookie(new Cookie("refreshToken", rtRotacionado)))
                 .andExpect(status().isUnauthorized());
     }
 
-    // ─── Helpers ──────────────────────────────────────────────────────────
 
     /**
      * Helper: faz o fluxo completo de pré-registro + verificação via OTP,

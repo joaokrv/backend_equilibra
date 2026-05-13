@@ -35,7 +35,6 @@ class CartaoRepositoryTest extends BaseRepositoryTest {
     @Test
     @DisplayName("Deve salvar um Cartão de Crédito corretamente no banco de dados com suas restrições")
     void deveSalvarCartaoComSucesso() {
-        // Arrange
         CartaoEntity novoCartao = new CartaoEntity();
         novoCartao.setNome("C6 Bank");
         novoCartao.setLimite(new BigDecimal("2500.00"));
@@ -43,10 +42,8 @@ class CartaoRepositoryTest extends BaseRepositoryTest {
         novoCartao.setDiaFechamento(3);
         novoCartao.setUsuario(usuarioSalvo);
 
-        // Act
         CartaoEntity cartaoSalvo = cartaoRepository.save(novoCartao);
 
-        // Assert
         assertThat(cartaoSalvo.getId()).isNotNull();
         assertThat(cartaoSalvo.getNome()).isEqualTo("C6 Bank");
         assertThat(cartaoSalvo.getLimite()).isEqualByComparingTo(new BigDecimal("2500.00"));

@@ -35,7 +35,6 @@ class InvestimentoRepositoryTest extends BaseRepositoryTest {
     @Test
     @DisplayName("Deve salvar um Investimento corretamente e verificar campos")
     void deveSalvarInvestimentoComSucesso() {
-        // Arrange
         InvestimentoEntity novoInvestimento = new InvestimentoEntity();
         novoInvestimento.setDescricao("Reserva de Emergência");
         novoInvestimento.setValorInicial(new BigDecimal("1000.00"));
@@ -44,10 +43,8 @@ class InvestimentoRepositoryTest extends BaseRepositoryTest {
         novoInvestimento.setTipoInvestimento(TipoInvestimento.OUTRO);
         novoInvestimento.setUsuario(usuarioSalvo);
 
-        // Act
         InvestimentoEntity investimentoSalvo = investimentoRepository.save(novoInvestimento);
 
-        // Assert
         assertThat(investimentoSalvo.getId()).isNotNull();
         assertThat(investimentoSalvo.getDescricao()).isEqualTo("Reserva de Emergência");
         assertThat(investimentoSalvo.getValorInicial()).isEqualByComparingTo("1000.00");

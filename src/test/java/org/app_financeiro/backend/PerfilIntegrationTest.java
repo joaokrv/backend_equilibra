@@ -45,10 +45,8 @@ class PerfilIntegrationTest extends AbstractIntegrationTest {
         usuarioRepository.deleteAll();
         when(mailSender.createMimeMessage()).thenReturn(new org.springframework.mail.javamail.JavaMailSenderImpl().createMimeMessage());
 
-        // Setup Usuário A
         tokenA = setupUsuarioVerificado("User A", "usera@email.com", "SenhaA123!");
         
-        // Setup Usuário B
         tokenB = setupUsuarioVerificado("User B", "userb@email.com", "SenhaB123!");
     }
 
@@ -84,7 +82,6 @@ class PerfilIntegrationTest extends AbstractIntegrationTest {
     @Test
     @DisplayName("Não deve permitir atualizar perfil com celular já em uso por outro usuário")
     void naoDevePermitirCelularDuplicado() throws Exception {
-        // 1. Usuário B define seu celular
         UsuarioAtualizacaoRequestDTO reqB = new UsuarioAtualizacaoRequestDTO("User B", "21999998888", MoedaEnum.BRL);
         mockMvc.perform(put("/api/usuarios/perfil/me")
                 .header("Authorization", "Bearer " + tokenB)
@@ -92,7 +89,6 @@ class PerfilIntegrationTest extends AbstractIntegrationTest {
                 .content(objectMapper.writeValueAsString(reqB)))
                 .andExpect(status().isOk());
 
-        // 2. Usuário A tenta definir o mesmo celular
         UsuarioAtualizacaoRequestDTO reqA = new UsuarioAtualizacaoRequestDTO("User A", "21999998888", MoedaEnum.BRL);
         mockMvc.perform(put("/api/usuarios/perfil/me")
                 .header("Authorization", "Bearer " + tokenA)

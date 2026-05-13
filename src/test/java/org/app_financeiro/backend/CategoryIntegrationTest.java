@@ -56,16 +56,13 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        // Mock MailSender to avoid connection errors during registration
         when(mailSender.createMimeMessage()).thenReturn(new JavaMailSenderImpl().createMimeMessage());
 
-        // Limpar dados antes de cada teste (ordem inversa de dependência)
         categoriaRepository.deleteAllInBatch();
         codigoVerificacaoRepository.deleteAllInBatch();
         usuarioPendenteRepository.deleteAllInBatch();
         usuarioRepository.deleteAllInBatch();
 
-        // Registrar, verificar e logar Usuário A
         tokenA = "Bearer " + setupUsuarioVerificado("User A", "usera@email.com", "senha123");
         idUserA = usuarioRepository.findByEmail("usera@email.com").get().getId();
     }
@@ -79,9 +76,6 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
         categoriaRepository.saveAndFlush(cat);
     }
 
-    // =============================================
-    // TESTES DE SUCESSO
-    // =============================================
 
     @Test
     void deveCriarCategoriaComSucesso() throws Exception {
@@ -164,9 +158,6 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
         assertThat(categoriaRepository.findById(idCat)).isEmpty();
     }
 
-    // =============================================
-    // TESTES DE ERRO E VALIDAÇÃO
-    // =============================================
 
     @Test
     void naoDevePermitirCategoriaDuplicadaMesmoTipo() throws Exception {
@@ -193,26 +184,21 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
                 .header("Authorization", tokenA)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(dto)))
-                .andExpect(status().isUnprocessableEntity()) // 422 - Validation error
+                .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.erro").value("Erro de validação"));
     }
 
     @Test
     void naoDeveCriarCategoriaComTipoNulo() throws Exception {
-        // Usando Map pois o record não permite nulo no enum se serializado via objectMapper as vezes,
-        // mas aqui queremos testar a validação do Bean
-        Map<String, Object> body = Map.of("nome", "Teste", "tipo", ""); // Tipo inválido/nulo
+        Map<String, Object> body = Map.of("nome", "Teste", "tipo", "");
 
         mockMvc.perform(post("/api/categorias")
                 .header("Authorization", tokenA)
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(body)))
-                .andExpect(status().isBadRequest()); // Jackson error before bean validation usually
+                .andExpect(status().isBadRequest());
     }
 
-    // =============================================
-    // TESTES DE SEGURANÇA E ISOLAMENTO
-    // =============================================
 
     @Test
     void naoDeveDeletarCategoriaDeOutroUsuario() throws Exception {
@@ -243,7 +229,7 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(get("/api/categorias")
                 .header("Authorization", tokenB))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.length()").value(0)); // Usuário B não tem nada
+                .andExpect(jsonPath("$.length()").value(0));
     }
 
     @Test
@@ -258,18 +244,15 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
         
         Long idCat = objectMapper.readTree(res.getResponse().getContentAsString()).get("id").asLong();
 
-        // Antes do delete: length = 1
         mockMvc.perform(get("/api/categorias").header("Authorization", tokenA))
                 .andExpect(jsonPath("$.length()").value(1));
 
-        // Delete
         mockMvc.perform(delete("/api/categorias/" + idCat).header("Authorization", tokenA))
                 .andExpect(status().isNoContent());
 
         entityManager.flush();
         entityManager.clear();
 
-        // Após o delete: length = 0 (devido ao @SQLRestriction)
         mockMvc.perform(get("/api/categorias").header("Authorization", tokenA))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(0));

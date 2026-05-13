@@ -62,9 +62,6 @@ public class GlobalExceptionHandler {
         this.messageSource = messageSource;
     }
 
-    // =============================================
-    // EXCEPTIONS ESPECÍFICAS 
-    // =============================================
 
     @ExceptionHandler(EmailJaCadastradoException.class)
     public ResponseEntity<ErroResponseDTO> handleEmailJaCadastrado(EmailJaCadastradoException ex) {
@@ -138,9 +135,6 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(erro, HttpStatus.CONFLICT);
     }
 
-    // =============================================
-    // EXCEPTIONS GENÉRICAS (base)
-    // =============================================
 
     @ExceptionHandler(RecursoNaoEncontradoException.class)
     public ResponseEntity<ErroResponseDTO> handleRecursoNaoEncontrado(RecursoNaoEncontradoException ex) {
@@ -165,9 +159,6 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(erro, HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
-    // =============================================
-    // EXCEPTIONS DE SEGURANÇA (Spring Security)
-    // =============================================
 
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ErroResponseDTO> handleBadCredentials(BadCredentialsException ex) {
@@ -205,9 +196,6 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(erro, HttpStatus.UNAUTHORIZED);
     }
 
-    // =============================================
-    // EXCEPTIONS DO SPRING (validação, JSON malformado)
-    // =============================================
 
     /**
      * Trata erros de validação do @Valid nos DTOs.
@@ -274,9 +262,6 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(erro, HttpStatus.SERVICE_UNAVAILABLE);
     }
 
-    // =============================================
-    // EXCEPTIONS DE INFRAESTRUTURA
-    // =============================================
 
     /**
      * Trata violações de constraint de bean validation (@PathVariable, @RequestParam).
@@ -343,9 +328,6 @@ public class GlobalExceptionHandler {
         return new ResponseEntity<>(erro, HttpStatus.BAD_REQUEST);
     }
 
-    // =============================================
-    // FALLBACK (qualquer exceção não tratada)
-    // =============================================
 
     /**
      * Trata métodos HTTP não suportados em rotas permitAll() que chegariam ao Dispatcher e dariam 500.

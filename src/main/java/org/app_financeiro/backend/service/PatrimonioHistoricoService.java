@@ -43,7 +43,6 @@ public class PatrimonioHistoricoService {
     public void executarSnapshotsDiarios() {
         log.info("Iniciando motor de snapshots diários de patrimônio...");
 
-        // Buscamos todos os usuários ativos (filtrados automaticamente pelo @SQLRestriction)
         usuarioRepository.findAll().forEach(usuario -> {
             try {
                 atualizarSnapshotUsuarioHoje(usuario.getId());

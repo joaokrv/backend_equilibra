@@ -26,6 +26,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private final Map<String, BucketEntry> cache = new ConcurrentHashMap<>();
     private final Map<String, BucketEntry> cacheRelatorio = new ConcurrentHashMap<>();
     private final Map<String, BucketEntry> cacheAuth = new ConcurrentHashMap<>();
+    private final Map<String, BucketEntry> cacheHealth = new ConcurrentHashMap<>();
     private final AtomicLong requestCounter = new AtomicLong(0);
     private final boolean enabled;
     private final boolean trustForwardedFor;
@@ -126,6 +127,25 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         return Bucket.builder().addLimit(limit).build();
     }
 
+    private Bucket resolveBucketHealth(String clientIp) {
+        long now = System.currentTimeMillis();
+        BucketEntry entry = cacheHealth.compute(clientIp, (ip, existing) -> {
+            if (existing == null) {
+                return new BucketEntry(newBucketHealth(ip), now);
+            }
+            return existing.touch(now);
+        });
+        return entry.bucket();
+    }
+
+    private Bucket newBucketHealth(String clientIp) {
+        Bandwidth limit = Bandwidth.builder()
+                .capacity(10)
+                .refillIntervally(10, Duration.ofMinutes(1))
+                .build();
+        return Bucket.builder().addLimit(limit).build();
+    }
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         if (!enabled) {
@@ -138,6 +158,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         Bucket bucket;
         if (uri.contains("/relatorios/exportar")) {
             bucket = resolveBucketRelatorio(ip);
+        } else if (uri.equals("/actuator/health")) {
+            bucket = resolveBucketHealth(ip);
         } else if (uri.startsWith("/api/auth/")) {
             bucket = resolveBucketAuth(ip);
         } else {
@@ -196,7 +218,6 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             return false;
         }
 
-        // Aceita IPv4 e IPv6 textuais simples. Evita valores malformados no header.
         return ip.matches("^[0-9a-fA-F:.]{2,45}$");
     }
 
@@ -210,6 +231,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         cache.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
         cacheRelatorio.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
         cacheAuth.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
+        cacheHealth.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
 
         if (cache.size() <= maxBuckets) {
             return;
