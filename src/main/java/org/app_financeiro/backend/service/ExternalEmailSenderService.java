@@ -100,10 +100,10 @@ public class ExternalEmailSenderService {
             helper.setSubject(assunto);
             helper.setText(htmlContent, true);
 
-            if (htmlContent.contains("cid:equilibra-logo")) {
+            if (htmlContent.contains("cid:equilibra-logo.png")) {
                 ClassPathResource logo = new ClassPathResource("static/assets/logo-equilibra.png");
                 if (logo.exists()) {
-                    helper.addInline("equilibra-logo", logo);
+                    helper.addInline("equilibra-logo.png", logo);
                 }
             }
 
@@ -135,19 +135,31 @@ public class ExternalEmailSenderService {
         if (brevoApiKey == null || brevoApiKey.isBlank()) {
             throw new MailSendException("BREVO_API_KEY não configurada.");
         }
-        if (brevoApiKey.startsWith("xsmtpsib-")) {
-            throw new MailSendException("BREVO_API_KEY inválida: foi informada uma chave SMTP (xsmtpsib-...). Use a API key da aba Settings > SMTP & API > API Keys & MCP (prefixo xkeysib-...).");
-        }
 
-        Map<String, Object> payload = Map.of(
-                "sender", Map.of(
-                        "name", brevoFromName,
-                        "email", mailFrom
-                ),
+        Map<String, Object> payloadMap = new java.util.HashMap<>(Map.of(
+                "sender", Map.of("name", brevoFromName, "email", mailFrom),
                 "to", List.of(Map.of("email", destinatario)),
                 "subject", assunto,
                 "htmlContent", htmlContent
-        );
+        ));
+
+        // Tenta anexar a logo se estiver no HTML
+        if (htmlContent.contains("cid:equilibra-logo.png")) {
+            try {
+                ClassPathResource logoRes = new ClassPathResource("static/assets/logo-equilibra.png");
+                if (logoRes.exists()) {
+                    byte[] imageBytes = logoRes.getInputStream().readAllBytes();
+                    String base64Image = java.util.Base64.getEncoder().encodeToString(imageBytes);
+                    
+                    payloadMap.put("attachment", List.of(Map.of(
+                            "content", base64Image,
+                            "name", "equilibra-logo.png"
+                    )));
+                }
+            } catch (Exception e) {
+                log.warn("Falha ao preparar logo para API do Brevo: {}", e.getMessage());
+            }
+        }
 
         try {
             buildBrevoClient().post()
@@ -155,7 +167,7 @@ public class ExternalEmailSenderService {
                     .header("api-key", brevoApiKey)
                     .header(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(payload)
+                    .body(payloadMap)
                     .retrieve()
                     .toBodilessEntity();
 
