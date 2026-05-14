@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import org.app_financeiro.backend.enums.BandeiraCartao;
 import java.math.BigDecimal;
@@ -14,6 +15,7 @@ import java.math.BigDecimal;
  */
 public record CartaoRegistroRequestDTO(
     @NotBlank(message = "O nome do cartão é obrigatório")
+    @Size(max = 100, message = "O nome do cartão não pode exceder 100 caracteres")
     String nome,
 
     @NotNull(message = "O limite do cartão é obrigatório")

@@ -4,6 +4,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 import org.app_financeiro.backend.enums.MetodoPagamento;
 import org.app_financeiro.backend.enums.StatusTransacao;
 import org.app_financeiro.backend.enums.TipoTransacao;
@@ -17,6 +18,7 @@ import java.time.LocalDate;
  */
 public record TransacaoRegistroRequestDTO(
     @NotBlank(message = "A descrição é obrigatória")
+    @Size(max = 255, message = "A descrição não pode exceder 255 caracteres")
     String descricao,
 
     @NotNull(message = "O valor é obrigatório")
@@ -45,5 +47,6 @@ public record TransacaoRegistroRequestDTO(
     Integer totalParcelas,
 
     @NotBlank(message = "A chave de idempotência é obrigatória para prevenir duplicações")
+    @Size(max = 100, message = "A chave de idempotência não pode exceder 100 caracteres")
     String idempotencyKey
 ) {}

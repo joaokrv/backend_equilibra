@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import org.app_financeiro.backend.enums.MetodoPagamento;
 import org.app_financeiro.backend.enums.TipoTransacao;
 
@@ -13,6 +14,7 @@ import java.time.LocalDate;
 
 public record TransacaoRecorrenteRequestDTO(
     @NotBlank(message = "A descrição é obrigatória")
+    @Size(max = 255, message = "A descrição não pode exceder 255 caracteres")
     String descricao,
 
     @NotNull(message = "O valor é obrigatório")

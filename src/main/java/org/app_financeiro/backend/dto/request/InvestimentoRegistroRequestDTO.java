@@ -13,6 +13,7 @@ import java.math.BigDecimal;
  */
 public record InvestimentoRegistroRequestDTO(
     @NotBlank(message = "A descrição do investimento é obrigatória")
+    @Size(max = 255, message = "A descrição não pode exceder 255 caracteres")
     String descricao,
 
     @NotNull(message = "O valor inicial é obrigatório")

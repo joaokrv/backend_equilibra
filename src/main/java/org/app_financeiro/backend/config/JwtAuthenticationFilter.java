@@ -38,13 +38,13 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
         final String authHeader = request.getHeader("Authorization");
-        final String jwt;
-        final String userEmail;
-
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
             filterChain.doFilter(request, response);
             return;
         }
+
+        final String jwt;
+        final String userEmail;
 
         try {
             jwt = authHeader.substring(7);
@@ -55,30 +55,35 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             return;
         }
 
-        if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-            UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+        try {
+            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
 
-            if (jwtService.isTokenValid(jwt, userDetails)) {
-                String tokenChaveSessao = jwtService.extractChaveSessao(jwt);
-                if (userDetails instanceof UsuarioEntity usuario) {
-                    if (tokenChaveSessao != null && !tokenChaveSessao.equals(usuario.getChaveSessao())) {
-                        log.warn("Sessão revogada para {}. Novo login detectado.", userEmail);
-                        filterChain.doFilter(request, response);
-                        return;
+                if (jwtService.isTokenValid(jwt, userDetails)) {
+                    String tokenChaveSessao = jwtService.extractChaveSessao(jwt);
+                    if (userDetails instanceof UsuarioEntity usuario) {
+                        if (tokenChaveSessao != null && !tokenChaveSessao.equals(usuario.getChaveSessao())) {
+                            log.warn("Sessão revogada para {}. Novo login detectado.", userEmail);
+                            filterChain.doFilter(request, response);
+                            return;
+                        }
                     }
-                }
 
-                UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
-                        userDetails,
-                        null,
-                        userDetails.getAuthorities()
-                );
-                authToken.setDetails(
-                        new WebAuthenticationDetailsSource().buildDetails(request)
-                );
-                SecurityContextHolder.getContext().setAuthentication(authToken);
+                    UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
+                            userDetails,
+                            null,
+                            userDetails.getAuthorities()
+                    );
+                    authToken.setDetails(
+                            new WebAuthenticationDetailsSource().buildDetails(request)
+                    );
+                    SecurityContextHolder.getContext().setAuthentication(authToken);
+                }
             }
+        } catch (Exception ex) {
+            log.error("Erro inesperado durante validação do token JWT para usuário '{}': {}", userEmail, ex.getMessage());
         }
+
         filterChain.doFilter(request, response);
     }
 }
