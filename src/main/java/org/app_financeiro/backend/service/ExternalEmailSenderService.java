@@ -14,6 +14,7 @@ import org.springframework.mail.javamail.MimeMessageHelper;
 import org.springframework.stereotype.Service;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.core.io.ClassPathResource;
 
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -93,11 +94,18 @@ public class ExternalEmailSenderService {
                 mimeMessage = new MimeMessage((Session) null);
             }
 
-            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, StandardCharsets.UTF_8.name());
+            MimeMessageHelper helper = new MimeMessageHelper(mimeMessage, true, StandardCharsets.UTF_8.name());
             helper.setFrom(mailFrom);
             helper.setTo(destinatario);
             helper.setSubject(assunto);
             helper.setText(htmlContent, true);
+
+            if (htmlContent.contains("cid:equilibra-logo")) {
+                ClassPathResource logo = new ClassPathResource("static/assets/logo-equilibra.png");
+                if (logo.exists()) {
+                    helper.addInline("equilibra-logo", logo);
+                }
+            }
 
             mailSender.send(mimeMessage);
             log.info("E-mail enviado via SMTP para {}", destinatario);

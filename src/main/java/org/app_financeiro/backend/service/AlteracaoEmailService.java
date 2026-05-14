@@ -121,7 +121,17 @@ public class AlteracaoEmailService {
         try {
             ClassPathResource resource = new ClassPathResource("templates/alteracao-email.html");
             String htmlTemplate = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
-            String htmlContent = htmlTemplate.replace("{{CODIGO}}", codigo);
+            String htmlContent = htmlTemplate;
+
+            if (codigo != null && codigo.length() == 6) {
+                htmlContent = htmlContent
+                    .replace("{{CODIGO_1}}", String.valueOf(codigo.charAt(0)))
+                    .replace("{{CODIGO_2}}", String.valueOf(codigo.charAt(1)))
+                    .replace("{{CODIGO_3}}", String.valueOf(codigo.charAt(2)))
+                    .replace("{{CODIGO_4}}", String.valueOf(codigo.charAt(3)))
+                    .replace("{{CODIGO_5}}", String.valueOf(codigo.charAt(4)))
+                    .replace("{{CODIGO_6}}", String.valueOf(codigo.charAt(5)));
+            }
 
             externalEmailSenderService.sendHtml(destinatario, "Equilibra - Alteracao de E-mail", htmlContent);
             log.debug("E-mail de alteração enviado para {}", destinatario);

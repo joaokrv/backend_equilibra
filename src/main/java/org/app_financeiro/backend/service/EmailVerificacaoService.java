@@ -134,14 +134,25 @@ public class EmailVerificacaoService {
 
     private void enviarEmail(String destinatario, String codigo, LocalDateTime expiracao, TipoCodigoVerificacao tipo) {
         try {
-            ClassPathResource resource = new ClassPathResource("templates/verificacao-email.html");
+            String templateName = templatePorTipo(tipo);
+            ClassPathResource resource = new ClassPathResource(templateName);
             String htmlTemplate = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
             String horarioExpiracao = expiracao.atZone(ZoneId.systemDefault())
                     .withZoneSameInstant(FUSO_BRASIL)
                     .format(HORARIO_FORMATTER) + " (UTC-3)";
+            
             String htmlContent = htmlTemplate
-                    .replace("{{CODIGO}}", codigo)
                     .replace("{{HORARIO_EXPIRACAO}}", horarioExpiracao);
+                    
+            if (codigo != null && codigo.length() == 6) {
+                htmlContent = htmlContent
+                    .replace("{{CODIGO_1}}", String.valueOf(codigo.charAt(0)))
+                    .replace("{{CODIGO_2}}", String.valueOf(codigo.charAt(1)))
+                    .replace("{{CODIGO_3}}", String.valueOf(codigo.charAt(2)))
+                    .replace("{{CODIGO_4}}", String.valueOf(codigo.charAt(3)))
+                    .replace("{{CODIGO_5}}", String.valueOf(codigo.charAt(4)))
+                    .replace("{{CODIGO_6}}", String.valueOf(codigo.charAt(5)));
+            }
 
             externalEmailSenderService.sendHtml(destinatario, assuntoPorTipo(tipo), htmlContent);
             log.info("E-mail de verificação enviado para {}", destinatario);
@@ -156,7 +167,16 @@ public class EmailVerificacaoService {
             case EXCLUSAO_CONTA -> "Confirme a exclusão da sua conta — Equilibra";
             case DESATIVACAO_CONTA -> "Confirme a desativação da sua conta — Equilibra";
             case REATIVACAO_CONTA -> "Reative sua conta — Equilibra";
-            case VERIFICACAO_EMAIL -> "Equilibra - Codigo de Verificacao";
+            case VERIFICACAO_EMAIL -> "Código de Verificação — Equilibra";
+        };
+    }
+
+    private String templatePorTipo(TipoCodigoVerificacao tipo) {
+        return switch (tipo) {
+            case EXCLUSAO_CONTA -> "templates/exclusao-conta-email.html";
+            case DESATIVACAO_CONTA -> "templates/desativacao-conta-email.html";
+            case REATIVACAO_CONTA -> "templates/reativacao-conta-email.html";
+            case VERIFICACAO_EMAIL -> "templates/verificacao-email.html";
         };
     }
 }
