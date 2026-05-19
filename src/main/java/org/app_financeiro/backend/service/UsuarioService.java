@@ -90,7 +90,7 @@ public class UsuarioService {
         UsuarioEntity savedUser = usuarioRepository.save(usuario);
         criarCategoriasPadrao(savedUser);
 
-        log.info("Usuário registrado com sucesso: id={}, email={}", savedUser.getId(), savedUser.getEmail());
+        log.info("Usuário registrado com sucesso: id={}, email={}", savedUser.getId(), org.app_financeiro.backend.util.EmailMasker.mascarar(savedUser.getEmail()));
         return true;
     }
 
@@ -112,7 +112,7 @@ public class UsuarioService {
         UsuarioEntity savedUser = usuarioRepository.save(usuario);
         criarCategoriasPadrao(savedUser);
 
-        log.info("Usuário finalizado via pré-registro: id={}, email={}", savedUser.getId(), savedUser.getEmail());
+        log.info("Usuário finalizado via pré-registro: id={}, email={}", savedUser.getId(), org.app_financeiro.backend.util.EmailMasker.mascarar(savedUser.getEmail()));
         return savedUser;
     }
 
@@ -121,7 +121,7 @@ public class UsuarioService {
                 .orElseThrow(CredenciaisInvalidasException::new);
 
         if (!passwordEncoder.matches(senha, usuario.getSenha())) {
-            log.warn("Tentativa de login com senha inválida para e-mail: {}", email);
+            log.warn("Tentativa de login com senha inválida para e-mail: {}", org.app_financeiro.backend.util.EmailMasker.mascarar(email));
             throw new CredenciaisInvalidasException();
         }
 
@@ -167,7 +167,7 @@ public class UsuarioService {
         }
 
         usuarioRepository.deleteById(usuarioId);
-        log.info("Conta excluida (hard delete): usuarioId={}, email={}", usuarioId, emailNormalizado);
+        log.info("Conta excluida (hard delete): usuarioId={}, email={}", usuarioId, org.app_financeiro.backend.util.EmailMasker.mascarar(emailNormalizado));
     }
 
     @Transactional
@@ -181,7 +181,7 @@ public class UsuarioService {
 
         usuario.setAtivo(true);
         usuarioRepository.save(usuario);
-        log.info("Conta reativada: usuarioId={}, email={}", usuario.getId(), email);
+        log.info("Conta reativada: usuarioId={}, email={}", usuario.getId(), org.app_financeiro.backend.util.EmailMasker.mascarar(email));
     }
 
     @Transactional

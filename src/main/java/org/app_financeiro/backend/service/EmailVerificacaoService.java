@@ -63,7 +63,7 @@ public class EmailVerificacaoService {
         codigoEntity.setUtilizado(false);
 
         codigoVerificacaoRepository.save(codigoEntity);
-        log.info("Código de verificação gerado para e-mail {}", email);
+        log.info("Código de verificação gerado para e-mail {}", org.app_financeiro.backend.util.EmailMasker.mascarar(email));
 
         enviarEmail(email, codigo, expiracao, tipo);
     }
@@ -77,7 +77,7 @@ public class EmailVerificacaoService {
 
         usuario.setEmailVerificado(true);
         usuarioRepository.save(usuario);
-        log.info("E-mail {} verificado com sucesso", dto.email());
+        log.info("E-mail {} verificado com sucesso", org.app_financeiro.backend.util.EmailMasker.mascarar(dto.email()));
     }
 
     /**
@@ -96,11 +96,13 @@ public class EmailVerificacaoService {
         }
 
         if (codigoEntity.getDataExpiracao().isBefore(LocalDateTime.now())) {
-            log.warn("Código de verificação expirado para e-mail {}", email);
+            log.warn("Código de verificação expirado para e-mail {}", org.app_financeiro.backend.util.EmailMasker.mascarar(email));
             throw new CodigoVerificacaoInvalidoException("Código expirado. Solicite um novo código.");
         }
 
-        if (!codigoEntity.getCodigo().equals(codigo)) {
+        if (!java.security.MessageDigest.isEqual(
+                codigoEntity.getCodigo().getBytes(java.nio.charset.StandardCharsets.UTF_8),
+                codigo == null ? new byte[0] : codigo.getBytes(java.nio.charset.StandardCharsets.UTF_8))) {
             int tentativas = codigoEntity.getTentativasFalhas() + 1;
             codigoEntity.setTentativasFalhas(tentativas);
             if (tentativas >= MAX_TENTATIVAS_OTP) {
@@ -124,7 +126,7 @@ public class EmailVerificacaoService {
         }
 
         if (usuario.isEmailVerificado()) {
-            log.warn("Tentativa de reenviar código para e-mail já verificado: {}", dto.email());
+            log.warn("Tentativa de reenviar código para e-mail já verificado: {}", org.app_financeiro.backend.util.EmailMasker.mascarar(dto.email()));
             throw new RegraDeNegocioException("Este e-mail já foi verificado");
         }
 

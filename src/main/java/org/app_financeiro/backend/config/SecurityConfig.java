@@ -98,6 +98,11 @@ public class SecurityConfig {
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
                 .toList();
+        if (origins.isEmpty() || origins.contains("*")) {
+            throw new IllegalStateException(
+                "CORS_ALLOWED_ORIGINS inválido: lista vazia ou contém '*'. " +
+                "Defina origens explícitas, sem wildcard, pois allowCredentials=true.");
+        }
         configuration.setAllowedOrigins(origins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"));
         configuration.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept-Language", "X-Requested-With"));

@@ -2,6 +2,7 @@ package org.app_financeiro.backend.scheduler;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import net.javacrumbs.shedlock.spring.annotation.SchedulerLock;
 import org.app_financeiro.backend.repository.IndicadorEconomicoRepository;
 import org.app_financeiro.backend.service.MarketDataService;
 import org.springframework.context.event.EventListener;
@@ -55,6 +56,7 @@ public class MarketDataScheduler {
      * Executa 2x ao dia — às 01:00 (captura fechamento) e às 13:00 (meio do pregão).
      */
     @Scheduled(cron = "0 0 1,13 * * *")
+    @SchedulerLock(name = "MarketDataScheduler_diaria", lockAtMostFor = "PT10M", lockAtLeastFor = "PT1M")
     public void agendarSincronizacaoDiaria() {
         log.debug("Iniciando agendamento de indicadores macro...");
         marketDataService.syncIndicadoresMacro();
@@ -66,6 +68,7 @@ public class MarketDataScheduler {
      * Executa mensalmente — dados são atualizados pelo IBGE uma vez por mês.
      */
     @Scheduled(cron = "0 0 2 1 * *")
+    @SchedulerLock(name = "MarketDataScheduler_ipca", lockAtMostFor = "PT10M", lockAtLeastFor = "PT1M")
     public void agendarSincronizacaoIPCA() {
         log.debug("Iniciando agendamento mensal de IPCA...");
         marketDataService.syncIPCA();

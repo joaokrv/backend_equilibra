@@ -202,15 +202,26 @@ public class RateLimitInterceptor implements HandlerInterceptor {
                 || "::1".equals(remoteAddr)
                 || remoteAddr.startsWith("10.")
                 || remoteAddr.startsWith("192.168.")
-                || remoteAddr.startsWith("172.16.")
-                || remoteAddr.startsWith("172.17.")
-                || remoteAddr.startsWith("172.18.")
-                || remoteAddr.startsWith("172.19.")
-                || remoteAddr.startsWith("172.2")
-                || remoteAddr.startsWith("172.30.")
-                || remoteAddr.startsWith("172.31.")
+                || isPrivate172Range(remoteAddr)
                 || remoteAddr.startsWith("fc")
                 || remoteAddr.startsWith("fd");
+    }
+
+    private boolean isPrivate172Range(String remoteAddr) {
+        if (!remoteAddr.startsWith("172.")) {
+            return false;
+        }
+        int firstDot = 4;
+        int secondDot = remoteAddr.indexOf('.', firstDot);
+        if (secondDot < 0) {
+            return false;
+        }
+        try {
+            int second = Integer.parseInt(remoteAddr.substring(firstDot, secondDot));
+            return second >= 16 && second <= 31;
+        } catch (NumberFormatException e) {
+            return false;
+        }
     }
 
     private boolean isValidIp(String ip) {

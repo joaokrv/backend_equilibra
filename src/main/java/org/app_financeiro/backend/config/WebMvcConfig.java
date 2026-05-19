@@ -17,6 +17,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
         registry.addInterceptor(rateLimitInterceptor)
                 .addPathPatterns(
                         "/api/auth/login",
+                        "/api/auth/logout",
+                        "/api/auth/verificar-email",
                         "/api/auth/pre-registrar",
                         "/api/auth/otp-status",
                         "/api/auth/refresh",
