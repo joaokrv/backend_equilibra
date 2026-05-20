@@ -372,6 +372,37 @@ Todos os services utilizam logging estruturado via SLF4J:
 
 ---
 
+## Próximos Passos
+
+### 🤖 Bot WhatsApp com IA Integrada
+
+A próxima grande evolução do Equilibra é a **integração com WhatsApp via Bot inteligente**, permitindo ao usuário registrar movimentações financeiras sem precisar acessar o site.
+
+**Visão:**
+
+- Registrar **receitas**, **despesas** e **investimentos** por mensagem natural no WhatsApp
+- IA interpreta a intenção do usuário (ex: *"gastei 35 reais no almoço hoje no cartão Nubank"*) e cria a transação na categoria correta
+- Consultar **saldo**, **fatura aberta** e **limite disponível** via comandos conversacionais
+- Receber **alertas proativos** (vencimento de fatura, meta de poupança atingida, gasto fora do padrão)
+- Manter histórico unificado com o sistema web — toda movimentação criada via WhatsApp aparece imediatamente no Dashboard
+
+**Stack prevista:**
+
+- Provedor WhatsApp Business API (Meta Cloud API ou parceiro como Z-API/Twilio)
+- LLM via Claude API ou similar com prompt cache para classificação de intenção
+- Novo módulo `bot/` no backend com webhook receiver + orquestrador de intenções
+- Autenticação por número de telefone vinculado ao usuário (`UsuarioEntity.celular`)
+
+> Status: **planejamento**. O backend já expõe os endpoints necessários (transações, contas, cartões, investimentos) — o bot será um cliente desses endpoints, sem mudanças disruptivas na API existente.
+
+---
+
+## Reportando Vulnerabilidades
+
+Consulte [`SECURITY.md`](SECURITY.md) para o procedimento de disclosure responsável.
+
+---
+
 ## Documentação Técnica
 
 Módulos detalhados sobre cada decisão arquitetural estão disponíveis em `docs/`:
