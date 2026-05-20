@@ -1,0 +1,60 @@
+Business Source License 1.1
+
+Parameters
+
+Licensor: João Victor Carvalho
+Licensed Work: Equilibra Backend
+Change Date: 2030-05-19
+Change License: MIT License
+
+For information regarding alternate licensing arrangements for the Licensed Work, please contact the Licensor.
+
+Notice
+
+The Business Source License (this document, or the "License") is not an Open Source license. However, the Licensed Work will eventually be made available under an Open Source License, as stated in this License.
+
+License text copyright (c) 2020 MariaDB Corporation Ab, all rights reserved. "Business Source License" is a trademark of MariaDB Corporation Ab.
+
+---
+
+Business Source License 1.1
+
+Terms
+
+The Licensor hereby grants you the right to copy, modify, and distribute the Licensed Work. However, in consideration of the Licensor's investment of resources in creating and maintaining the Licensed Work, you may not make production use of the Licensed Work except under one of the conditions set forth in Section 2.1; provided that you comply with the terms and conditions in this License. For purposes of this License, "production use" means using the Licensed Work, directly or indirectly, to offer goods or services to third parties, or to generate revenue, or for any other commercial purpose.
+
+2. Grant of Rights
+
+2.1. Limited License. Subject to the terms and conditions of this License, and except for uses restricted under Section 2.2, the Licensor hereby grants you a non-exclusive, worldwide, non-transferable, non-sublicensable, revocable, royalty-free license to reproduce, perform, display, and distribute the Licensed Work and prepare derivative works based on the Licensed Work.
+
+2.2. Restriction. You may not make production use of the Licensed Work except under one of the following conditions:
+
+(a) For Non-Commercial Use, if the Licensed Work is used solely for your own internal business purposes and not offered to, or used by, any third party; or
+
+(b) For Evaluation Purposes, if you are evaluating whether to adopt the Licensed Work, for a trial period of not to exceed 30 days, after which you are required to either discontinue use or obtain a license from the Licensor; or
+
+(c) For versions of the Licensed Work that are marked or identified as provided on an "as-is" basis without services, support, warranties, or other obligations of any kind; or
+
+(d) As expressly permitted under Section 2.3 of this License.
+
+2.3. Additional Use Grant. You are permitted to make production use of the Licensed Work, if such use does not involve offering the Licensed Work or a Competitive Product to third parties.
+
+3. Effective Date and Change Date
+
+3.1. Change Date. On the date that is four (4) years from the date the Licensed Work is first distributed by the Licensor (the "Change Date"), the License granted in Section 2.1 will be expanded to include a license to use the Licensed Work under the terms of the Change License.
+
+4. Termination
+
+4.1. Termination for Breach. If you breach any of the terms or conditions of this License, any rights granted to you under Section 2 will terminate automatically upon the date of such breach. If you do not cure the breach within thirty (30) days after notice of the breach, the termination will be effective immediately. Licensor may elect to cure any breach of this License that you commit and, upon such election, will provide you with notice of such election and an opportunity to respond within thirty (30) days. If you do not cure the breach referred to in the notice within thirty (30) days, Licensor may terminate your rights immediately.
+
+5. Disclaimer of Warranty.
+
+AS PROVIDED IN THE LICENSE, THE LICENSED WORK IS PROVIDED ON AN "AS IS" BASIS. LICENSOR HEREBY DISCLAIMS ALL WARRANTIES AND CONDITIONS, EXPRESS OR IMPLIED, INCLUDING (WITHOUT LIMITATION) WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, NON-INFRINGEMENT, AND TITLE.
+
+6. Limitation of Liability.
+
+UNDER NO CIRCUMSTANCES AND UNDER NO LEGAL THEORY (WHETHER IN CONTRACT, TORT, NEGLIGENCE OR OTHERWISE) SHALL LICENSOR BE LIABLE TO YOU FOR DAMAGES, INCLUDING ANY DIRECT, INDIRECT, SPECIAL, INCIDENTAL, OR CONSEQUENTIAL DAMAGES ARISING OUT OF OR IN CONNECTION WITH THIS LICENSE OR THE USE OF OR INABILITY TO USE THE LICENSED WORK (INCLUDING ANY LOST PROFITS, BUSINESS INTERRUPTION, LOST REVENUES, DATA LOSS, OR DATA CORRUPTION), EVEN IF LICENSOR HAS BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+
+7. Governing Law.
+
+This License will be governed by and construed in accordance with the laws of the State of São Paulo, Brazil, excluding its conflicts of law principles.
