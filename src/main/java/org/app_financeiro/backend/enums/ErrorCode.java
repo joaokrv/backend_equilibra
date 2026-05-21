@@ -13,7 +13,8 @@ public enum ErrorCode {
     REGISTRO_NAO_ENCONTRADO("error.registro_nao_encontrado"),
     CREDENCIAIS_INVALIDAS("error.credenciais_invalidas"),
     REGRA_DE_NEGOCIO("error.regra_de_negocio"),
-    CONTA_JA_ATIVA("error.conta_ja_ativa");
+    CONTA_JA_ATIVA("error.conta_ja_ativa"),
+    RATE_LIMIT_EXCEEDED("error.rate_limit_excedido");
 
     private final String messageKey;
 

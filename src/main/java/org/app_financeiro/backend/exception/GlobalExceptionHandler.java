@@ -42,6 +42,7 @@ import java.util.List;
  *       ├── LimiteInsuficienteException ............ 422 UNPROCESSABLE_ENTITY
  *       ├── OperacaoNaoPermitidaException .......... 409 CONFLICT
  *       └── CodigoVerificacaoInvalidoException ..... 400 BAD_REQUEST
+ *   RateLimitExcedidoException ..................... 429 TOO_MANY_REQUESTS
  *
  *   MethodArgumentNotValidException ................ 422 UNPROCESSABLE_ENTITY
  *   ConstraintViolationException ................... 400 BAD_REQUEST
@@ -146,6 +147,20 @@ public class GlobalExceptionHandler {
                 msg
         );
         return new ResponseEntity<>(erro, HttpStatus.NOT_FOUND);
+    }
+
+    @ExceptionHandler(RateLimitExcedidoException.class)
+    public ResponseEntity<ErroResponseDTO> handleRateLimitExcedido(RateLimitExcedidoException ex) {
+        String msg = messageSource.getMessage(ErrorCode.RATE_LIMIT_EXCEEDED.getMessageKey(), null, LocaleContextHolder.getLocale());
+        ErroResponseDTO erro = new ErroResponseDTO(
+                HttpStatus.TOO_MANY_REQUESTS.value(),
+                ErrorCode.RATE_LIMIT_EXCEEDED.name(),
+                "Muitas requisições",
+                msg
+        );
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header("Retry-After", String.valueOf(ex.getRetryAfterSeconds()))
+                .body(erro);
     }
 
     @ExceptionHandler(RegraDeNegocioException.class)

@@ -2,10 +2,14 @@ package org.app_financeiro.backend.config;
 
 import io.github.bucket4j.Bandwidth;
 import io.github.bucket4j.Bucket;
-import io.github.bucket4j.Refill;
+import io.github.bucket4j.ConsumptionProbe;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.http.HttpStatus;
+import org.app_financeiro.backend.exception.RateLimitExcedidoException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
@@ -21,27 +25,32 @@ import java.util.concurrent.atomic.AtomicLong;
 @Component
 public class RateLimitInterceptor implements HandlerInterceptor {
 
+    private static final Logger log = LoggerFactory.getLogger(RateLimitInterceptor.class);
     private static final long CLEANUP_INTERVAL_REQUESTS = 100;
+
+    static final String ESCOPO_GERAL = "geral";
+    static final String ESCOPO_RELATORIO = "relatorio";
+    static final String ESCOPO_AUTH = "auth";
+    static final String ESCOPO_HEALTH = "health";
 
     private final Map<String, BucketEntry> cache = new ConcurrentHashMap<>();
     private final Map<String, BucketEntry> cacheRelatorio = new ConcurrentHashMap<>();
     private final Map<String, BucketEntry> cacheAuth = new ConcurrentHashMap<>();
     private final Map<String, BucketEntry> cacheHealth = new ConcurrentHashMap<>();
     private final AtomicLong requestCounter = new AtomicLong(0);
-    private final boolean enabled;
+    private final RateLimitProperties properties;
     private final boolean trustForwardedFor;
-    private final int maxBuckets;
     private final long idleTtlMillis;
+    private final MeterRegistry meterRegistry;
 
     public RateLimitInterceptor(
-            @Value("${security.rate-limit.enabled:true}") boolean enabled,
-            @Value("${security.trust-forwarded-for:false}") boolean trustForwardedFor,
-            @Value("${security.rate-limit.max-buckets:10000}") int maxBuckets,
-            @Value("${security.rate-limit.bucket-idle-ttl-minutes:120}") long bucketIdleTtlMinutes) {
-        this.enabled = enabled;
+            RateLimitProperties properties,
+            MeterRegistry meterRegistry,
+            @Value("${security.trust-forwarded-for:false}") boolean trustForwardedFor) {
+        this.properties = properties;
+        this.meterRegistry = meterRegistry;
         this.trustForwardedFor = trustForwardedFor;
-        this.maxBuckets = maxBuckets;
-        this.idleTtlMillis = Duration.ofMinutes(bucketIdleTtlMinutes).toMillis();
+        this.idleTtlMillis = Duration.ofMinutes(properties.bucketIdleTtlMinutes()).toMillis();
     }
 
     private record BucketEntry(Bucket bucket, long lastAccessAt) {
@@ -148,33 +157,62 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
-        if (!enabled) {
+        if (!properties.enabled()) {
             return true;
         }
 
         String ip = extractClientIp(request);
         String uri = request.getRequestURI();
 
+        String escopo;
         Bucket bucket;
         if (uri.contains("/relatorios/exportar")) {
             bucket = resolveBucketRelatorio(ip);
+            escopo = ESCOPO_RELATORIO;
         } else if (uri.equals("/actuator/health")) {
             bucket = resolveBucketHealth(ip);
+            escopo = ESCOPO_HEALTH;
         } else if (uri.startsWith("/api/auth/")) {
             bucket = resolveBucketAuth(ip);
+            escopo = ESCOPO_AUTH;
         } else {
             bucket = resolveBucket(ip);
+            escopo = ESCOPO_GERAL;
         }
 
-        if (bucket.tryConsume(1)) {
+        ConsumptionProbe probe = bucket.tryConsumeAndReturnRemaining(1);
+        if (probe.isConsumed()) {
             return true;
         }
 
-        response.setStatus(HttpStatus.TOO_MANY_REQUESTS.value());
-        response.setContentType("application/json;charset=UTF-8");
-        response.getWriter().write("{\"erro\":\"Muitas tentativas simultâneas. O bloqueio temporário ativo na rede para sua segurança. Aguarde um minuto.\"}");
+        long retryAfterSeconds = Math.max(1, probe.getNanosToWaitForRefill() / 1_000_000_000L);
+        incrementarMetricaBloqueio(escopo);
+        log.warn("Rate limit excedido: escopo={}, uri={}, ip={}, retryAfterSeconds={}",
+                escopo, uri, mascararIp(ip), retryAfterSeconds);
 
-        return false;
+        throw new RateLimitExcedidoException(escopo, retryAfterSeconds);
+    }
+
+    private void incrementarMetricaBloqueio(String escopo) {
+        Counter.builder("equilibra.ratelimit.blocked")
+                .description("Total de requisições bloqueadas pelo rate limit, agrupado por escopo.")
+                .tag("escopo", escopo)
+                .register(meterRegistry)
+                .increment();
+    }
+
+    /** Mascaramento simples para logs (LGPD): preserva primeiro e último octeto. */
+    private String mascararIp(String ip) {
+        if (ip == null || ip.length() < 4) {
+            return "***";
+        }
+        int firstDot = ip.indexOf('.');
+        int lastDot = ip.lastIndexOf('.');
+        if (firstDot > 0 && lastDot > firstDot) {
+            return ip.substring(0, firstDot) + ".***.***" + ip.substring(lastDot);
+        }
+        // IPv6 ou formato inesperado: mantém primeiros 4 chars
+        return ip.substring(0, 4) + "***";
     }
 
     private String extractClientIp(HttpServletRequest request) {
@@ -244,6 +282,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         cacheAuth.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
         cacheHealth.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
 
+        int maxBuckets = properties.maxBuckets();
         if (cache.size() <= maxBuckets) {
             return;
         }

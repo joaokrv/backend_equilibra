@@ -51,3 +51,46 @@ Se você descobrir uma vulnerabilidade de segurança no Equilibra, **NÃO abra u
 - Swagger desabilitado em produção (`SPRINGDOC_ENABLED=false` default)
 - Refresh token em cookie httpOnly + SameSite + Secure
 - Cookie CSRF Origin Interceptor em endpoints baseados em cookie
+
+## Rate Limiting
+
+Buckets in-memory por IP via Bucket4j, configurados em `RateLimitInterceptor` e registrados em `WebMvcConfig`.
+
+### Escopos e limites
+
+| Escopo   | Endpoints                                          | Limite                          |
+|----------|----------------------------------------------------|---------------------------------|
+| `auth`   | `/api/auth/**`                                     | 3 req / minuto                  |
+| `relatorio` | `/api/**/relatorios/exportar`                   | 2 req / minuto                  |
+| `health` | `/actuator/health`                                 | 10 req / minuto                 |
+| `geral`  | demais rotas registradas (mercado, perfil, etc.)   | 5 / min · 15 / hora · 30 / dia  |
+
+Resposta de bloqueio: **HTTP 429** com `ErroResponseDTO` (`code=RATE_LIMIT_EXCEEDED`) + header `Retry-After` (segundos).
+
+### Kill switch e variáveis de ambiente
+
+| Variável                                       | Default | Função                                                          |
+|------------------------------------------------|---------|-----------------------------------------------------------------|
+| `SECURITY_RATE_LIMIT_ENABLED`                  | `true`  | Liga/desliga sem deploy de código (reinicia Render via env var) |
+| `SECURITY_RATE_LIMIT_MAX_BUCKETS`              | `10000` | Limite global do cache de buckets em memória                    |
+| `SECURITY_RATE_LIMIT_BUCKET_IDLE_TTL_MINUTES`  | `120`   | Expira bucket inativo, reduz risco de DoS por memória           |
+| `SECURITY_TRUST_FORWARDED_FOR`                 | `false` | Habilita leitura de `X-Forwarded-For` (requer proxy confiável)  |
+
+### Política de spoofing de IP
+
+`X-Forwarded-For` só é lido quando **ambos**:
+1. `SECURITY_TRUST_FORWARDED_FOR=true`
+2. `request.getRemoteAddr()` ∈ faixa privada (10/, 172.16-31/, 192.168/, fc/fd, localhost) — proxies internos confiáveis.
+
+Em ambientes Render/Railway atrás de proxy: habilitar `SECURITY_TRUST_FORWARDED_FOR=true` para que o limite não bloqueie pelo IP do edge.
+
+### Observabilidade
+
+- Counter Micrometer: `equilibra.ratelimit.blocked{escopo}` — total de bloqueios por escopo
+- Log WARN por bloqueio: escopo, URI, IP mascarado, `retryAfterSeconds`
+- Métricas expostas em `/actuator/metrics` (acesso restrito a `ROLE_ADMIN`)
+
+### Testes
+
+`security.rate-limit.enabled=false` em `application-test.properties` por padrão.
+`RateLimitIntegrationTest` habilita explicitamente via `@TestPropertySource` para validar o fluxo 429 fim-a-fim.
