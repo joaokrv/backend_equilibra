@@ -12,7 +12,11 @@ FROM eclipse-temurin:25-jre
 WORKDIR /app
 
 ENV TZ=America/Sao_Paulo
-ENV JAVA_TOOL_OPTIONS=-Duser.timezone=America/Sao_Paulo
+# Boot rápido em container restrito (Render free: 0.1 vCPU / 512MB):
+# - TieredStopAtLevel=1: JIT só C1, acelera muito o startup
+# - UseSerialGC: menor footprint e startup que G1 em <2 CPU
+# - MaxRAMPercentage=75: usa o heap disponível sem estourar o limite do container
+ENV JAVA_TOOL_OPTIONS="-Duser.timezone=America/Sao_Paulo -XX:TieredStopAtLevel=1 -XX:+UseSerialGC -XX:MaxRAMPercentage=75.0"
 
 RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
 
