@@ -165,11 +165,14 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(RegraDeNegocioException.class)
     public ResponseEntity<ErroResponseDTO> handleRegraDeNegocio(RegraDeNegocioException ex) {
+        String mensagem = ex.getMessageKey() != null
+                ? messageSource.getMessage(ex.getMessageKey(), ex.getArgs(), ex.getMessage(), LocaleContextHolder.getLocale())
+                : ex.getMessage();
         ErroResponseDTO erro = new ErroResponseDTO(
                 HttpStatus.UNPROCESSABLE_ENTITY.value(),
                 ErrorCode.REGRA_DE_NEGOCIO.name(),
                 "Erro de regra de negócio",
-                ex.getMessage()
+                mensagem
         );
         return new ResponseEntity<>(erro, HttpStatus.UNPROCESSABLE_ENTITY);
     }

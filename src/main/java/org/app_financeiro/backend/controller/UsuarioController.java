@@ -138,6 +138,8 @@ public class UsuarioController {
         
         if (usuarioRepository.existsByEmailIncludingInactive(emailNorm)) {
             log.warn("[SECURITY] Tentativa de pré-registro com e-mail já existente: {}", emailNorm);
+            usuarioRepository.findByEmailIncludingInactive(emailNorm)
+                    .ifPresent(u -> emailVerificacaoService.enviarAvisoTentativaCadastro(u.getEmail(), u.getNome()));
             try { Thread.sleep(1200); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
             OffsetDateTime expiraEm = agora.plusMinutes(15).atZone(ZoneId.systemDefault()).toOffsetDateTime();
             return ResponseEntity.ok(new OtpStatusResponseDTO("ATIVO", 5, expiraEm, null, null, null, UUID.randomUUID().toString()));
@@ -241,10 +243,11 @@ public class UsuarioController {
             String accessToken = jwtService.generateAccessToken(usuario);
             String refreshToken = jwtService.generateRefreshToken(usuario);
 
+            setAccessTokenCookie(httpResponse, accessToken);
             setRefreshTokenCookie(httpResponse, refreshToken);
 
             AuthResponseDTO response = new AuthResponseDTO(
-                    accessToken,
+                    null,
                     null,
                     jwtService.getAccessTokenExpiration(),
                     usuarioMapper.toResponse(usuario),
@@ -324,10 +327,11 @@ public class UsuarioController {
 
         String newAccessToken = jwtService.generateAccessToken(usuario);
         String newRefreshToken = jwtService.generateRefreshToken(usuario);
+        setAccessTokenCookie(httpResponse, newAccessToken);
         setRefreshTokenCookie(httpResponse, newRefreshToken);
 
         AuthResponseDTO response = new AuthResponseDTO(
-                newAccessToken,
+                null,
                 null,
                 jwtService.getAccessTokenExpiration(),
                 usuarioMapper.toResponse(usuario),
@@ -353,6 +357,7 @@ public class UsuarioController {
             } catch (JwtException ignored) {
             }
         }
+        clearAccessTokenCookie(httpResponse);
         clearRefreshTokenCookie(httpResponse);
         return ResponseEntity.noContent().build();
     }
@@ -566,12 +571,34 @@ public class UsuarioController {
     }
 
 
+    private void setAccessTokenCookie(HttpServletResponse response, String token) {
+        ResponseCookie cookie = ResponseCookie.from("accessToken", token)
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/")
+                .maxAge(jwtService.getAccessTokenExpiration() / 1000)
+                .sameSite(cookieSameSite)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
     private void setRefreshTokenCookie(HttpServletResponse response, String token) {
         ResponseCookie cookie = ResponseCookie.from("refreshToken", token)
                 .httpOnly(true)
                 .secure(cookieSecure)
                 .path("/api/auth")
                 .maxAge(jwtService.getRefreshTokenExpiration() / 1000)
+                .sameSite(cookieSameSite)
+                .build();
+        response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());
+    }
+
+    private void clearAccessTokenCookie(HttpServletResponse response) {
+        ResponseCookie cookie = ResponseCookie.from("accessToken", "")
+                .httpOnly(true)
+                .secure(cookieSecure)
+                .path("/")
+                .maxAge(0)
                 .sameSite(cookieSameSite)
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());

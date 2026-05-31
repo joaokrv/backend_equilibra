@@ -5,6 +5,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.app_financeiro.backend.service.JwtService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
@@ -14,6 +15,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.Collections;
 
@@ -46,6 +48,12 @@ class JwtAuthenticationFilterTest {
 
     @InjectMocks
     private JwtAuthenticationFilter filter;
+
+    @BeforeEach
+    void habilitarHeaderAuth() {
+        // Em dev/test o fallback de header Authorization fica ativo (em prod é só cookie)
+        ReflectionTestUtils.setField(filter, "allowHeaderAuth", true);
+    }
 
     @Test
     void deveSeguirSemAutenticarQuandoNaoHaToken() throws Exception {

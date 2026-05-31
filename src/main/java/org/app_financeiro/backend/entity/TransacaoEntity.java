@@ -86,6 +86,10 @@ public class TransacaoEntity {
     @Column
     private Integer totalParcelas;
 
+    /** Agrupa as parcelas de uma mesma compra parcelada. Nulo se for compra à vista ou em conta. */
+    @Column(name = "grupo_parcelamento")
+    private java.util.UUID grupoParcelamento;
+
     @CreationTimestamp
     @Column(updatable = false)
     private LocalDateTime dataCriacao;

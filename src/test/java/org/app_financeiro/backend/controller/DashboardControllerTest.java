@@ -31,7 +31,7 @@ class DashboardControllerTest extends AbstractIntegrationTest {
         usuario = new UsuarioEntity();
         usuario.setNome("Dashboard Controller Test");
         usuario.setEmail("dashboard-controller-test@email.com");
-        usuario.setSenha("SenhaSegura123");
+        usuario.setSenha("SenhaSegura@123");
         usuario = usuarioRepository.save(usuario);
     }
 
@@ -66,9 +66,9 @@ class DashboardControllerTest extends AbstractIntegrationTest {
     }
 
     @Test
-    void deveRetornar403SemAutenticacao() throws Exception {
+    void deveRetornar401SemAutenticacao() throws Exception {
         mockMvc.perform(get("/api/dashboard/resumo")
                         .accept(MediaType.APPLICATION_JSON))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isUnauthorized());
     }
 }

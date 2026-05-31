@@ -63,8 +63,11 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
         usuarioPendenteRepository.deleteAllInBatch();
         usuarioRepository.deleteAllInBatch();
 
-        tokenA = "Bearer " + setupUsuarioVerificado("User A", "usera@email.com", "senha123");
+        tokenA = "Bearer " + setupUsuarioVerificado("User A", "usera@email.com", "Senha@123");
         idUserA = usuarioRepository.findByEmail("usera@email.com").get().getId();
+
+        // Remove as categorias-padrão criadas no registro para que os testes partam de estado limpo.
+        categoriaRepository.deleteAllInBatch();
     }
 
     private void salvarCategoria(String nome, TipoTransacao tipo, Long usuarioId) {
@@ -202,7 +205,7 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void naoDeveDeletarCategoriaDeOutroUsuario() throws Exception {
-        String tokenB = "Bearer " + setupUsuarioVerificado("User B", "userb@email.com", "senha123");
+        String tokenB = "Bearer " + setupUsuarioVerificado("User B", "userb@email.com", "Senha@123");
 
         CategoriaRegistroRequestDTO dto = new CategoriaRegistroRequestDTO("Cat A", TipoTransacao.DESPESA);
         MvcResult resA = mockMvc.perform(post("/api/categorias")
@@ -221,7 +224,10 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void usuarioBNaoDeveVerCategoriasDoUsuarioA() throws Exception {
-        String tokenB = "Bearer " + setupUsuarioVerificado("User B", "userb2@email.com", "senha123");
+        String tokenB = "Bearer " + setupUsuarioVerificado("User B", "userb2@email.com", "Senha@123");
+
+        // Remove as categorias-padrão de ambos os usuários para isolar a verificação de visibilidade.
+        categoriaRepository.deleteAllInBatch();
 
         salvarCategoria("Cat A 1", TipoTransacao.DESPESA, idUserA);
         salvarCategoria("Cat A 2", TipoTransacao.RECEITA, idUserA);

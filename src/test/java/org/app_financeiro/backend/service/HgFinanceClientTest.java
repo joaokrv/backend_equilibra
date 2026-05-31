@@ -22,6 +22,7 @@ import static org.springframework.test.web.client.response.MockRestResponseCreat
  * TDD: Validação do parsing do JSON e do contrato com a API externa.
  */
 @RestClientTest(HgFinanceClientImpl.class)
+@org.springframework.test.context.TestPropertySource(properties = "hg.api-key=")
 class HgFinanceClientTest {
 
     @Autowired

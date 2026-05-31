@@ -100,7 +100,7 @@ public class UsuarioService {
     @Transactional
     public UsuarioEntity finalizarRegistro(UsuarioPendenteEntity pendente) {
         if (usuarioRepository.existsByEmailIncludingInactive(pendente.getEmail())) {
-            throw new RegraDeNegocioException("Este e-mail já possui uma conta ativa.");
+            throw new RegraDeNegocioException("error.usuario.email_ja_ativo", "Este e-mail já possui uma conta ativa.");
         }
 
         UsuarioEntity usuario = new UsuarioEntity();
@@ -136,7 +136,7 @@ public class UsuarioService {
     @Transactional(readOnly = true)
     public UsuarioEntity buscarPorIdOuFalhar(Long usuarioId) {
         if (usuarioId == null) {
-            throw new RegraDeNegocioException("ID de usuário não pode ser nulo");
+            throw new RegraDeNegocioException("error.usuario.id_nulo", "ID de usuário não pode ser nulo");
         }
         return usuarioRepository.findById(usuarioId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Usuário não encontrado"));
@@ -193,7 +193,7 @@ public class UsuarioService {
                     .filter(outro -> !outro.getId().equals(usuarioId))
                     .ifPresent(outro -> {
                         log.warn("Tentativa de atualização de perfil com celular já em uso: {}", dto.celular());
-                        throw new RegraDeNegocioException("Este número de celular já está vinculado a outra conta");
+                        throw new RegraDeNegocioException("error.usuario.celular_ja_vinculado", "Este número de celular já está vinculado a outra conta");
                     });
             usuario.setCelular(dto.celular());
         }
@@ -212,7 +212,7 @@ public class UsuarioService {
         UsuarioEntity usuario = buscarPorIdOuFalhar(usuarioId);
 
         if (file.getSize() > 2 * 1024 * 1024) {
-            throw new RegraDeNegocioException("A imagem é muito grande. Máximo de 2MB permitido.");
+            throw new RegraDeNegocioException("error.imagem.muito_grande", "A imagem é muito grande. Máximo de 2MB permitido.");
         }
 
         validarAssinaturaImagem(file);
@@ -223,7 +223,7 @@ public class UsuarioService {
             log.info("Foto de perfil atualizada: usuarioId={}, size={} bytes", usuarioId, file.getSize());
         } catch (IOException e) {
             log.error("Erro ao processar upload de foto para usuário {}: {}", usuarioId, e.getMessage());
-            throw new RegraDeNegocioException("Erro ao processar o arquivo de imagem");
+            throw new RegraDeNegocioException("error.imagem.processamento", "Erro ao processar o arquivo de imagem");
         }
     }
 
@@ -237,7 +237,7 @@ public class UsuarioService {
             int bytesRead = is.read(header);
 
             if (bytesRead < 3) {
-                throw new RegraDeNegocioException("Arquivo de imagem corrompido ou muito curto.");
+                throw new RegraDeNegocioException("error.imagem.corrompida", "Arquivo de imagem corrompido ou muito curto.");
             }
 
             boolean isJpeg = (header[0] & 0xFF) == 0xFF && (header[1] & 0xFF) == 0xD8 && (header[2] & 0xFF) == 0xFF;
@@ -245,10 +245,10 @@ public class UsuarioService {
 
             if (!isJpeg && !isPng) {
                 log.warn("Tentativa de upload de arquivo com formato inválido interceptada (Magic Bytes não conferem).");
-                throw new RegraDeNegocioException("Formato de arquivo inválido. Apenas JPEG e PNG são permitidos.");
+                throw new RegraDeNegocioException("error.imagem.formato_invalido", "Formato de arquivo inválido. Apenas JPEG e PNG são permitidos.");
             }
         } catch (IOException e) {
-            throw new RegraDeNegocioException("Erro ao ler assinatura do arquivo.");
+            throw new RegraDeNegocioException("error.imagem.assinatura", "Erro ao ler assinatura do arquivo.");
         }
     }
 
@@ -263,7 +263,7 @@ public class UsuarioService {
         }
 
         if (passwordEncoder.matches(dto.novaSenha(), usuario.getSenha())) {
-            throw new RegraDeNegocioException("A nova senha deve ser diferente da atual.");
+            throw new RegraDeNegocioException("error.senha.igual_atual", "A nova senha deve ser diferente da atual.");
         }
 
         usuario.setSenha(passwordEncoder.encode(dto.novaSenha()));

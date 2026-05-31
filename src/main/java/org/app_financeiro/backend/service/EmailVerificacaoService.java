@@ -19,9 +19,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
+import java.time.Duration;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.ZoneId;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /** Fluxo de verificação de e-mail via OTP de 6 dígitos (15 min). Vincula código por e-mail, não por FK, pois o usuário ainda não está autenticado nesta etapa. */
 @Service
@@ -31,11 +36,16 @@ public class EmailVerificacaoService {
     private static final int MAX_TENTATIVAS_OTP = 5;
     private static final ZoneId FUSO_BRASIL = ZoneId.of("America/Sao_Paulo");
     private static final DateTimeFormatter HORARIO_FORMATTER = DateTimeFormatter.ofPattern("HH:mm");
+    private static final DateTimeFormatter HORARIO_COMPLETO_FORMATTER = DateTimeFormatter.ofPattern("dd/MM/yyyy 'às' HH:mm");
+    private static final Duration AVISO_TENTATIVA_THROTTLE = Duration.ofHours(1);
+    private static final long AVISO_CLEANUP_INTERVAL = 200;
 
     private final CodigoVerificacaoRepository codigoVerificacaoRepository;
     private final UsuarioRepository usuarioRepository;
     private final ExternalEmailSenderService externalEmailSenderService;
     private final SecureRandom secureRandom = new SecureRandom();
+    private final Map<String, Instant> ultimoAvisoTentativaPorEmail = new ConcurrentHashMap<>();
+    private final AtomicLong avisoCallCounter = new AtomicLong(0);
 
     public EmailVerificacaoService(CodigoVerificacaoRepository codigoVerificacaoRepository,
                                    UsuarioRepository usuarioRepository,
@@ -127,11 +137,60 @@ public class EmailVerificacaoService {
 
         if (usuario.isEmailVerificado()) {
             log.warn("Tentativa de reenviar código para e-mail já verificado: {}", org.app_financeiro.backend.util.EmailMasker.mascarar(dto.email()));
-            throw new RegraDeNegocioException("Este e-mail já foi verificado");
+            throw new RegraDeNegocioException("error.email.ja_verificado", "Este e-mail já foi verificado");
         }
 
         codigoVerificacaoRepository.invalidarTodosPendentesPorTipo(dto.email(), TipoCodigoVerificacao.VERIFICACAO_EMAIL);
         gerarCodigo(dto.email(), TipoCodigoVerificacao.VERIFICACAO_EMAIL);
+    }
+
+    /**
+     * Envia aviso ao dono do e-mail quando alguém tenta criar conta com um endereço já cadastrado.
+     * Throttle de 1 hora por e-mail para evitar uso como vetor de spam.
+     * Nunca lança — falhas são logadas e silenciadas (não devem afetar a resposta fake do pré-registro).
+     */
+    public void enviarAvisoTentativaCadastro(String email, String nome) {
+        Instant agora = Instant.now();
+        Instant anterior = ultimoAvisoTentativaPorEmail.get(email);
+        if (anterior != null && Duration.between(anterior, agora).compareTo(AVISO_TENTATIVA_THROTTLE) < 0) {
+            log.debug("Aviso de tentativa de cadastro suprimido (throttle) para {}",
+                    org.app_financeiro.backend.util.EmailMasker.mascarar(email));
+            return;
+        }
+        ultimoAvisoTentativaPorEmail.put(email, agora);
+        limparAvisosAntigos(agora);
+
+        try {
+            ClassPathResource resource = new ClassPathResource("templates/aviso-tentativa-cadastro.html");
+            String htmlTemplate = new String(resource.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+
+            String horario = LocalDateTime.now().atZone(ZoneId.systemDefault())
+                    .withZoneSameInstant(FUSO_BRASIL)
+                    .format(HORARIO_COMPLETO_FORMATTER) + " (UTC-3)";
+            String saudacao = (nome != null && !nome.isBlank()) ? ", " + nome.trim().split("\\s+")[0] : "";
+
+            String htmlContent = htmlTemplate
+                    .replace("{{HORARIO_TENTATIVA}}", horario)
+                    .replace("{{NOME_SAUDACAO}}", saudacao);
+
+            externalEmailSenderService.sendHtml(email,
+                    "Tentativa de criação de conta — Equilibra",
+                    htmlContent);
+            log.info("Aviso de tentativa de cadastro enviado para {}",
+                    org.app_financeiro.backend.util.EmailMasker.mascarar(email));
+        } catch (IOException | RuntimeException e) {
+            log.warn("Falha ao enviar aviso de tentativa de cadastro: {}", e.getMessage());
+        }
+    }
+
+    /** Cleanup leve a cada N invocações: remove entries com mais de 2× o intervalo de throttle. */
+    private void limparAvisosAntigos(Instant agora) {
+        long count = avisoCallCounter.incrementAndGet();
+        if (count % AVISO_CLEANUP_INTERVAL != 0) {
+            return;
+        }
+        Instant limite = agora.minus(AVISO_TENTATIVA_THROTTLE.multipliedBy(2));
+        ultimoAvisoTentativaPorEmail.entrySet().removeIf(entry -> entry.getValue().isBefore(limite));
     }
 
     private void enviarEmail(String destinatario, String codigo, LocalDateTime expiracao, TipoCodigoVerificacao tipo) {

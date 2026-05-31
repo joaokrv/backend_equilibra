@@ -2,6 +2,7 @@ package org.app_financeiro.backend.config;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import io.jsonwebtoken.JwtException;
@@ -9,6 +10,7 @@ import lombok.RequiredArgsConstructor;
 import org.app_financeiro.backend.service.JwtService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.lang.NonNull;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -20,6 +22,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 /** Valida JWT de cada request e seta autenticação no SecurityContext. */
 @Component
@@ -31,23 +34,49 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     private final JwtService jwtService;
     private final UserDetailsService userDetailsService;
 
+    /**
+     * Permite ler o token do header {@code Authorization: Bearer} além do cookie.
+     * Em produção fica {@code false} (sessão apenas via cookie httpOnly); habilitado
+     * em dev/test para a suíte de integração injetar o token diretamente.
+     */
+    @Value("${jwt.allow-header-auth:false}")
+    private boolean allowHeaderAuth;
+
     @Override
     protected void doFilterInternal(
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain
     ) throws ServletException, IOException {
-        final String authHeader = request.getHeader("Authorization");
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        String jwt = null;
+
+        // 1️⃣ Tentar ler token do cookie "accessToken" (prioridade)
+        Cookie[] cookies = request.getCookies();
+        if (cookies != null) {
+            jwt = Arrays.stream(cookies)
+                    .filter(c -> "accessToken".equals(c.getName()))
+                    .map(Cookie::getValue)
+                    .findFirst()
+                    .orElse(null);
+        }
+
+        // 2️⃣ Fallback: header "Authorization: Bearer ..." — só em dev/test (allowHeaderAuth).
+        // Em prod, sessão é exclusivamente via cookie httpOnly.
+        if ((jwt == null || jwt.isBlank()) && allowHeaderAuth) {
+            final String authHeader = request.getHeader("Authorization");
+            if (authHeader != null && authHeader.startsWith("Bearer ")) {
+                jwt = authHeader.substring(7);
+            }
+        }
+
+        if (jwt == null || jwt.isBlank()) {
             filterChain.doFilter(request, response);
             return;
         }
 
-        final String jwt;
         final String userEmail;
 
         try {
-            jwt = authHeader.substring(7);
             userEmail = jwtService.extractUsername(jwt);
         } catch (JwtException e) {
             log.debug("Token JWT inválido: {}", e.getMessage());

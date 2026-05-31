@@ -70,7 +70,7 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
         usuarioPendenteRepository.deleteAllInBatch();
         usuarioRepository.deleteAllInBatch();
 
-        tokenA = "Bearer " + setupUsuarioVerificado("User A", "usera@email.com", "senha123");
+        tokenA = "Bearer " + setupUsuarioVerificado("User A", "usera@email.com", "Senha@123");
         idUserA = usuarioRepository.findByEmail("usera@email.com").get().getId();
     }
 
@@ -206,7 +206,7 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
                 .param("contaId", idConta.toString()))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.erro").value("Saldo insuficiente"))
-                .andExpect(jsonPath("$.mensagem").value("Saldo insuficiente"));
+                .andExpect(jsonPath("$.code").value("SALDO_INSUFICIENTE"));
     }
 
     @Test
@@ -220,7 +220,7 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
                 .param("contaId", idConta.toString()))
                 .andExpect(status().isUnprocessableEntity())
                 .andExpect(jsonPath("$.erro").value("Erro de regra de negócio"))
-                .andExpect(jsonPath("$.mensagem").value("Valor de resgate excede o saldo do investimento"));
+                .andExpect(jsonPath("$.code").value("REGRA_DE_NEGOCIO"));
     }
 
     @Test
@@ -236,7 +236,7 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void usuarioBNaoDeveVerInvestimentosDoUsuarioA() throws Exception {
-        String tokenB = "Bearer " + setupUsuarioVerificado("User B", "userb@email.com", "senha123");
+        String tokenB = "Bearer " + setupUsuarioVerificado("User B", "userb@email.com", "Senha@123");
         salvarInvestimento("Secreto User A", new BigDecimal("100.00"), new BigDecimal("1000.00"), idUserA);
 
         mockMvc.perform(get("/api/investimentos")
@@ -247,7 +247,7 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void naoDeveDepositarEmInvestimentoDeOutroUsuario() throws Exception {
-        String tokenB = "Bearer " + setupUsuarioVerificado("User B2", "userb2@email.com", "senha123");
+        String tokenB = "Bearer " + setupUsuarioVerificado("User Bee", "userb2@email.com", "Senha@123");
         Long idUserB = usuarioRepository.findByEmail("userb2@email.com").get().getId();
         
         Long idContaB = criarConta("Conta B", new BigDecimal("1000.00"), idUserB);

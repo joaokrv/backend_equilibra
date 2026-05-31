@@ -11,6 +11,7 @@ import org.app_financeiro.backend.entity.FaturaEntity;
 import org.app_financeiro.backend.entity.TransacaoEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.enums.MetodoPagamento;
+import org.app_financeiro.backend.enums.StatusFatura;
 import org.app_financeiro.backend.enums.StatusTransacao;
 import org.app_financeiro.backend.enums.TipoTransacao;
 import org.app_financeiro.backend.exception.RegraDeNegocioException;
@@ -25,9 +26,12 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 /** Gerencia transações financeiras e seus impactos em contas e cartões. */
 @Service
@@ -73,11 +77,11 @@ public class TransacaoService {
         }
 
         if (dto.contaId() != null && dto.cartaoId() != null) {
-            throw new RegraDeNegocioException("Transação inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
+            throw new RegraDeNegocioException("error.transacao.conta_e_cartao", "Transação inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
         }
 
         if (dto.contaId() == null && dto.cartaoId() == null) {
-            throw new RegraDeNegocioException("Transação inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
+            throw new RegraDeNegocioException("error.transacao.conta_ou_cartao_obrigatorio", "Transação inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
         }
 
         CategoriaEntity categoria = null;
@@ -85,13 +89,18 @@ public class TransacaoService {
             categoria = categoriaService.buscarPorIdOuFalhar(dto.categoriaId(), usuarioId);
 
             if (categoria.getTipo() != dto.tipo()) {
-                throw new RegraDeNegocioException("Categoria do tipo " + categoria.getTipo() +
-                                                 " não pode ser usada em transação do tipo " + dto.tipo());
+                throw new RegraDeNegocioException("error.transacao.categoria_incompativel",
+                                                 "Categoria do tipo " + categoria.getTipo() + " não pode ser usada em transação do tipo " + dto.tipo(),
+                                                 categoria.getTipo(), dto.tipo());
             }
         }
 
         StatusTransacao status = definirStatus(dto);
         validarParcelas(dto);
+
+        if (isCompraParcelada(dto)) {
+            return criarCompraParcelada(dto, usuario, categoria, usuarioId, transferencia);
+        }
 
         ImpactoFinanceiro impactos = processarImpacto(dto, status, usuarioId);
 
@@ -130,7 +139,7 @@ public class TransacaoService {
     @Transactional
     public TransacaoResponseDTO atualizarTransacao(Long transacaoId, TransacaoRegistroRequestDTO dto, Long usuarioId) {
         if (transacaoId == null || usuarioId == null) {
-            throw new RegraDeNegocioException("ID de transação ou usuário não pode ser nulo");
+            throw new RegraDeNegocioException("error.transacao.id_nulo", "ID de transação ou usuário não pode ser nulo");
         }
         TransacaoEntity transacao = transacaoRepository.findById(transacaoId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Transação não encontrada"));
@@ -142,17 +151,17 @@ public class TransacaoService {
         movimentacaoFinanceiraService.desfazerEfeitoFinanceiro(transacao, usuarioId);
 
         if (dto.contaId() != null && dto.cartaoId() != null) {
-            throw new RegraDeNegocioException("Transação inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
+            throw new RegraDeNegocioException("error.transacao.conta_e_cartao", "Transação inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
         }
         if (dto.contaId() == null && dto.cartaoId() == null) {
-            throw new RegraDeNegocioException("Transação inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
+            throw new RegraDeNegocioException("error.transacao.conta_ou_cartao_obrigatorio", "Transação inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
         }
         
         CategoriaEntity categoria = null;
         if (dto.categoriaId() != null) {
             categoria = categoriaService.buscarPorIdOuFalhar(dto.categoriaId(), usuarioId);
             if (categoria.getTipo() != dto.tipo()) {
-                throw new RegraDeNegocioException("Categoria incompatível com o tipo");
+                throw new RegraDeNegocioException("error.transacao.categoria_incompativel_curta", "Categoria incompatível com o tipo");
             }
         }
 
@@ -175,13 +184,37 @@ public class TransacaoService {
         transacao.setTotalParcelas(dto.totalParcelas());
 
         transacaoRepository.save(transacao);
+
+        if (transacao.getGrupoParcelamento() != null) {
+            propagarMetadadosParaGrupo(transacao, categoria);
+        }
+
         return transacaoMapper.toResponse(transacao);
+    }
+
+    /** Propaga descrição e categoria para as demais parcelas do mesmo grupo, sem alterar valores/datas. */
+    private void propagarMetadadosParaGrupo(TransacaoEntity origem, CategoriaEntity categoria) {
+        List<TransacaoEntity> parcelas = transacaoRepository
+                .findByGrupoParcelamentoAndUsuarioId(origem.getGrupoParcelamento(), origem.getUsuario().getId());
+        for (TransacaoEntity parcela : parcelas) {
+            if (parcela.getId().equals(origem.getId())) {
+                continue;
+            }
+            parcela.setDescricao(origem.getDescricao());
+            parcela.setCategoria(categoria);
+            transacaoRepository.save(parcela);
+        }
     }
 
     @Transactional
     public void deletarTransacao(Long transacaoId, Long usuarioId) {
+        deletarTransacao(transacaoId, usuarioId, false);
+    }
+
+    @Transactional
+    public void deletarTransacao(Long transacaoId, Long usuarioId, boolean grupoCompleto) {
         if (transacaoId == null || usuarioId == null) {
-            throw new RegraDeNegocioException("ID de transação ou usuário não pode ser nulo");
+            throw new RegraDeNegocioException("error.transacao.id_nulo", "ID de transação ou usuário não pode ser nulo");
         }
         TransacaoEntity transacao = transacaoRepository.findById(transacaoId)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Transação não encontrada"));
@@ -190,11 +223,33 @@ public class TransacaoService {
             throw new RecursoNaoEncontradoException("Transação não pertence ao usuário");
         }
 
+        if (grupoCompleto && transacao.getGrupoParcelamento() != null) {
+            List<TransacaoEntity> parcelas = transacaoRepository
+                    .findByGrupoParcelamentoAndUsuarioId(transacao.getGrupoParcelamento(), usuarioId);
+            parcelas.forEach(this::validarFaturaNaoPaga); // pré-checa todas antes de reverter qualquer uma
+            for (TransacaoEntity parcela : parcelas) {
+                movimentacaoFinanceiraService.desfazerEfeitoFinanceiro(parcela, usuarioId);
+                parcela.setAtivo(false);
+                transacaoRepository.save(parcela);
+            }
+            log.info("Compra parcelada (grupo {}) excluída: {} parcela(s) para usuário {}",
+                    transacao.getGrupoParcelamento(), parcelas.size(), usuarioId);
+            return;
+        }
+
+        validarFaturaNaoPaga(transacao);
         movimentacaoFinanceiraService.desfazerEfeitoFinanceiro(transacao, usuarioId);
 
         transacao.setAtivo(false);
         transacaoRepository.save(transacao);
         log.info("Transação {} desativada (soft delete) para usuário {}", transacaoId, usuarioId);
+    }
+
+    /** Impede reverter o impacto de uma transação cuja fatura já foi quitada (evita valorPago > valorTotal). */
+    private void validarFaturaNaoPaga(TransacaoEntity transacao) {
+        if (transacao.getFatura() != null && transacao.getFatura().getStatus() == StatusFatura.PAGA) {
+            throw new RegraDeNegocioException("error.transacao.fatura_paga", "Não é possível excluir uma transação cuja fatura já foi paga.");
+        }
     }
 
     public List<TransacaoResponseDTO> buscarPorMes(int ano, int mes, Long usuarioId) {
@@ -212,10 +267,10 @@ public class TransacaoService {
     @Transactional(readOnly = true)
     public List<TransacaoResponseDTO> listarPorIntervalo(LocalDate dataInicio, LocalDate dataFim, Long usuarioId) {
         if (dataFim.isBefore(dataInicio)) {
-            throw new RegraDeNegocioException("dataFim nao pode ser anterior a dataInicio");
+            throw new RegraDeNegocioException("error.intervalo.data_fim_anterior", "dataFim nao pode ser anterior a dataInicio");
         }
         if (dataInicio.until(dataFim).toTotalMonths() > 12) {
-            throw new RegraDeNegocioException("Intervalo maximo permitido e de 12 meses");
+            throw new RegraDeNegocioException("error.intervalo.maximo_12_meses", "Intervalo maximo permitido e de 12 meses");
         }
 
         List<TransacaoEntity> transacoes =
@@ -245,13 +300,89 @@ public class TransacaoService {
     private void validarParcelas(TransacaoRegistroRequestDTO dto) {
         if (dto.numeroParcela() != null && dto.totalParcelas() != null) {
             if (dto.numeroParcela() > dto.totalParcelas()) {
-                throw new RegraDeNegocioException("O número da parcela não pode ser maior que o total de parcelas");
+                throw new RegraDeNegocioException("error.parcela.numero_maior_que_total", "O número da parcela não pode ser maior que o total de parcelas");
             }
         }
-        
+
         if (dto.totalParcelas() != null && dto.totalParcelas() < 1) {
-            throw new RegraDeNegocioException("O total de parcelas deve ser no mínimo 1");
+            throw new RegraDeNegocioException("error.parcela.minimo_1", "O total de parcelas deve ser no mínimo 1");
         }
+
+        if (dto.totalParcelas() != null && dto.totalParcelas() > 72) {
+            throw new RegraDeNegocioException("error.parcela.maximo_72", "O total de parcelas não pode exceder 72");
+        }
+
+        if (dto.totalParcelas() != null && dto.totalParcelas() > 1) {
+            if (dto.cartaoId() == null) {
+                throw new RegraDeNegocioException("error.parcela.somente_cartao", "Parcelamento só é permitido em despesas de cartão de crédito.");
+            }
+            if (dto.tipo() != TipoTransacao.DESPESA) {
+                throw new RegraDeNegocioException("error.parcela.somente_despesa", "Parcelamento só é permitido em despesas.");
+            }
+        }
+    }
+
+    private boolean isCompraParcelada(TransacaoRegistroRequestDTO dto) {
+        return dto.cartaoId() != null
+                && dto.totalParcelas() != null
+                && dto.totalParcelas() > 1
+                && dto.tipo() == TipoTransacao.DESPESA;
+    }
+
+    /**
+     * Gera N transações (uma por parcela) a partir de uma única compra parcelada no cartão.
+     * O valor é rateado (resíduo absorvido pela última parcela) e cada parcela é lançada na
+     * fatura do mês correspondente. O limite é validado incrementalmente por {@code consumirLimite}
+     * dentro da mesma transação — se o total exceder o limite, todo o lançamento sofre rollback.
+     */
+    private TransacaoResponseDTO criarCompraParcelada(TransacaoRegistroRequestDTO dto, UsuarioEntity usuario,
+                                                      CategoriaEntity categoria, Long usuarioId, boolean transferencia) {
+        int totalParcelas = dto.totalParcelas();
+
+        if (transacaoRepository.existsByIdempotencyKey(dto.idempotencyKey() + "-p1")) {
+            log.warn("Tentativa de criação de compra parcelada duplicada: idempotencyKey={}", dto.idempotencyKey());
+            throw new OperacaoNaoPermitidaException("Esta transação já foi processada anteriormente.");
+        }
+
+        UUID grupo = UUID.randomUUID();
+        BigDecimal valorParcela = dto.valor().divide(BigDecimal.valueOf(totalParcelas), 2, RoundingMode.HALF_EVEN);
+        BigDecimal valorUltimaParcela = dto.valor().subtract(valorParcela.multiply(BigDecimal.valueOf(totalParcelas - 1L)));
+
+        TransacaoEntity primeira = null;
+        for (int i = 1; i <= totalParcelas; i++) {
+            BigDecimal valor = (i < totalParcelas) ? valorParcela : valorUltimaParcela;
+            LocalDate dataParcela = dto.data().plusMonths(i - 1L);
+
+            ResultadoMovimentacaoCartao res = movimentacaoFinanceiraService.processarDespesaCartao(
+                    dto.cartaoId(), dataParcela, valor, usuarioId);
+
+            TransacaoEntity parcela = new TransacaoEntity();
+            parcela.setDescricao(dto.descricao());
+            parcela.setValor(valor);
+            parcela.setData(dataParcela);
+            parcela.setTipo(dto.tipo());
+            parcela.setStatus(StatusTransacao.PENDENTE);
+            parcela.setMetodoPagamento(dto.metodoPagamento());
+            parcela.setUsuario(usuario);
+            parcela.setCategoria(categoria);
+            parcela.setCartao(res.cartao());
+            parcela.setFatura(res.fatura());
+            parcela.setNumeroParcela(i);
+            parcela.setTotalParcelas(totalParcelas);
+            parcela.setGrupoParcelamento(grupo);
+            parcela.setAtivo(true);
+            parcela.setIdempotencyKey(dto.idempotencyKey() + "-p" + i);
+            parcela.setTransferencia(transferencia);
+
+            transacaoRepository.save(parcela);
+            if (i == 1) {
+                primeira = parcela;
+            }
+        }
+
+        log.info("Compra parcelada criada: grupo={}, parcelas={}, total=R$ {}, usuario={}",
+                grupo, totalParcelas, dto.valor(), usuarioId);
+        return transacaoMapper.toResponse(primeira);
     }
 
     private StatusTransacao definirStatus(TransacaoRegistroRequestDTO dto) {

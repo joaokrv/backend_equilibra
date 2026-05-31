@@ -40,7 +40,7 @@ class DashboardResumoServiceIntegrationTest extends AbstractIntegrationTest {
         usuario = new UsuarioEntity();
         usuario.setNome("Dashboard Test");
         usuario.setEmail("dashboard-resumo-integration@email.com");
-        usuario.setSenha("SenhaSegura123");
+        usuario.setSenha("SenhaSegura@123");
         usuario = usuarioRepository.save(usuario);
     }
 

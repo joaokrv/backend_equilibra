@@ -1,17 +1,14 @@
 package org.app_financeiro.backend.config;
 
+import org.app_financeiro.backend.AbstractIntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.ApplicationContext;
-import org.springframework.test.context.ActiveProfiles;
 import org.springframework.web.cors.CorsConfigurationSource;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-@SpringBootTest
-@ActiveProfiles("test")
-class CorsConfigurationTest {
+class CorsConfigurationTest extends AbstractIntegrationTest {
 
     @Autowired
     private ApplicationContext context;

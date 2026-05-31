@@ -93,13 +93,13 @@ public class FaturaService {
 
         if (fatura.getStatus() == StatusFatura.PAGA) {
             log.warn("Tentativa de pagar fatura {} que já está PAGA", faturaId);
-            throw new RegraDeNegocioException("Esta fatura já está totalmente paga.");
+            throw new RegraDeNegocioException("error.fatura.ja_paga", "Esta fatura já está totalmente paga.");
         }
 
         BigDecimal dividaRestante = fatura.getValorTotal().subtract(fatura.getValorPago());
         if (dto.valorPago().compareTo(dividaRestante) > 0) {
             log.warn("Pagamento de R$ {} excede dívida restante de R$ {} na fatura {}", dto.valorPago(), dividaRestante, faturaId);
-            throw new RegraDeNegocioException("O valor do pagamento não pode ser maior que o restante da fatura (R$ " + dividaRestante + ").");
+            throw new RegraDeNegocioException("error.fatura.pagamento_excede", "O valor do pagamento não pode ser maior que o restante da fatura (R$ " + dividaRestante + ").", dividaRestante);
         }
         
         contaService.debitarSaldo(dto.contaId(), dto.valorPago(), usuarioId);

@@ -5,6 +5,7 @@ import org.app_financeiro.backend.dto.request.TransacaoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.TransacaoResponseDTO;
 import org.app_financeiro.backend.entity.*;
 import org.app_financeiro.backend.enums.MetodoPagamento;
+import org.app_financeiro.backend.enums.StatusFatura;
 import org.app_financeiro.backend.enums.StatusTransacao;
 import org.app_financeiro.backend.enums.TipoTransacao;
 import org.app_financeiro.backend.exception.OperacaoNaoPermitidaException;
@@ -22,8 +23,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -141,7 +144,7 @@ class TransacaoServiceTest {
 
         assertThatThrownBy(() -> transacaoService.criarTransacao(request, 1L))
                 .isInstanceOf(RegraDeNegocioException.class)
-                .hasMessageContaining("Não é permitido informar contaId e cartaoId ao mesmo tempo");
+                .hasMessageContaining("não pode pertencer a uma conta bancária e a um cartão");
     }
 
     @Test
@@ -335,5 +338,132 @@ class TransacaoServiceTest {
 
                 assertThat(result.isRecorrente()).isFalse();
                 verify(transacaoRepository).save(argThat(t -> t.getRecorrente() == null));
+        }
+
+        @Test
+        void deveGerarNParcelasParaCompraNoCartaoComRateioExato() {
+                TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
+                        "Mercado", new BigDecimal("200.00"), LocalDate.of(2026, 5, 30), TipoTransacao.DESPESA,
+                        null, MetodoPagamento.CARTAO_CREDITO, null, 20L, 5L, null, null, 3, "key-parc");
+
+                when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
+                when(categoriaService.buscarPorIdOuFalhar(5L, 1L)).thenReturn(categoriaDespesa);
+                when(movimentacaoFinanceiraService.processarDespesaCartao(eq(20L), any(), any(), eq(1L)))
+                        .thenReturn(new ResultadoMovimentacaoCartao(cartaoPadrao, new FaturaEntity()));
+
+                List<TransacaoEntity> salvas = new ArrayList<>();
+                when(transacaoRepository.save(any())).thenAnswer(i -> {
+                        salvas.add(i.getArgument(0));
+                        return i.getArgument(0);
+                });
+                when(transacaoMapper.toResponse(any())).thenReturn(new TransacaoResponseDTO(
+                        1L, "Mercado", new BigDecimal("66.67"), LocalDate.of(2026, 5, 30), TipoTransacao.DESPESA,
+                        StatusTransacao.PENDENTE, MetodoPagamento.CARTAO_CREDITO, null, null, null, null, null, 20L, false, 1, 3, false));
+
+                transacaoService.criarTransacao(request, 1L);
+
+                assertThat(salvas).hasSize(3);
+                assertThat(salvas).extracting(TransacaoEntity::getValor)
+                        .containsExactly(new BigDecimal("66.67"), new BigDecimal("66.67"), new BigDecimal("66.66"));
+                assertThat(salvas).extracting(TransacaoEntity::getNumeroParcela).containsExactly(1, 2, 3);
+                assertThat(salvas).extracting(TransacaoEntity::getTotalParcelas).containsExactly(3, 3, 3);
+                assertThat(salvas).extracting(TransacaoEntity::getStatus)
+                        .containsExactly(StatusTransacao.PENDENTE, StatusTransacao.PENDENTE, StatusTransacao.PENDENTE);
+                assertThat(salvas).extracting(TransacaoEntity::getData).containsExactly(
+                        LocalDate.of(2026, 5, 30), LocalDate.of(2026, 6, 30), LocalDate.of(2026, 7, 30));
+
+                BigDecimal soma = salvas.stream().map(TransacaoEntity::getValor).reduce(BigDecimal.ZERO, BigDecimal::add);
+                assertThat(soma).isEqualByComparingTo("200.00");
+
+                UUID grupo = salvas.get(0).getGrupoParcelamento();
+                assertThat(grupo).isNotNull();
+                assertThat(salvas).allMatch(t -> grupo.equals(t.getGrupoParcelamento()));
+                assertThat(salvas).extracting(TransacaoEntity::getIdempotencyKey)
+                        .containsExactly("key-parc-p1", "key-parc-p2", "key-parc-p3");
+
+                verify(movimentacaoFinanceiraService, times(3)).processarDespesaCartao(eq(20L), any(), any(), eq(1L));
+        }
+
+        @Test
+        void deveBloquearParcelamentoEmReceita() {
+                TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
+                        "Erro", new BigDecimal("100.00"), LocalDate.now(), TipoTransacao.RECEITA,
+                        null, MetodoPagamento.CARTAO_CREDITO, null, 20L, null, null, null, 3, "key-r");
+
+                when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
+
+                assertThatThrownBy(() -> transacaoService.criarTransacao(request, 1L))
+                        .isInstanceOf(RegraDeNegocioException.class)
+                        .hasMessageContaining("Parcelamento só é permitido em despesas");
+        }
+
+        @Test
+        void deveExcluirTodasAsParcelasQuandoEscopoGrupo() {
+                UUID grupo = UUID.randomUUID();
+                TransacaoEntity p1 = new TransacaoEntity();
+                p1.setId(100L); p1.setUsuario(usuarioPadrao); p1.setAtivo(true); p1.setGrupoParcelamento(grupo);
+                TransacaoEntity p2 = new TransacaoEntity();
+                p2.setId(101L); p2.setUsuario(usuarioPadrao); p2.setAtivo(true); p2.setGrupoParcelamento(grupo);
+                TransacaoEntity p3 = new TransacaoEntity();
+                p3.setId(102L); p3.setUsuario(usuarioPadrao); p3.setAtivo(true); p3.setGrupoParcelamento(grupo);
+
+                when(transacaoRepository.findById(100L)).thenReturn(Optional.of(p1));
+                when(transacaoRepository.findByGrupoParcelamentoAndUsuarioId(grupo, 1L))
+                        .thenReturn(List.of(p1, p2, p3));
+
+                transacaoService.deletarTransacao(100L, 1L, true);
+
+                assertThat(p1.isAtivo()).isFalse();
+                assertThat(p2.isAtivo()).isFalse();
+                assertThat(p3.isAtivo()).isFalse();
+                verify(movimentacaoFinanceiraService).desfazerEfeitoFinanceiro(p1, 1L);
+                verify(movimentacaoFinanceiraService).desfazerEfeitoFinanceiro(p2, 1L);
+                verify(movimentacaoFinanceiraService).desfazerEfeitoFinanceiro(p3, 1L);
+                verify(transacaoRepository, times(3)).save(any(TransacaoEntity.class));
+        }
+
+        @Test
+        void naoDeveExcluirTransacaoComFaturaPaga() {
+                FaturaEntity faturaPaga = new FaturaEntity();
+                faturaPaga.setStatus(StatusFatura.PAGA);
+                TransacaoEntity t = new TransacaoEntity();
+                t.setId(100L); t.setUsuario(usuarioPadrao); t.setAtivo(true); t.setFatura(faturaPaga);
+
+                when(transacaoRepository.findById(100L)).thenReturn(Optional.of(t));
+
+                assertThatThrownBy(() -> transacaoService.deletarTransacao(100L, 1L))
+                        .isInstanceOf(RegraDeNegocioException.class)
+                        .hasMessageContaining("fatura já foi paga");
+                verify(movimentacaoFinanceiraService, never()).desfazerEfeitoFinanceiro(any(), any());
+                verify(transacaoRepository, never()).save(any());
+        }
+
+        @Test
+        void deveExcluirApenasUmaParcelaQuandoEscopoUnica() {
+                UUID grupo = UUID.randomUUID();
+                TransacaoEntity p1 = new TransacaoEntity();
+                p1.setId(100L); p1.setUsuario(usuarioPadrao); p1.setAtivo(true); p1.setGrupoParcelamento(grupo);
+
+                when(transacaoRepository.findById(100L)).thenReturn(Optional.of(p1));
+
+                transacaoService.deletarTransacao(100L, 1L, false);
+
+                assertThat(p1.isAtivo()).isFalse();
+                verify(movimentacaoFinanceiraService).desfazerEfeitoFinanceiro(p1, 1L);
+                verify(transacaoRepository, never()).findByGrupoParcelamentoAndUsuarioId(any(), any());
+                verify(transacaoRepository, times(1)).save(p1);
+        }
+
+        @Test
+        void deveBloquearParcelamentoEmContaBancaria() {
+                TransacaoRegistroRequestDTO request = new TransacaoRegistroRequestDTO(
+                        "Erro", new BigDecimal("100.00"), LocalDate.now(), TipoTransacao.DESPESA,
+                        StatusTransacao.PAGO, MetodoPagamento.PIX, 10L, null, null, null, null, 3, "key-c");
+
+                when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
+
+                assertThatThrownBy(() -> transacaoService.criarTransacao(request, 1L))
+                        .isInstanceOf(RegraDeNegocioException.class)
+                        .hasMessageContaining("cartão de crédito");
         }
 }

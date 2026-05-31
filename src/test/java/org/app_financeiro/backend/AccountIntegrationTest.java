@@ -63,7 +63,7 @@ class AccountIntegrationTest extends AbstractIntegrationTest {
         when(mailSender.createMimeMessage()).thenReturn(new JavaMailSenderImpl().createMimeMessage());
 
         String email = "test@email.com";
-        String senha = "SenhaSegura123";
+        String senha = "SenhaSegura@123";
 
         this.accessToken = setupUsuarioVerificado("Test User", email, senha);
         this.usuarioId = usuarioRepository.findByEmail(email).orElseThrow().getId();

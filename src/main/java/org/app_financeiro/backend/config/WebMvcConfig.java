@@ -37,10 +37,21 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/actuator/health"
                 );
 
+        // CSRF: o access token agora trafega em cookie httpOnly (SameSite=None), enviado
+        // automaticamente pelo browser. Toda mutação precisa de validação de origem.
+        // Endpoints públicos (que não dependem de cookie de sessão) ficam de fora.
         registry.addInterceptor(csrfOriginInterceptor)
-                .addPathPatterns(
-                        "/api/auth/refresh",
-                        "/api/auth/logout"
+                .addPathPatterns("/api/**")
+                .excludePathPatterns(
+                        "/api/auth/login",
+                        "/api/auth/registrar",
+                        "/api/auth/pre-registrar",
+                        "/api/auth/verificar-email",
+                        "/api/auth/reenviar-codigo",
+                        "/api/auth/solicitar-recuperacao",
+                        "/api/auth/resetar-senha",
+                        "/api/auth/validar-token",
+                        "/api/auth/otp-status"
                 );
     }
 }

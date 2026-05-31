@@ -1,5 +1,6 @@
 package org.app_financeiro.backend.config;
 
+import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -19,9 +20,17 @@ class CsrfOriginInterceptorTest {
         interceptor = new CsrfOriginInterceptor(ALLOWED_ORIGINS);
     }
 
+    /** Requisição mutante (POST) autenticada por cookie — caso sujeito à validação de origem. */
+    private MockHttpServletRequest mutacaoComCookieDeSessao() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setMethod("POST");
+        request.setCookies(new Cookie("accessToken", "fake-jwt-token"));
+        return request;
+    }
+
     @Test
     void devePermitirOrigemValida() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletRequest request = mutacaoComCookieDeSessao();
         request.addHeader("Origin", "http://localhost:5173");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -33,7 +42,7 @@ class CsrfOriginInterceptorTest {
 
     @Test
     void devePermitirOrigemDeProducaoValida() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletRequest request = mutacaoComCookieDeSessao();
         request.addHeader("Origin", "https://app.equilibra.com");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -44,7 +53,7 @@ class CsrfOriginInterceptorTest {
 
     @Test
     void deveBloquearOrigemInvalida() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletRequest request = mutacaoComCookieDeSessao();
         request.addHeader("Origin", "https://evil.com");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -56,7 +65,7 @@ class CsrfOriginInterceptorTest {
 
     @Test
     void deveBloquearSemOrigemSemReferer() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletRequest request = mutacaoComCookieDeSessao();
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         boolean result = interceptor.preHandle(request, response, null);
@@ -67,7 +76,7 @@ class CsrfOriginInterceptorTest {
 
     @Test
     void deveFazerFallbackParaRefererValido() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletRequest request = mutacaoComCookieDeSessao();
         request.addHeader("Referer", "http://localhost:5173/dashboard");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -78,7 +87,7 @@ class CsrfOriginInterceptorTest {
 
     @Test
     void deveBloquearRefererInvalido() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletRequest request = mutacaoComCookieDeSessao();
         request.addHeader("Referer", "https://evil.com/page");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -90,7 +99,7 @@ class CsrfOriginInterceptorTest {
 
     @Test
     void deveBloquearRefererMalformado() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletRequest request = mutacaoComCookieDeSessao();
         request.addHeader("Referer", "not-a-valid-url");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -101,7 +110,7 @@ class CsrfOriginInterceptorTest {
 
     @Test
     void deveBloquearOrigemNullString() throws Exception {
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletRequest request = mutacaoComCookieDeSessao();
         request.addHeader("Origin", "null");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
@@ -115,11 +124,37 @@ class CsrfOriginInterceptorTest {
     void deveIgnorarEspacosNasOrigensPermitidas() throws Exception {
         CsrfOriginInterceptor interceptorComEspacos = new CsrfOriginInterceptor(
                 "http://localhost:5173 , https://app.equilibra.com");
-        MockHttpServletRequest request = new MockHttpServletRequest();
+        MockHttpServletRequest request = mutacaoComCookieDeSessao();
         request.addHeader("Origin", "https://app.equilibra.com");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         boolean result = interceptorComEspacos.preHandle(request, response, null);
+
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void devePermitirMetodoSeguroSemValidarOrigem() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setMethod("GET");
+        request.setCookies(new Cookie("accessToken", "fake-jwt-token"));
+        // sem Origin/Referer — método seguro não exige validação
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        boolean result = interceptor.preHandle(request, response, null);
+
+        assertThat(result).isTrue();
+    }
+
+    @Test
+    void devePermitirMutacaoSemCookieDeSessao() throws Exception {
+        // Sem cookie de sessão (ex.: auth via header Bearer) não é CSRF-able, mesmo com origem maliciosa
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.setMethod("POST");
+        request.addHeader("Origin", "https://evil.com");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        boolean result = interceptor.preHandle(request, response, null);
 
         assertThat(result).isTrue();
     }

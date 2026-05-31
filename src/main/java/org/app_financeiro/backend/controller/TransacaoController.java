@@ -108,12 +108,13 @@ public class TransacaoController {
     }
 
     @DeleteMapping("/{id}")
-    @Operation(summary = "Excluir transação", description = "Remove logicamente uma transação e estorna seu impacto financeiro (saldo/limite).")
+    @Operation(summary = "Excluir transação", description = "Remove logicamente uma transação e estorna seu impacto financeiro (saldo/limite). Use grupo=true para excluir todas as parcelas de uma compra parcelada.")
     public ResponseEntity<Void> deletarTransacao(
             @PathVariable Long id,
+            @RequestParam(defaultValue = "false") boolean grupo,
             @AuthenticationPrincipal UsuarioEntity usuario) {
 
-        transacaoService.deletarTransacao(id, usuario.getId());
+        transacaoService.deletarTransacao(id, usuario.getId(), grupo);
         return ResponseEntity.noContent().build();
     }
 }

@@ -1,5 +1,6 @@
 package org.app_financeiro.backend.dto.request;
 
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -44,6 +45,7 @@ public record TransacaoRegistroRequestDTO(
     Integer numeroParcela,
 
     @Min(value = 1, message = "O total de parcelas deve ser no mínimo 1")
+    @Max(value = 72, message = "O total de parcelas não pode exceder 72")
     Integer totalParcelas,
 
     @NotBlank(message = "A chave de idempotência é obrigatória para prevenir duplicações")

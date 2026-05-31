@@ -73,7 +73,7 @@ public class ContaService {
         ContaEntity conta = obterContaComBloqueioExclusivo(contaId, usuarioId);
 
         if (valor.compareTo(BigDecimal.ZERO) < 0) {
-            throw new RegraDeNegocioException("O saldo não pode ser negativo");
+            throw new RegraDeNegocioException("error.conta.saldo_negativo", "O saldo não pode ser negativo");
         }
 
         conta.setSaldo(valor);
@@ -124,7 +124,7 @@ public class ContaService {
 
         if (conta.getSaldo().compareTo(BigDecimal.ZERO) > 0) {
             log.warn("Tentativa de deletar conta com saldo positivo: contaId={}, saldo={}", contaId, conta.getSaldo());
-            throw new RegraDeNegocioException("Não é possível inativar uma conta que ainda possui saldo.");
+            throw new RegraDeNegocioException("error.conta.inativar_com_saldo", "Não é possível inativar uma conta que ainda possui saldo.");
         }
 
         int investimentosInativados = investimentoRepository.inativarVinculadosAConta(usuarioId, contaId);

@@ -53,10 +53,10 @@ public class TransacaoRecorrenteService {
     @Transactional
     public TransacaoRecorrenteResponseDTO criar(TransacaoRecorrenteRequestDTO dto, Long usuarioId) {
         if (dto.contaId() != null && dto.cartaoId() != null) {
-            throw new RegraDeNegocioException("Transação recorrente inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
+            throw new RegraDeNegocioException("error.recorrente.conta_e_cartao", "Transação recorrente inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
         }
         if (dto.contaId() == null && dto.cartaoId() == null) {
-            throw new RegraDeNegocioException("Transação recorrente inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
+            throw new RegraDeNegocioException("error.recorrente.conta_ou_cartao_obrigatorio", "Transação recorrente inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
         }
 
         UsuarioEntity usuario = usuarioService.buscarPorIdOuFalhar(usuarioId);
@@ -90,7 +90,7 @@ public class TransacaoRecorrenteService {
         }
 
         if (dto.dataFim() != null && dto.dataInicio() != null && dto.dataFim().isBefore(dto.dataInicio())) {
-            throw new RegraDeNegocioException("A data fim não pode ser anterior à data início.");
+            throw new RegraDeNegocioException("error.recorrente.data_fim_anterior", "A data fim não pode ser anterior à data início.");
         }
 
         entity = recorrenteRepository.save(entity);
@@ -109,10 +109,10 @@ public class TransacaoRecorrenteService {
     @Transactional
     public TransacaoRecorrenteResponseDTO atualizar(Long id, TransacaoRecorrenteRequestDTO dto, Long usuarioId) {
         if (dto.contaId() != null && dto.cartaoId() != null) {
-            throw new RegraDeNegocioException("Transação recorrente inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
+            throw new RegraDeNegocioException("error.recorrente.conta_e_cartao", "Transação recorrente inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
         }
         if (dto.contaId() == null && dto.cartaoId() == null) {
-            throw new RegraDeNegocioException("Transação recorrente inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
+            throw new RegraDeNegocioException("error.recorrente.conta_ou_cartao_obrigatorio", "Transação recorrente inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
         }
 
         TransacaoRecorrenteEntity entity = buscarValidada(id, usuarioId);
@@ -162,7 +162,7 @@ public class TransacaoRecorrenteService {
         TransacaoRecorrenteEntity entity = buscarValidada(id, usuarioId);
 
         if (canceladaRepository.existsByRecorrenteIdAndAnoAndMes(entity.getId(), ano, mes)) {
-            throw new RegraDeNegocioException("Este mês já está cancelado.");
+            throw new RegraDeNegocioException("error.recorrente.mes_ja_cancelado", "Este mês já está cancelado.");
         }
 
         RecorrenciaCanceladaEntity cancelada = new RecorrenciaCanceladaEntity();

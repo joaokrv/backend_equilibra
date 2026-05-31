@@ -58,7 +58,7 @@ public class InvestimentoService {
         ContaEntity contaOrigem = contaService.buscarContaValidada(dto.contaId(), usuarioId);
 
         if (dto.meta() != null && dto.valorInicial().compareTo(dto.meta()) > 0) {
-            throw new RegraDeNegocioException("O valor inicial não pode ser maior que a meta informada");
+            throw new RegraDeNegocioException("error.investimento.valor_inicial_maior_meta", "O valor inicial não pode ser maior que a meta informada");
         }
 
         if (dto.valorInicial().compareTo(BigDecimal.ZERO) > 0) {
@@ -123,7 +123,7 @@ public class InvestimentoService {
         
         if (investimento.getValorAtual().compareTo(valor) < 0) {
             log.warn("Resgate de R$ {} excede saldo de R$ {} no investimento {}", valor, investimento.getValorAtual(), investimentoId);
-            throw new RegraDeNegocioException("Valor de resgate excede o saldo do investimento");
+            throw new RegraDeNegocioException("error.investimento.resgate_excede", "Valor de resgate excede o saldo do investimento");
         }
         
         investimento.setValorAtual(investimento.getValorAtual().subtract(valor));
@@ -149,7 +149,7 @@ public class InvestimentoService {
         
         if (novaMeta.compareTo(BigDecimal.ZERO) <= 0) {
             log.warn("Tentativa de definir meta <= 0 no investimento {}", investimentoId);
-            throw new RegraDeNegocioException("A meta deve ser maior que zero");
+            throw new RegraDeNegocioException("error.investimento.meta_maior_zero", "A meta deve ser maior que zero");
         }
         
         investimento.setMetaAtual(novaMeta);
@@ -165,11 +165,11 @@ public class InvestimentoService {
         InvestimentoEntity investimento = buscarInvestimentoValidado(investimentoId, usuarioId);
 
         if (dto.meta() != null && dto.meta().compareTo(BigDecimal.ZERO) <= 0) {
-            throw new RegraDeNegocioException("A meta deve ser maior que zero");
+            throw new RegraDeNegocioException("error.investimento.meta_maior_zero", "A meta deve ser maior que zero");
         }
 
         if (dto.meta() != null && investimento.getValorAtual().compareTo(dto.meta()) > 0) {
-            throw new RegraDeNegocioException("A meta não pode ser menor que o valor já investido");
+            throw new RegraDeNegocioException("error.investimento.meta_menor_investido", "A meta não pode ser menor que o valor já investido");
         }
 
         investimento.setDescricao(dto.descricao().trim());
@@ -194,7 +194,7 @@ public class InvestimentoService {
         InvestimentoEntity investimento = buscarInvestimentoValidado(investimentoId, usuarioId);
         
         if (investimento.getValorAtual().compareTo(BigDecimal.ZERO) > 0) {
-            throw new RegraDeNegocioException("Resgate o saldo restante (R$ " + investimento.getValorAtual() + ") antes de desativar o investimento");
+            throw new RegraDeNegocioException("error.investimento.resgatar_antes_desativar", "Resgate o saldo restante (R$ " + investimento.getValorAtual() + ") antes de desativar o investimento", investimento.getValorAtual());
         }
         
         investimento.setAtivo(false);
@@ -219,7 +219,7 @@ public class InvestimentoService {
         }
 
         if (tipoPersonalizado == null || tipoPersonalizado.isBlank()) {
-            throw new RegraDeNegocioException("Informe o tipo personalizado quando o tipo for OUTRO");
+            throw new RegraDeNegocioException("error.investimento.tipo_personalizado", "Informe o tipo personalizado quando o tipo for OUTRO");
         }
 
         return tipoPersonalizado.trim();

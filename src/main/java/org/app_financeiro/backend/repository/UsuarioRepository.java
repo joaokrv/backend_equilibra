@@ -31,6 +31,10 @@ public interface UsuarioRepository extends JpaRepository<UsuarioEntity, Long> {
     @Query(value = "SELECT COUNT(*) > 0 FROM usuarios u WHERE u.email = :email", nativeQuery = true)
     boolean existsByEmailIncludingInactive(String email);
 
+    /** Query nativa bypassa @SQLRestriction — usado para enviar avisos a contas ativas ou desativadas. */
+    @Query(value = "SELECT * FROM usuarios u WHERE u.email = :email", nativeQuery = true)
+    Optional<UsuarioEntity> findByEmailIncludingInactive(String email);
+
     /** Query nativa bypassa @SQLRestriction — exclusivo para reativação de conta. */
     @Query(value = "SELECT * FROM usuarios u WHERE u.email = :email AND u.ativo = false", nativeQuery = true)
     Optional<UsuarioEntity> findInactiveByEmail(String email);

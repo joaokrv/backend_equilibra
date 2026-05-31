@@ -15,8 +15,14 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * Bloqueia CSRF em endpoints que lêem cookie HttpOnly (refresh/logout).
- * SameSite=None (Vercel→Render) remove proteção nativa do browser — validação explícita necessária.
+ * Bloqueia CSRF em mutações autenticadas por cookie HttpOnly.
+ * Como o access token trafega em cookie SameSite=None (Vercel→Render), o browser o envia
+ * em requisições cross-site — a proteção nativa do SameSite não existe. Estratégia:
+ * <ul>
+ *   <li>Métodos seguros (GET/HEAD/OPTIONS) passam — não alteram estado.</li>
+ *   <li>Sem cookie de sessão (ex.: auth via header Bearer) passa — não é CSRF-able.</li>
+ *   <li>Com cookie de sessão, exige Origin/Referer de origem confiável.</li>
+ * </ul>
  */
 @Component
 public class CsrfOriginInterceptor implements HandlerInterceptor {
@@ -35,6 +41,17 @@ public class CsrfOriginInterceptor implements HandlerInterceptor {
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
+        String method = request.getMethod();
+        if ("GET".equals(method) || "HEAD".equals(method) || "OPTIONS".equals(method)) {
+            return true; // métodos seguros não alteram estado — não exigem validação de origem
+        }
+
+        // CSRF só ocorre via replay automático de cookie pelo browser. Requisições sem cookie
+        // de sessão (ex.: autenticação por header Bearer) não são CSRF-able — não validar origem.
+        if (!temCookieDeSessao(request)) {
+            return true;
+        }
+
         String origin = request.getHeader("Origin");
 
         if (origin == null) {
@@ -50,6 +67,15 @@ public class CsrfOriginInterceptor implements HandlerInterceptor {
         }
 
         return true;
+    }
+
+    private boolean temCookieDeSessao(HttpServletRequest request) {
+        jakarta.servlet.http.Cookie[] cookies = request.getCookies();
+        if (cookies == null) {
+            return false;
+        }
+        return Arrays.stream(cookies)
+                .anyMatch(c -> "accessToken".equals(c.getName()) || "refreshToken".equals(c.getName()));
     }
 
     private String extractOriginFromReferer(String referer) {

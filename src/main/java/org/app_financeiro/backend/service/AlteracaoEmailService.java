@@ -56,11 +56,11 @@ public class AlteracaoEmailService {
         }
 
         if (usuario.getEmail().equalsIgnoreCase(dto.novoEmail())) {
-            throw new RegraDeNegocioException("O novo e-mail deve ser diferente do atual.");
+            throw new RegraDeNegocioException("error.email.novo_igual_atual", "O novo e-mail deve ser diferente do atual.");
         }
 
         if (usuarioRepository.existsByEmailIncludingInactive(dto.novoEmail())) {
-            throw new RegraDeNegocioException("Este e-mail já está vinculado a outra conta.");
+            throw new RegraDeNegocioException("error.email.ja_vinculado", "Este e-mail já está vinculado a outra conta.");
         }
 
         solicitacaoRepository.invalidarSolicitacoesAnteriores(usuarioId);

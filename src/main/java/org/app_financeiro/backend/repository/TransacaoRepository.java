@@ -16,6 +16,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.List;
+import java.util.UUID;
 
 /** @SQLRestriction("ativo = true") filtra automaticamente em todas as queries derivadas. */
 @Repository
@@ -67,6 +68,10 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
 
     @EntityGraph(attributePaths = {"categoria", "conta", "cartao"})
     List<TransacaoEntity> findByFaturaId(Long faturaId);
+
+    /** Parcelas ativas de uma mesma compra parcelada. @SQLRestriction já filtra ativo = true. */
+    @EntityGraph(attributePaths = {"cartao", "fatura"})
+    List<TransacaoEntity> findByGrupoParcelamentoAndUsuarioId(UUID grupoParcelamento, Long usuarioId);
 
         @Modifying(clearAutomatically = true)
         @Transactional

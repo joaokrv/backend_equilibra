@@ -19,20 +19,23 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.testcontainers.containers.PostgreSQLContainer;
-import org.testcontainers.junit.jupiter.Container;
-import org.testcontainers.junit.jupiter.Testcontainers;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
  * Classe base para todos os testes de integração.
- * Sobe um banco de dados real (PostgreSQL) num container temporário via Testcontainers.
- * Inclui helper reutilizável para o fluxo pré-registrar → verificar OTP → login.
+ * <p>
+ * Usa o <b>Singleton Container Pattern</b> do Testcontainers: o container PostgreSQL sobe
+ * uma única vez por JVM e é compartilhado por todas as subclasses. Sem {@code @Container}
+ * nem {@code @Testcontainers} — caso contrário, cada classe destruiria o container ao
+ * terminar e a próxima classe falharia com "Connection refused" contra a porta antiga
+ * (o Spring cacheia contextos entre classes mas o pool Hikari aponta para a porta original).
+ * <p>
+ * O {@code Ryuk} do Testcontainers garante o cleanup automático no shutdown da JVM.
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
-@Testcontainers
 @ActiveProfiles("test")
 public abstract class AbstractIntegrationTest {
 
@@ -51,11 +54,15 @@ public abstract class AbstractIntegrationTest {
     @Autowired
     protected UsuarioPendenteRepository usuarioPendenteRepository;
 
-    @Container
-    protected static final PostgreSQLContainer<?> postgres = new PostgreSQLContainer<>("postgres:16-alpine")
-            .withDatabaseName("equilibra_test")
-            .withUsername("test")
-            .withPassword("test");
+    protected static final PostgreSQLContainer<?> postgres;
+
+    static {
+        postgres = new PostgreSQLContainer<>("postgres:16-alpine")
+                .withDatabaseName("equilibra_test")
+                .withUsername("test")
+                .withPassword("test");
+        postgres.start();
+    }
 
     @DynamicPropertySource
     static void configureProperties(DynamicPropertyRegistry registry) {
@@ -104,7 +111,11 @@ public abstract class AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        return objectMapper.readTree(loginResult.getResponse().getContentAsString())
-                .get("accessToken").asText();
+        // Access token agora vem em httpOnly cookie (não em JSON)
+        var accessTokenCookie = loginResult.getResponse().getCookie("accessToken");
+        if (accessTokenCookie != null && accessTokenCookie.getValue() != null) {
+            return accessTokenCookie.getValue();
+        }
+        throw new IllegalStateException("Access token cookie não encontrado na resposta de login");
     }
 }

@@ -5,6 +5,7 @@ import jakarta.persistence.EntityManager;
 import jakarta.persistence.PersistenceContext;
 import org.app_financeiro.backend.dto.request.*;
 import org.app_financeiro.backend.entity.ContaEntity;
+import org.app_financeiro.backend.entity.TransacaoEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.enums.BandeiraCartao;
 import org.app_financeiro.backend.enums.MetodoPagamento;
@@ -22,7 +23,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.when;
@@ -79,15 +82,15 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
 
         when(mailSender.createMimeMessage()).thenReturn(new JavaMailSenderImpl().createMimeMessage());
 
-        tokenA = setupUsuarioVerificado("User A", "usera@email.com", "SenhaSegura123");
+        tokenA = setupUsuarioVerificado("User A", "usera@email.com", "SenhaSegura@123");
         usuarioAId = usuarioRepository.findByEmail("usera@email.com").get().getId();
         
         contaAId = criarConta(tokenA, "Conta A", new BigDecimal("1000.00"));
         cartaoAId = criarCartao(tokenA, "Cartao A", new BigDecimal("5000.00"));
-        catDespesaAId = criarCategoria(tokenA, "Alimentação", TipoTransacao.DESPESA);
-        catReceitaAId = criarCategoria(tokenA, "Salário", TipoTransacao.RECEITA);
+        catDespesaAId = criarCategoria(tokenA, "Despesa Teste", TipoTransacao.DESPESA);
+        catReceitaAId = criarCategoria(tokenA, "Receita Teste", TipoTransacao.RECEITA);
 
-        tokenB = setupUsuarioVerificado("User B", "userb@email.com", "SenhaSegura123");
+        tokenB = setupUsuarioVerificado("User B", "userb@email.com", "SenhaSegura@123");
         usuarioBId = usuarioRepository.findByEmail("userb@email.com").get().getId();
     }
 
@@ -160,7 +163,7 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
 
         mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isUnprocessableEntity())
-                .andExpect(jsonPath("$.mensagem").value("Saldo insuficiente"));
+                .andExpect(jsonPath("$.code").value("SALDO_INSUFICIENTE"));
     }
 
     @Test
@@ -211,6 +214,21 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
 
     @Test
     void deveReverterSaldoAoDeletarTransacao() throws Exception {
+        TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
+            "Compra Reversível", new BigDecimal("100.00"), LocalDate.now(), TipoTransacao.DESPESA, null,
+            MetodoPagamento.PIX, contaAId, null, catDespesaAId, null, null, null, "key-rev-1"
+        );
+
+        MvcResult res = mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated()).andReturn();
+        Long id = ((Number) objectMapper.readValue(res.getResponse().getContentAsString(), Map.class).get("id")).longValue();
+
+        assertThat(contaRepository.findById(contaAId).get().getSaldo()).isEqualByComparingTo("900.00");
+
+        mockMvc.perform(delete("/api/transacoes/" + id).header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isNoContent());
+
+        assertThat(contaRepository.findById(contaAId).get().getSaldo()).isEqualByComparingTo("1000.00");
     }
 
     @Test
@@ -223,7 +241,7 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
         mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
                 .andExpect(status().isCreated());
 
-        mockMvc.perform(get("/api/transacoes")
+        mockMvc.perform(get("/api/transacoes/mensal")
                 .header("Authorization", "Bearer " + tokenA)
                 .param("ano", String.valueOf(hoje.getYear()))
                 .param("mes", String.valueOf(hoje.getMonthValue())))
@@ -273,6 +291,78 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     void retornarNotFoundAoDeletarIdInexistente() throws Exception {
         mockMvc.perform(delete("/api/transacoes/9999").header("Authorization", "Bearer " + tokenA))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void deveGerarParcelasEmFaturasDistintasEConsumirLimiteTotal() throws Exception {
+        TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
+            "Mercado", new BigDecimal("300.00"), LocalDate.of(2026, 1, 10), TipoTransacao.DESPESA, null,
+            MetodoPagamento.CARTAO_CREDITO, null, cartaoAId, catDespesaAId, null, null, 3, "key-parc-int"
+        );
+
+        mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated());
+
+        // 3 transações geradas, uma por parcela, no mesmo grupo
+        assertThat(transacaoRepository.count()).isEqualTo(3);
+        List<TransacaoEntity> txs = transacaoRepository.findAll();
+        assertThat(txs).extracting(TransacaoEntity::getNumeroParcela).containsExactlyInAnyOrder(1, 2, 3);
+        assertThat(txs).extracting(TransacaoEntity::getTotalParcelas).containsOnly(3);
+        UUID grupo = txs.get(0).getGrupoParcelamento();
+        assertThat(grupo).isNotNull();
+        assertThat(txs).allSatisfy(t -> assertThat(t.getGrupoParcelamento()).isEqualTo(grupo));
+
+        // 3 faturas distintas, cada uma com R$ 100,00 (rateio exato)
+        assertThat(faturaRepository.findByCartaoId(cartaoAId)).hasSize(3);
+        assertThat(faturaRepository.findByCartaoId(cartaoAId))
+                .allSatisfy(f -> assertThat(f.getValorTotal()).isEqualByComparingTo("100.00"));
+
+        // Limite consumido pelo total (5000 - 300)
+        mockMvc.perform(get("/api/cartoes/" + cartaoAId).header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.limiteDisponivel").value(4700.00));
+    }
+
+    @Test
+    void deveExcluirCompraInteiraRevertendoTodasAsFaturas() throws Exception {
+        TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
+            "Mercado", new BigDecimal("300.00"), LocalDate.of(2026, 1, 10), TipoTransacao.DESPESA, null,
+            MetodoPagamento.CARTAO_CREDITO, null, cartaoAId, catDespesaAId, null, null, 3, "key-parc-del"
+        );
+
+        MvcResult res = mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated()).andReturn();
+        Long primeiraParcelaId = ((Number) objectMapper.readValue(res.getResponse().getContentAsString(), Map.class).get("id")).longValue();
+
+        assertThat(transacaoRepository.count()).isEqualTo(3);
+
+        // Exclui a compra inteira a partir de uma parcela
+        mockMvc.perform(delete("/api/transacoes/" + primeiraParcelaId)
+                .header("Authorization", "Bearer " + tokenA)
+                .param("grupo", "true"))
+                .andExpect(status().isNoContent());
+
+        // Todas as parcelas inativadas (soft delete) e faturas revertidas a zero
+        assertThat(transacaoRepository.count()).isZero();
+        assertThat(faturaRepository.findByCartaoId(cartaoAId))
+                .allSatisfy(f -> assertThat(f.getValorTotal()).isEqualByComparingTo("0.00"));
+
+        // Limite totalmente restaurado
+        mockMvc.perform(get("/api/cartoes/" + cartaoAId).header("Authorization", "Bearer " + tokenA))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.limiteDisponivel").value(5000.00));
+    }
+
+    @Test
+    void deveRejeitarParcelamentoQueExcedeOLimite() throws Exception {
+        // Cartão tem limite 5000; compra de 12000 em 2x (6000 cada) deve estourar
+        TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
+            "Eletrônico Caro", new BigDecimal("12000.00"), LocalDate.of(2026, 1, 10), TipoTransacao.DESPESA, null,
+            MetodoPagamento.CARTAO_CREDITO, null, cartaoAId, catDespesaAId, null, null, 2, "key-parc-lim"
+        );
+
+        mockMvc.perform(post("/api/transacoes").header("Authorization", "Bearer " + tokenA).contentType(MediaType.APPLICATION_JSON).content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().is4xxClientError());
     }
 
     @Test

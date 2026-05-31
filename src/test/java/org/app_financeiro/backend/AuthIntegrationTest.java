@@ -62,7 +62,7 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
     @Test
     void devePreRegistrarVerificarELogarComSucesso() throws Exception {
         String email = "joao@email.com";
-        String senha = "SenhaSegura123!";
+        String senha = "SenhaSegura@123!";
 
         UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Joao Victor", email, senha);
 
@@ -102,10 +102,12 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(loginReq)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").exists())
+                .andExpect(jsonPath("$.accessToken").value((Object) null))
                 .andExpect(jsonPath("$.refreshToken").value((Object) null))
                 .andExpect(jsonPath("$.usuario").exists())
                 .andExpect(jsonPath("$.usuario.email").value(email))
+                .andExpect(cookie().exists("accessToken"))
+                .andExpect(cookie().httpOnly("accessToken", true))
                 .andExpect(cookie().exists("refreshToken"))
                 .andExpect(cookie().httpOnly("refreshToken", true));
     }
@@ -116,7 +118,7 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
     @Test
     void naoDeveLogarSeEmailNaoVerificado() throws Exception {
         String email = "pendente@email.com";
-        String senha = "SenhaSegura123!";
+        String senha = "SenhaSegura@123!";
 
         UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Usuario Pendente", email, senha);
         mockMvc.perform(post("/api/auth/pre-registrar")
@@ -149,7 +151,7 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
     @Test
     void devePersistirTentativaFalhaQuandoOtpForInvalido() throws Exception {
         String email = "otp-invalido@email.com";
-        String senha = "SenhaSegura123!";
+        String senha = "SenhaSegura@123!";
 
         UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Usuario OTP Invalido", email, senha);
         MvcResult preRegistroResult = mockMvc.perform(post("/api/auth/pre-registrar")
@@ -195,7 +197,7 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
         existente.setEmailVerificado(true);
         usuarioRepository.save(existente);
 
-        UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Outro Nome", "existe@email.com", "SenhaSegura123!");
+        UsuarioRegistroRequestDTO registroReq = new UsuarioRegistroRequestDTO("Outro Nome", "existe@email.com", "SenhaSegura@123!");
         mockMvc.perform(post("/api/auth/pre-registrar")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(objectMapper.writeValueAsString(registroReq)))
@@ -212,7 +214,7 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
     @Test
     void novoLoginDeveInvalidarRefreshTokenAnterior() throws Exception {
         String email = "sessao@email.com";
-        String senha = "SenhaSegura123!";
+        String senha = "SenhaSegura@123!";
 
         registrarEVerificarUsuario(email, senha, "Usuario Sessao");
 
@@ -246,7 +248,7 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
     @Test
     void refreshTokenRotacionaACadaUso() throws Exception {
         String email = "rotation@email.com";
-        String senha = "SenhaSegura123!";
+        String senha = "SenhaSegura@123!";
 
         registrarEVerificarUsuario(email, senha, "Rotation User");
 
@@ -263,8 +265,9 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                         .header("Origin", "http://localhost:3000")
                         .cookie(new Cookie("refreshToken", rtInicial)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.accessToken").exists())
+                .andExpect(jsonPath("$.accessToken").value((Object) null))
                 .andExpect(jsonPath("$.usuario").exists())
+                .andExpect(cookie().exists("accessToken"))
                 .andReturn();
 
         String rtRotacionado = primeiroRefresh.getResponse().getCookie("refreshToken").getValue();
@@ -281,6 +284,49 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 .andExpect(status().isUnauthorized());
     }
 
+
+    /**
+     * Regressão de segurança: com o access token em cookie httpOnly (SameSite=None), o browser
+     * o envia em requisições cross-site. Toda mutação precisa de origem confiável — senão é CSRF.
+     * Garante que o CsrfOriginInterceptor cobre endpoints de domínio, não só /refresh e /logout.
+     */
+    @Test
+    void deveBloquearMutacaoComOrigemNaoConfiavel_csrf() throws Exception {
+        String email = "csrf@email.com";
+        String senha = "SenhaSegura@123!";
+        registrarEVerificarUsuario(email, senha, "Csrf User");
+
+        UsuarioLoginRequestDTO loginReq = new UsuarioLoginRequestDTO(email, senha);
+        MvcResult login = mockMvc.perform(post("/api/auth/login")
+                        .header("Origin", "http://localhost:3000")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(loginReq)))
+                .andExpect(status().isOk())
+                .andReturn();
+
+        Cookie accessCookie = login.getResponse().getCookie("accessToken");
+        assertThat(accessCookie).isNotNull();
+
+        String contaJson = objectMapper.writeValueAsString(
+                new org.app_financeiro.backend.dto.request.ContaRegistroRequestDTO(
+                        "Conta CSRF", new java.math.BigDecimal("100.00")));
+
+        // Origem maliciosa → bloqueado mesmo com cookie de sessão válido
+        mockMvc.perform(post("/api/contas")
+                        .cookie(accessCookie)
+                        .header("Origin", "https://evil.com")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(contaJson))
+                .andExpect(status().isForbidden());
+
+        // Origem confiável → passa pela proteção CSRF e cria a conta
+        mockMvc.perform(post("/api/contas")
+                        .cookie(accessCookie)
+                        .header("Origin", "http://localhost:3000")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(contaJson))
+                .andExpect(status().isCreated());
+    }
 
     /**
      * Helper: faz o fluxo completo de pré-registro + verificação via OTP,

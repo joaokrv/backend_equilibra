@@ -83,11 +83,11 @@ public class RecuperacaoSenhaService {
 
     public String validarToken(String token) {
         TokenRecuperacaoSenhaEntity tokenEntity = tokenRepository.findByTokenAndIsUtilizadoFalse(token)
-                .orElseThrow(() -> new RegraDeNegocioException("Token de recuperação inválido ou já utilizado."));
+                .orElseThrow(() -> new RegraDeNegocioException("error.recuperacao.token_invalido", "Token de recuperação inválido ou já utilizado."));
 
         if (tokenEntity.getDataExpiracao().isBefore(LocalDateTime.now())) {
             log.warn("Token de recuperação expirado para e-mail: {}", org.app_financeiro.backend.util.EmailMasker.mascarar(tokenEntity.getEmail()));
-            throw new RegraDeNegocioException("Token expirado. Solicite uma nova recuperação de senha.");
+            throw new RegraDeNegocioException("error.recuperacao.token_expirado", "Token expirado. Solicite uma nova recuperação de senha.");
         }
 
         return tokenEntity.getEmail();
@@ -97,10 +97,10 @@ public class RecuperacaoSenhaService {
     @Transactional
     public void resetarSenha(ResetarSenhaRequestDTO dto) {
         TokenRecuperacaoSenhaEntity tokenEntity = tokenRepository.findByTokenAndIsUtilizadoFalse(dto.token())
-                .orElseThrow(() -> new RegraDeNegocioException("Token de recuperação inválido ou já utilizado."));
+                .orElseThrow(() -> new RegraDeNegocioException("error.recuperacao.token_invalido", "Token de recuperação inválido ou já utilizado."));
 
         if (tokenEntity.getDataExpiracao().isBefore(LocalDateTime.now())) {
-            throw new RegraDeNegocioException("Token expirado. Solicite uma nova recuperação de senha.");
+            throw new RegraDeNegocioException("error.recuperacao.token_expirado", "Token expirado. Solicite uma nova recuperação de senha.");
         }
 
         UsuarioEntity usuario = usuarioRepository.findByEmail(tokenEntity.getEmail())

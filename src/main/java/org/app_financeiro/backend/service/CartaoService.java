@@ -129,7 +129,7 @@ public class CartaoService {
         BigDecimal limiteUtilizado = cartao.getLimite().subtract(limiteDisponivelAtual);
 
         if (dto.limite().compareTo(limiteUtilizado) < 0) {
-            throw new RegraDeNegocioException(
+            throw new RegraDeNegocioException("error.cartao.limite_menor_que_usado",
                     "O novo limite não pode ser menor que o valor já utilizado no cartão."
             );
         }
@@ -163,7 +163,7 @@ public class CartaoService {
         boolean temFaturasPendentes = faturaRepository.existsByCartaoIdAndStatusNot(cartaoId, StatusFatura.PAGA);
         if (temFaturasPendentes) {
             log.warn("Tentativa de deletar cartão com faturas pendentes: cartaoId={}", cartaoId);
-            throw new RegraDeNegocioException("Não é possível deletar um cartão que possui faturas pendentes.");
+            throw new RegraDeNegocioException("error.cartao.faturas_pendentes", "Não é possível deletar um cartão que possui faturas pendentes.");
         }
 
         int faturasInativadas = faturaRepository.inativarPorCartao(usuarioId, cartaoId);
