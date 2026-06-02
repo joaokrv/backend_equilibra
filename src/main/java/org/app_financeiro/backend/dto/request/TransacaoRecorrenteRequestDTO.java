@@ -27,7 +27,6 @@ public record TransacaoRecorrenteRequestDTO(
     @NotNull(message = "O método de pagamento é obrigatório")
     MetodoPagamento metodoPagamento,
 
-    @NotNull(message = "A conta é obrigatória")
     Long contaId,
 
     Long cartaoId,
