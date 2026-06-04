@@ -22,6 +22,8 @@ public interface FaturaRepository extends JpaRepository<FaturaEntity, Long> {
 
     List<FaturaEntity> findByCartaoIdAndStatusNot(Long cartaoId, StatusFatura status);
 
+    List<FaturaEntity> findByCartaoIdAndStatusIn(Long cartaoId, List<StatusFatura> status);
+
     boolean existsByCartaoIdAndStatusNot(Long cartaoId, StatusFatura status);
 
     List<FaturaEntity> findByCartaoId(Long cartaoId);

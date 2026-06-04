@@ -21,7 +21,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.app_financeiro.backend.util.FaturaDateUtil;
+
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -134,6 +137,9 @@ public class CartaoService {
             );
         }
 
+        boolean diasAlterados = cartao.getDiaFechamento() != dto.diaFechamento()
+                             || cartao.getDiaVencimento() != dto.diaVencimento();
+
         cartao.setNome(dto.nome());
         cartao.setLimite(dto.limite());
         cartao.setDiaFechamento(dto.diaFechamento());
@@ -150,6 +156,11 @@ public class CartaoService {
         }
 
         CartaoEntity cartaoAtualizado = cartaoRepository.save(cartao);
+
+        if (diasAlterados) {
+            recalcularDatasFaturas(cartaoAtualizado);
+        }
+
         BigDecimal limiteDisponivelAtualizado = calcularLimiteDisponivel(cartaoAtualizado);
 
         log.info("Cartão atualizado: id={}, usuarioId={}", cartaoId, usuarioId);
@@ -218,5 +229,26 @@ public class CartaoService {
         }
 
         return cartao;
+    }
+
+    /**
+     * Após alterar diaFechamento ou diaVencimento, recalcula as datas das faturas
+     * ABERTA e FECHADA. Faturas PAGA e ATRASADA não são alteradas — já passaram do ciclo.
+     */
+    private void recalcularDatasFaturas(CartaoEntity cartao) {
+        List<FaturaEntity> faturas = faturaRepository.findByCartaoIdAndStatusIn(
+                cartao.getId(), List.of(StatusFatura.ABERTA, StatusFatura.FECHADA));
+
+        for (FaturaEntity fatura : faturas) {
+            fatura.setDataFechamento(FaturaDateUtil.calcularDataFechamento(
+                    fatura.getAno(), fatura.getMes(), cartao.getDiaFechamento()));
+            fatura.setDataVencimento(FaturaDateUtil.calcularDataVencimento(
+                    fatura.getAno(), fatura.getMes(), cartao.getDiaFechamento(), cartao.getDiaVencimento()));
+        }
+
+        if (!faturas.isEmpty()) {
+            faturaRepository.saveAll(faturas);
+            log.info("Datas recalculadas para {} fatura(s) do cartão {} após atualização de dias.", faturas.size(), cartao.getId());
+        }
     }
 }

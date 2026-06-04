@@ -16,6 +16,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -185,12 +186,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     }
 
     private boolean isCrudEscrita(String uri) {
-        for (String prefixo : PREFIXOS_CRUD) {
-            if (uri.startsWith(prefixo)) {
-                return true;
-            }
-        }
-        return false;
+        return Arrays.stream(PREFIXOS_CRUD).anyMatch(uri::startsWith);
     }
 
     private boolean isMetodoEscrita(String metodo) {

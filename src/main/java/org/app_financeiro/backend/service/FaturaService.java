@@ -14,9 +14,10 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import org.app_financeiro.backend.util.FaturaDateUtil;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
-import java.time.YearMonth;
 import java.util.List;
 
 /** Gerencia faturas: criação lazy, ciclo de vida, ghost closing e pagamentos. */
@@ -180,20 +181,8 @@ public class FaturaService {
         nova.setValorPago(BigDecimal.ZERO);
         nova.setStatus(StatusFatura.ABERTA);
         
-        LocalDate dataFechamento = calcularDataComLimite(ano, mes, cartao.getDiaFechamento());
-        
-        int mesVencimento = mes;
-        int anoVencimento = ano;
-        
-        if (cartao.getDiaVencimento() < cartao.getDiaFechamento()) {
-            mesVencimento++;
-            if (mesVencimento > 12) { 
-                mesVencimento = 1; 
-                anoVencimento++; 
-            }
-        }
-        
-        LocalDate dataVencimento = calcularDataComLimite(anoVencimento, mesVencimento, cartao.getDiaVencimento());
+        LocalDate dataFechamento = FaturaDateUtil.calcularDataFechamento(ano, mes, cartao.getDiaFechamento());
+        LocalDate dataVencimento = FaturaDateUtil.calcularDataVencimento(ano, mes, cartao.getDiaFechamento(), cartao.getDiaVencimento());
         
         nova.setDataFechamento(dataFechamento);
         nova.setDataVencimento(dataVencimento);
@@ -201,10 +190,4 @@ public class FaturaService {
         return nova;
     }
 
-    /** Limita o dia ao último dia válido do mês, evitando exceções como "31 de Fevereiro". */
-    private LocalDate calcularDataComLimite(int ano, int mes, int diaDesejado) {
-        int maxDiasNoMes = YearMonth.of(ano, mes).lengthOfMonth();
-        int diaReal = Math.min(diaDesejado, maxDiasNoMes); 
-        return LocalDate.of(ano, mes, diaReal);
-    }
 }
