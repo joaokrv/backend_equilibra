@@ -120,4 +120,6 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
             @Param("end") LocalDate end,
             @Param("tipo") TipoTransacao tipo,
             @Param("status") StatusTransacao status);
+
+    long countByFaturaId(Long faturaId);
 }

@@ -6,10 +6,14 @@ import org.app_financeiro.backend.dto.request.UsuarioRegistroRequestDTO;
 import org.app_financeiro.backend.dto.request.VerificarEmailRequestDTO;
 import org.app_financeiro.backend.entity.CodigoVerificacaoEntity;
 import org.app_financeiro.backend.repository.CodigoVerificacaoRepository;
+import org.app_financeiro.backend.repository.MovimentacaoInvestimentoRepository;
+import org.app_financeiro.backend.repository.NotificacaoFaturaRepository;
 import org.app_financeiro.backend.repository.UsuarioPendenteRepository;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.app_financeiro.backend.service.ExternalEmailSenderService;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.mail.javamail.JavaMailSender;
@@ -42,6 +46,9 @@ public abstract class AbstractIntegrationTest {
     @MockBean
     protected JavaMailSender mailSender;
 
+    @MockBean
+    protected ExternalEmailSenderService externalEmailSenderService;
+
     @Autowired
     protected MockMvc mockMvc;
 
@@ -53,6 +60,41 @@ public abstract class AbstractIntegrationTest {
 
     @Autowired
     protected UsuarioPendenteRepository usuarioPendenteRepository;
+
+    /**
+     * Tabelas com FK sem CASCADE criadas nesta feature.
+     * Precisam ser limpas ANTES das tabelas que referenciam (investimentos, transacoes, faturas, contas, usuarios).
+     * Subclasses devem chamar estas deleções no início do setUp(), antes de deletar as tabelas pai.
+     */
+    @Autowired
+    protected MovimentacaoInvestimentoRepository movimentacaoInvestimentoRepository;
+
+    @Autowired
+    protected NotificacaoFaturaRepository notificacaoFaturaRepository;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    /**
+     * Limpeza completa usando SQL nativo — bypassa @SQLRestriction("ativo = true") e
+     * respeita a ordem de FK. Necessário porque soft-delete (ativo=false) não é removido
+     * pelos métodos JPA que respeitam a restrição de filtro.
+     */
+    protected void limparTodasAsTabelas() {
+        jdbcTemplate.execute("DELETE FROM movimentacao_investimento");
+        jdbcTemplate.execute("DELETE FROM notificacao_fatura");
+        jdbcTemplate.execute("DELETE FROM transacoes");
+        jdbcTemplate.execute("DELETE FROM transacoes_recorrentes");
+        jdbcTemplate.execute("DELETE FROM faturas");
+        jdbcTemplate.execute("DELETE FROM investimentos");
+        jdbcTemplate.execute("DELETE FROM cartoes");
+        jdbcTemplate.execute("DELETE FROM contas");
+        jdbcTemplate.execute("DELETE FROM categorias");
+        jdbcTemplate.execute("DELETE FROM codigos_verificacao");
+        jdbcTemplate.execute("DELETE FROM usuarios_pendentes");
+        jdbcTemplate.execute("DELETE FROM patrimonio_historico");
+        jdbcTemplate.execute("DELETE FROM usuarios");
+    }
 
     protected static final PostgreSQLContainer<?> postgres;
 

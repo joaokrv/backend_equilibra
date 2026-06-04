@@ -95,15 +95,7 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
     }
 
     private void limparBanco() {
-        transacaoRepository.deleteAllInBatch();
-        faturaRepository.deleteAllInBatch();
-        investimentoRepository.deleteAllInBatch();
-        cartaoRepository.deleteAllInBatch();
-        contaRepository.deleteAllInBatch();
-        categoriaRepository.deleteAllInBatch();
-        codigoVerificacaoRepository.deleteAllInBatch();
-        usuarioPendenteRepository.deleteAllInBatch();
-        usuarioRepository.deleteAllInBatch();
+        limparTodasAsTabelas();
         entityManager.flush();
     }
 

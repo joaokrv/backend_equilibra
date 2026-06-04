@@ -39,8 +39,7 @@ class TransacaoControllerPaginationTest extends org.app_financeiro.backend.Abstr
 
     @BeforeEach
     void setUp() {
-        transacaoRepository.deleteAll();
-        usuarioRepository.deleteAll();
+        limparTodasAsTabelas();
         usuario = new UsuarioEntity();
         usuario.setNome("u");
         usuario.setEmail("u.pagination@email.com");

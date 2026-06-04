@@ -26,8 +26,7 @@ class DashboardControllerTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        usuarioRepository.deleteAll();
-
+        limparTodasAsTabelas();
         usuario = new UsuarioEntity();
         usuario.setNome("Dashboard Controller Test");
         usuario.setEmail("dashboard-controller-test@email.com");

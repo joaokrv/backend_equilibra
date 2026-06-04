@@ -77,6 +77,9 @@ public class UsuarioEntity implements UserDetails {
     @Column(name = "locked_until")
     private LocalDateTime lockedUntil;
 
+    @Column(name = "notificacoes_fatura_ativo", nullable = false)
+    private boolean notificacoesFaturaAtivo = true;
+
     
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {

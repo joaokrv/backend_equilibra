@@ -34,8 +34,7 @@ class DashboardResumoServiceIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() {
-        transacaoRepository.deleteAll();
-        usuarioRepository.deleteAll();
+        limparTodasAsTabelas();
 
         usuario = new UsuarioEntity();
         usuario.setNome("Dashboard Test");

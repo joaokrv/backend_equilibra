@@ -10,6 +10,7 @@ import org.app_financeiro.backend.entity.TransacaoRecorrenteEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.exception.RegraDeNegocioException;
+import org.app_financeiro.backend.util.ValidacaoRecursoUtil;
 import org.app_financeiro.backend.mapper.TransacaoRecorrenteMapper;
 import org.app_financeiro.backend.repository.RecorrenciaCanceladaRepository;
 import org.app_financeiro.backend.repository.TransacaoRecorrenteRepository;
@@ -52,12 +53,7 @@ public class TransacaoRecorrenteService {
 
     @Transactional
     public TransacaoRecorrenteResponseDTO criar(TransacaoRecorrenteRequestDTO dto, Long usuarioId) {
-        if (dto.contaId() != null && dto.cartaoId() != null) {
-            throw new RegraDeNegocioException("error.recorrente.conta_e_cartao", "Transação recorrente inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
-        }
-        if (dto.contaId() == null && dto.cartaoId() == null) {
-            throw new RegraDeNegocioException("error.recorrente.conta_ou_cartao_obrigatorio", "Transação recorrente inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
-        }
+        ValidacaoRecursoUtil.validarContaXorCartao(dto.contaId(), dto.cartaoId());
 
         UsuarioEntity usuario = usuarioService.buscarPorIdOuFalhar(usuarioId);
         
@@ -108,12 +104,7 @@ public class TransacaoRecorrenteService {
 
     @Transactional
     public TransacaoRecorrenteResponseDTO atualizar(Long id, TransacaoRecorrenteRequestDTO dto, Long usuarioId) {
-        if (dto.contaId() != null && dto.cartaoId() != null) {
-            throw new RegraDeNegocioException("error.recorrente.conta_e_cartao", "Transação recorrente inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
-        }
-        if (dto.contaId() == null && dto.cartaoId() == null) {
-            throw new RegraDeNegocioException("error.recorrente.conta_ou_cartao_obrigatorio", "Transação recorrente inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
-        }
+        ValidacaoRecursoUtil.validarContaXorCartao(dto.contaId(), dto.cartaoId());
 
         TransacaoRecorrenteEntity entity = buscarValidada(id, usuarioId);
 

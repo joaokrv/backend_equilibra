@@ -54,11 +54,7 @@ class AccountIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        cartaoRepository.deleteAll();
-        contaRepository.deleteAll();
-        codigoVerificacaoRepository.deleteAll();
-        usuarioPendenteRepository.deleteAll();
-        usuarioRepository.deleteAll();
+        limparTodasAsTabelas();
 
         when(mailSender.createMimeMessage()).thenReturn(new JavaMailSenderImpl().createMimeMessage());
 

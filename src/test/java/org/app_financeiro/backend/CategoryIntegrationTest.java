@@ -58,10 +58,7 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
     void setUp() throws Exception {
         when(mailSender.createMimeMessage()).thenReturn(new JavaMailSenderImpl().createMimeMessage());
 
-        categoriaRepository.deleteAllInBatch();
-        codigoVerificacaoRepository.deleteAllInBatch();
-        usuarioPendenteRepository.deleteAllInBatch();
-        usuarioRepository.deleteAllInBatch();
+        limparTodasAsTabelas();
 
         tokenA = "Bearer " + setupUsuarioVerificado("User A", "usera@email.com", "Senha@123");
         idUserA = usuarioRepository.findByEmail("usera@email.com").get().getId();

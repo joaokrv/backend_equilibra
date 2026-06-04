@@ -27,6 +27,7 @@ import java.time.ZoneId;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;
+import org.app_financeiro.backend.util.EmailMasker;
 
 /** Fluxo de verificação de e-mail via OTP de 6 dígitos (15 min). Vincula código por e-mail, não por FK, pois o usuário ainda não está autenticado nesta etapa. */
 @Service
@@ -73,7 +74,7 @@ public class EmailVerificacaoService {
         codigoEntity.setUtilizado(false);
 
         codigoVerificacaoRepository.save(codigoEntity);
-        log.info("Código de verificação gerado para e-mail {}", org.app_financeiro.backend.util.EmailMasker.mascarar(email));
+        log.info("Código de verificação gerado para e-mail {}", EmailMasker.mascarar(email));
 
         enviarEmail(email, codigo, expiracao, tipo);
     }
@@ -87,7 +88,7 @@ public class EmailVerificacaoService {
 
         usuario.setEmailVerificado(true);
         usuarioRepository.save(usuario);
-        log.info("E-mail {} verificado com sucesso", org.app_financeiro.backend.util.EmailMasker.mascarar(dto.email()));
+        log.info("E-mail {} verificado com sucesso", EmailMasker.mascarar(dto.email()));
     }
 
     /**
@@ -106,7 +107,7 @@ public class EmailVerificacaoService {
         }
 
         if (codigoEntity.getDataExpiracao().isBefore(LocalDateTime.now())) {
-            log.warn("Código de verificação expirado para e-mail {}", org.app_financeiro.backend.util.EmailMasker.mascarar(email));
+            log.warn("Código de verificação expirado para e-mail {}", EmailMasker.mascarar(email));
             throw new CodigoVerificacaoInvalidoException("Código expirado. Solicite um novo código.");
         }
 
@@ -136,7 +137,7 @@ public class EmailVerificacaoService {
         }
 
         if (usuario.isEmailVerificado()) {
-            log.warn("Tentativa de reenviar código para e-mail já verificado: {}", org.app_financeiro.backend.util.EmailMasker.mascarar(dto.email()));
+            log.warn("Tentativa de reenviar código para e-mail já verificado: {}", EmailMasker.mascarar(dto.email()));
             throw new RegraDeNegocioException("error.email.ja_verificado", "Este e-mail já foi verificado");
         }
 
@@ -154,7 +155,7 @@ public class EmailVerificacaoService {
         Instant anterior = ultimoAvisoTentativaPorEmail.get(email);
         if (anterior != null && Duration.between(anterior, agora).compareTo(AVISO_TENTATIVA_THROTTLE) < 0) {
             log.debug("Aviso de tentativa de cadastro suprimido (throttle) para {}",
-                    org.app_financeiro.backend.util.EmailMasker.mascarar(email));
+                    EmailMasker.mascarar(email));
             return;
         }
         ultimoAvisoTentativaPorEmail.put(email, agora);
@@ -177,7 +178,7 @@ public class EmailVerificacaoService {
                     "Tentativa de criação de conta — Equilibra",
                     htmlContent);
             log.info("Aviso de tentativa de cadastro enviado para {}",
-                    org.app_financeiro.backend.util.EmailMasker.mascarar(email));
+                    EmailMasker.mascarar(email));
         } catch (IOException | RuntimeException e) {
             log.warn("Falha ao enviar aviso de tentativa de cadastro: {}", e.getMessage());
         }

@@ -103,7 +103,7 @@ public class ContaService {
 
         if (conta.getSaldo().compareTo(valor) < 0) {
             log.warn("Saldo insuficiente: contaId={}, saldoAtual={}, valorSolicitado={}", contaId, conta.getSaldo(), valor);
-            throw new SaldoInsuficienteException("Saldo insuficiente");
+            throw new SaldoInsuficienteException(conta.getSaldo());
         }
 
         conta.setSaldo(conta.getSaldo().subtract(valor));

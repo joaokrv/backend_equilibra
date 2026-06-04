@@ -42,7 +42,7 @@ class PerfilIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void setUp() throws Exception {
-        usuarioRepository.deleteAll();
+        limparTodasAsTabelas();
         when(mailSender.createMimeMessage()).thenReturn(new org.springframework.mail.javamail.JavaMailSenderImpl().createMimeMessage());
 
         tokenA = setupUsuarioVerificado("User A", "usera@email.com", "SenhaA123!");

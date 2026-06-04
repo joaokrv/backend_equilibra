@@ -1,8 +1,10 @@
 package org.app_financeiro.backend.service;
 
 import org.app_financeiro.backend.dto.request.AlterarSenhaRequestDTO;
+import org.app_financeiro.backend.dto.request.ConfirmarAcaoContaRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioAtualizacaoRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioRegistroRequestDTO;
+import org.app_financeiro.backend.enums.TipoCodigoVerificacao;
 import org.app_financeiro.backend.dto.response.UsuarioResponseDTO;
 import org.app_financeiro.backend.mapper.UsuarioMapper;
 import org.app_financeiro.backend.entity.UsuarioEntity;
@@ -20,6 +22,7 @@ import org.app_financeiro.backend.repository.TransacaoRepository;
 import org.app_financeiro.backend.repository.UsuarioPendenteRepository;
 import org.app_financeiro.backend.repository.UsuarioRepository;
 import org.app_financeiro.backend.entity.UsuarioPendenteEntity;
+import org.app_financeiro.backend.util.EmailMasker;
 
 import java.util.List;
 import org.app_financeiro.backend.dto.response.PerfilResumoResponseDTO;
@@ -49,6 +52,7 @@ public class UsuarioService {
     private final TokenRecuperacaoSenhaRepository tokenRecuperacaoSenhaRepository;
     private final CodigoVerificacaoRepository codigoVerificacaoRepository;
     private final UsuarioPendenteRepository usuarioPendenteRepository;
+    private final EmailVerificacaoService emailVerificacaoService;
 
     public UsuarioService(UsuarioRepository usuarioRepository,
                           PasswordEncoder passwordEncoder,
@@ -59,7 +63,8 @@ public class UsuarioService {
                           CategoriaRepository categoriaRepository,
                           TokenRecuperacaoSenhaRepository tokenRecuperacaoSenhaRepository,
                           CodigoVerificacaoRepository codigoVerificacaoRepository,
-                          UsuarioPendenteRepository usuarioPendenteRepository) {
+                          UsuarioPendenteRepository usuarioPendenteRepository,
+                          EmailVerificacaoService emailVerificacaoService) {
         this.usuarioRepository = usuarioRepository;
         this.passwordEncoder = passwordEncoder;
         this.usuarioMapper = usuarioMapper;
@@ -70,6 +75,7 @@ public class UsuarioService {
         this.tokenRecuperacaoSenhaRepository = tokenRecuperacaoSenhaRepository;
         this.codigoVerificacaoRepository = codigoVerificacaoRepository;
         this.usuarioPendenteRepository = usuarioPendenteRepository;
+        this.emailVerificacaoService = emailVerificacaoService;
     }
 
     /** Anti-enumeração: retorna false silenciosamente se e-mail já cadastrado (B1-A2). */
@@ -90,7 +96,7 @@ public class UsuarioService {
         UsuarioEntity savedUser = usuarioRepository.save(usuario);
         criarCategoriasPadrao(savedUser);
 
-        log.info("Usuário registrado com sucesso: id={}, email={}", savedUser.getId(), org.app_financeiro.backend.util.EmailMasker.mascarar(savedUser.getEmail()));
+        log.info("Usuário registrado com sucesso: id={}, email={}", savedUser.getId(), EmailMasker.mascarar(savedUser.getEmail()));
         return true;
     }
 
@@ -112,7 +118,7 @@ public class UsuarioService {
         UsuarioEntity savedUser = usuarioRepository.save(usuario);
         criarCategoriasPadrao(savedUser);
 
-        log.info("Usuário finalizado via pré-registro: id={}, email={}", savedUser.getId(), org.app_financeiro.backend.util.EmailMasker.mascarar(savedUser.getEmail()));
+        log.info("Usuário finalizado via pré-registro: id={}, email={}", savedUser.getId(), EmailMasker.mascarar(savedUser.getEmail()));
         return savedUser;
     }
 
@@ -121,7 +127,7 @@ public class UsuarioService {
                 .orElseThrow(CredenciaisInvalidasException::new);
 
         if (!passwordEncoder.matches(senha, usuario.getSenha())) {
-            log.warn("Tentativa de login com senha inválida para e-mail: {}", org.app_financeiro.backend.util.EmailMasker.mascarar(email));
+            log.warn("Tentativa de login com senha inválida para e-mail: {}", EmailMasker.mascarar(email));
             throw new CredenciaisInvalidasException();
         }
 
@@ -147,9 +153,18 @@ public class UsuarioService {
         UsuarioEntity usuario = buscarPorIdOuFalhar(usuarioId);
         usuario.setAtivo(false);
         usuario.setChaveSessao(null);
-
         usuarioRepository.save(usuario);
         log.info("Conta desativada (soft delete): usuarioId={}", usuarioId);
+    }
+
+    @Transactional
+    public void desativarConta(ConfirmarAcaoContaRequestDTO dto, UsuarioEntity usuario) {
+        if (!passwordEncoder.matches(dto.senha(), usuario.getSenha())) {
+            log.warn("[SECURITY] Senha inválida ao desativar conta: {}", EmailMasker.mascarar(usuario.getEmail()));
+            throw new CredenciaisInvalidasException();
+        }
+        emailVerificacaoService.validarCodigoSimples(usuario.getEmail(), dto.codigo(), TipoCodigoVerificacao.DESATIVACAO_CONTA);
+        desativarConta(usuario.getId());
     }
 
     /**
@@ -167,11 +182,24 @@ public class UsuarioService {
         }
 
         usuarioRepository.deleteById(usuarioId);
-        log.info("Conta excluida (hard delete): usuarioId={}, email={}", usuarioId, org.app_financeiro.backend.util.EmailMasker.mascarar(emailNormalizado));
+        log.info("Conta excluida (hard delete): usuarioId={}, email={}", usuarioId, EmailMasker.mascarar(emailNormalizado));
     }
 
     @Transactional
-    public void reativarConta(String email, String senha) {
+    public void excluirConta(ConfirmarAcaoContaRequestDTO dto, UsuarioEntity usuario) {
+        if (!passwordEncoder.matches(dto.senha(), usuario.getSenha())) {
+            log.warn("[SECURITY] Senha inválida ao excluir conta: {}", EmailMasker.mascarar(usuario.getEmail()));
+            throw new CredenciaisInvalidasException();
+        }
+        emailVerificacaoService.validarCodigoSimples(usuario.getEmail(), dto.codigo(), TipoCodigoVerificacao.EXCLUSAO_CONTA);
+        excluirConta(usuario.getId(), usuario.getEmail());
+    }
+
+    @Transactional
+    public void reativarConta(String email, String senha, String codigo) {
+        // OTP validado ANTES de qualquer alteração de estado (não pode ser omitido por callers)
+        emailVerificacaoService.validarCodigoSimples(email, codigo, TipoCodigoVerificacao.REATIVACAO_CONTA);
+
         UsuarioEntity usuario = usuarioRepository.findInactiveByEmail(email)
                 .orElseThrow(() -> new RecursoNaoEncontradoException("Nenhuma conta inativa encontrada para este e-mail"));
 
@@ -181,7 +209,7 @@ public class UsuarioService {
 
         usuario.setAtivo(true);
         usuarioRepository.save(usuario);
-        log.info("Conta reativada: usuarioId={}, email={}", usuario.getId(), org.app_financeiro.backend.util.EmailMasker.mascarar(email));
+        log.info("Conta reativada: usuarioId={}, email={}", usuario.getId(), EmailMasker.mascarar(email));
     }
 
     @Transactional

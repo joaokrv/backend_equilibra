@@ -23,10 +23,15 @@ import java.util.Objects;
 import java.math.BigDecimal;
 
 import com.openhtmltopdf.pdfboxout.PdfRendererBuilder;
+import org.app_financeiro.backend.exception.RegraDeNegocioException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 @Service
 @RequiredArgsConstructor
 public class RelatorioService {
+
+    private static final Logger log = LoggerFactory.getLogger(RelatorioService.class);
 
     private final TransacaoRepository transacaoRepository;
     private final TemplateEngine templateEngine;
@@ -104,7 +109,8 @@ public class RelatorioService {
 
             return stream.toByteArray();
         } catch (Exception e) {
-            throw new RuntimeException("Erro ao gerar o PDF", e);
+            log.error("Falha ao renderizar relatório PDF", e);
+            throw new RegraDeNegocioException("error.relatorio.render_falhou", "Não foi possível gerar o relatório. Tente novamente.");
         }
     }
 
@@ -124,7 +130,8 @@ public class RelatorioService {
             
             return output.toByteArray();
         } catch (Exception e) {
-            throw new RuntimeException("Erro ao gerar o arquivo CSV", e);
+            log.error("Falha ao renderizar relatório CSV", e);
+            throw new RegraDeNegocioException("error.relatorio.render_falhou", "Não foi possível gerar o relatório. Tente novamente.");
         }
     }
 

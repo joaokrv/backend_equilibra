@@ -3,7 +3,11 @@ package org.app_financeiro.backend.service;
 import org.app_financeiro.backend.dto.request.InvestimentoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.request.TransacaoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.InvestimentoResponseDTO;
+import org.app_financeiro.backend.dto.response.TransacaoResponseDTO;
+import org.app_financeiro.backend.enums.MetodoPagamento;
+import org.app_financeiro.backend.enums.StatusTransacao;
 import org.app_financeiro.backend.enums.TipoInvestimento;
+import org.app_financeiro.backend.enums.TipoTransacao;
 import org.app_financeiro.backend.entity.ContaEntity;
 import org.app_financeiro.backend.entity.InvestimentoEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
@@ -12,6 +16,7 @@ import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.app_financeiro.backend.exception.SaldoInsuficienteException;
 import org.app_financeiro.backend.mapper.InvestimentoMapper;
 import org.app_financeiro.backend.repository.InvestimentoRepository;
+import org.app_financeiro.backend.repository.MovimentacaoInvestimentoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -50,14 +55,31 @@ class InvestimentoServiceTest {
     @Mock
     private PatrimonioHistoricoService patrimonioHistoricoService;
 
+    @Mock
+    private MovimentacaoInvestimentoRepository movimentacaoInvestimentoRepository;
+
+    @Mock
+    private org.app_financeiro.backend.repository.TransacaoRepository transacaoRepository;
+
+    @Mock
+    private MovimentacaoFinanceiraService movimentacaoFinanceiraService;
+
     @InjectMocks
     private InvestimentoService investimentoService;
+
+    private static final TransacaoResponseDTO TRANSACAO_MOCK = new TransacaoResponseDTO(
+        99L, "Aporte", java.math.BigDecimal.TEN, java.time.LocalDate.now(),
+        TipoTransacao.DESPESA, StatusTransacao.PAGO, MetodoPagamento.TRANSFERENCIA,
+        null, null, null, null, null, null, false, null, null, true);
 
     private UsuarioEntity usuarioPadrao;
     private InvestimentoEntity investimentoPadrao;
 
     @BeforeEach
     void setUp() {
+        // lenient: nem todo teste usa este stub (testes que lançam exceção antes do save)
+        lenient().when(movimentacaoInvestimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
         usuarioPadrao = new UsuarioEntity();
         usuarioPadrao.setId(1L);
         usuarioPadrao.setNome("Joao");
@@ -88,7 +110,7 @@ class InvestimentoServiceTest {
 
         when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
         when(contaService.buscarContaValidada(1L, 1L)).thenReturn(contaMock);
-        when(transacaoService.criarTransacaoInterna(any(TransacaoRegistroRequestDTO.class), eq(1L), eq(true))).thenReturn(null);
+        when(transacaoService.criarTransacaoInterna(any(TransacaoRegistroRequestDTO.class), eq(1L), eq(true))).thenReturn(TRANSACAO_MOCK);
         when(investimentoRepository.save(any())).thenAnswer(i -> {
             InvestimentoEntity inv = i.getArgument(0);
             inv.setId(10L);
@@ -110,7 +132,7 @@ class InvestimentoServiceTest {
     void deveDepositarNoInvestimentoComSucesso() {
         BigDecimal deposito = new BigDecimal("200.00");
         when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
-        when(transacaoService.criarTransacaoInterna(any(TransacaoRegistroRequestDTO.class), eq(1L), eq(true))).thenReturn(null);
+        when(transacaoService.criarTransacaoInterna(any(TransacaoRegistroRequestDTO.class), eq(1L), eq(true))).thenReturn(TRANSACAO_MOCK);
 
         when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
@@ -145,7 +167,7 @@ class InvestimentoServiceTest {
     void deveResgatarDoInvestimentoComSucesso() {
         BigDecimal resgate = new BigDecimal("500.00");
         when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
-        when(transacaoService.criarTransacaoInterna(any(TransacaoRegistroRequestDTO.class), eq(1L), eq(true))).thenReturn(null);
+        when(transacaoService.criarTransacaoInterna(any(TransacaoRegistroRequestDTO.class), eq(1L), eq(true))).thenReturn(TRANSACAO_MOCK);
 
         when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
         InvestimentoResponseDTO responseEsperada = new InvestimentoResponseDTO(

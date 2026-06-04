@@ -41,9 +41,7 @@ class FaturaSchedulerLockTest extends org.app_financeiro.backend.AbstractIntegra
 
     @BeforeEach
     void setUp() {
-        faturaRepository.deleteAll();
-        cartaoRepository.deleteAll();
-        usuarioRepository.deleteAll();
+        limparTodasAsTabelas();
 
         UsuarioEntity u = new UsuarioEntity();
         u.setNome("u");

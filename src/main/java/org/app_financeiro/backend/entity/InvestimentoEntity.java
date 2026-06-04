@@ -27,6 +27,9 @@ public class InvestimentoEntity {
     @EqualsAndHashCode.Include
     private Long id;
 
+    @Version
+    private Long version;
+
     @Column(nullable = false)
     private String descricao;
 

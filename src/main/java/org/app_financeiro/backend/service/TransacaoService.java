@@ -15,6 +15,7 @@ import org.app_financeiro.backend.enums.StatusFatura;
 import org.app_financeiro.backend.enums.StatusTransacao;
 import org.app_financeiro.backend.enums.TipoTransacao;
 import org.app_financeiro.backend.exception.RegraDeNegocioException;
+import org.app_financeiro.backend.util.ValidacaoRecursoUtil;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.exception.OperacaoNaoPermitidaException;
 import org.app_financeiro.backend.repository.TransacaoRepository;
@@ -76,13 +77,7 @@ public class TransacaoService {
             throw new OperacaoNaoPermitidaException("Esta transação já foi processada anteriormente.");
         }
 
-        if (dto.contaId() != null && dto.cartaoId() != null) {
-            throw new RegraDeNegocioException("error.transacao.conta_e_cartao", "Transação inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
-        }
-
-        if (dto.contaId() == null && dto.cartaoId() == null) {
-            throw new RegraDeNegocioException("error.transacao.conta_ou_cartao_obrigatorio", "Transação inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
-        }
+        ValidacaoRecursoUtil.validarContaXorCartao(dto.contaId(), dto.cartaoId());
 
         CategoriaEntity categoria = null;
         if (dto.categoriaId() != null) {
@@ -150,13 +145,8 @@ public class TransacaoService {
 
         movimentacaoFinanceiraService.desfazerEfeitoFinanceiro(transacao, usuarioId);
 
-        if (dto.contaId() != null && dto.cartaoId() != null) {
-            throw new RegraDeNegocioException("error.transacao.conta_e_cartao", "Transação inválida: Uma transação não pode pertencer a uma conta bancária e a um cartão de crédito ao mesmo tempo. Selecione apenas um.");
-        }
-        if (dto.contaId() == null && dto.cartaoId() == null) {
-            throw new RegraDeNegocioException("error.transacao.conta_ou_cartao_obrigatorio", "Transação inválida: É obrigatório vincular a transação a uma Conta Bancária ou a um Cartão de Crédito.");
-        }
-        
+        ValidacaoRecursoUtil.validarContaXorCartao(dto.contaId(), dto.cartaoId());
+
         CategoriaEntity categoria = null;
         if (dto.categoriaId() != null) {
             categoria = categoriaService.buscarPorIdOuFalhar(dto.categoriaId(), usuarioId);

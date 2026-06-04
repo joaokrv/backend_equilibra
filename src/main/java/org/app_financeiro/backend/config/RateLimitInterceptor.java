@@ -32,11 +32,20 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     static final String ESCOPO_RELATORIO = "relatorio";
     static final String ESCOPO_AUTH = "auth";
     static final String ESCOPO_HEALTH = "health";
+    static final String ESCOPO_ESCRITA = "escrita";
+
+    /** Prefixos de endpoints CRUD autenticados — escritas (POST/PUT/DELETE) têm bucket dedicado. */
+    private static final String[] PREFIXOS_CRUD = {
+            "/api/transacoes", "/api/contas", "/api/cartoes",
+            "/api/investimentos", "/api/faturas", "/api/categorias",
+            "/api/transacoes-recorrentes"
+    };
 
     private final Map<String, BucketEntry> cache = new ConcurrentHashMap<>();
     private final Map<String, BucketEntry> cacheRelatorio = new ConcurrentHashMap<>();
     private final Map<String, BucketEntry> cacheAuth = new ConcurrentHashMap<>();
     private final Map<String, BucketEntry> cacheHealth = new ConcurrentHashMap<>();
+    private final Map<String, BucketEntry> cacheEscrita = new ConcurrentHashMap<>();
     private final AtomicLong requestCounter = new AtomicLong(0);
     private final RateLimitProperties properties;
     private final boolean trustForwardedFor;
@@ -155,6 +164,40 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         return Bucket.builder().addLimit(limit).build();
     }
 
+    private Bucket resolveBucketEscrita(String clientIp) {
+        long now = System.currentTimeMillis();
+        BucketEntry entry = cacheEscrita.compute(clientIp, (ip, existing) -> {
+            if (existing == null) {
+                return new BucketEntry(newBucketEscrita(ip), now);
+            }
+            return existing.touch(now);
+        });
+        return entry.bucket();
+    }
+
+    /** Escritas CRUD: 40/min — suficiente para uso legítimo, bloqueia flood. */
+    private Bucket newBucketEscrita(String clientIp) {
+        Bandwidth limit = Bandwidth.builder()
+                .capacity(40)
+                .refillIntervally(40, Duration.ofMinutes(1))
+                .build();
+        return Bucket.builder().addLimit(limit).build();
+    }
+
+    private boolean isCrudEscrita(String uri) {
+        for (String prefixo : PREFIXOS_CRUD) {
+            if (uri.startsWith(prefixo)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isMetodoEscrita(String metodo) {
+        return "POST".equals(metodo) || "PUT".equals(metodo)
+                || "DELETE".equals(metodo) || "PATCH".equals(metodo);
+    }
+
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         if (!properties.enabled()) {
@@ -175,6 +218,14 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         } else if (uri.startsWith("/api/auth/")) {
             bucket = resolveBucketAuth(ip);
             escopo = ESCOPO_AUTH;
+        } else if (isCrudEscrita(uri)) {
+            // Endpoint CRUD: só escritas (POST/PUT/DELETE/PATCH) têm bucket dedicado.
+            // Leituras (GET) não são limitadas aqui — navegação legítima seria penalizada.
+            if (!isMetodoEscrita(request.getMethod())) {
+                return true;
+            }
+            bucket = resolveBucketEscrita(ip);
+            escopo = ESCOPO_ESCRITA;
         } else {
             bucket = resolveBucket(ip);
             escopo = ESCOPO_GERAL;
@@ -281,6 +332,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         cacheRelatorio.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
         cacheAuth.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
         cacheHealth.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
+        cacheEscrita.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
 
         int maxBuckets = properties.maxBuckets();
         if (cache.size() <= maxBuckets) {

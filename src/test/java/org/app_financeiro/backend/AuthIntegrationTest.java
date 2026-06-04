@@ -49,9 +49,7 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
 
     @BeforeEach
     void cleanUp() {
-        codigoVerificacaoRepository.deleteAll();
-        usuarioPendenteRepository.deleteAll();
-        usuarioRepository.deleteAll();
+        limparTodasAsTabelas();
 
         when(mailSender.createMimeMessage()).thenReturn(new JavaMailSenderImpl().createMimeMessage());
     }

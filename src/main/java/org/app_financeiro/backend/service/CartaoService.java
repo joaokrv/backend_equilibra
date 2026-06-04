@@ -188,7 +188,7 @@ public class CartaoService {
 
         if (limiteDisponivel.compareTo(valor) < 0) {
             log.warn("Limite insuficiente: cartaoId={}, limiteDisponivel={}, valorSolicitado={}", cartaoId, limiteDisponivel, valor);
-            throw new LimiteInsuficienteException("Limite insuficiente no cartão. Disponível: R$ " + limiteDisponivel);
+            throw new LimiteInsuficienteException(limiteDisponivel);
         }
 
         return cartao;

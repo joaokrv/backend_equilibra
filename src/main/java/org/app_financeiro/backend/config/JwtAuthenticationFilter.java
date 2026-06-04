@@ -91,8 +91,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (jwtService.isTokenValid(jwt, userDetails)) {
                     String tokenChaveSessao = jwtService.extractChaveSessao(jwt);
                     if (userDetails instanceof UsuarioEntity usuario) {
-                        if (tokenChaveSessao != null && !tokenChaveSessao.equals(usuario.getChaveSessao())) {
-                            log.warn("Sessão revogada para {}. Novo login detectado.", userEmail);
+                        // Rejeita tokens sem chaveSessao (pré-sessão) OU com chaveSessao diferente da atual.
+                        // Condição anterior (tokenChaveSessao != null && ...) permitia bypass
+                        // com tokens antigos que não carregavam chaveSessao na claim.
+                        if (tokenChaveSessao == null || !tokenChaveSessao.equals(usuario.getChaveSessao())) {
+                            log.warn("[SECURITY] Sessão inválida ou revogada para {}.", userEmail);
                             filterChain.doFilter(request, response);
                             return;
                         }

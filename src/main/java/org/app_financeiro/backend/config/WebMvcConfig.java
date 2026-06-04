@@ -34,7 +34,16 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/usuarios/perfil/me/solicitar-alteracao-email",
                         "/api/market/**",
                         "/api/mercado/**",
-                        "/actuator/health"
+                        "/actuator/health",
+                        // Endpoints CRUD — bucket de escrita (só POST/PUT/DELETE/PATCH são limitados;
+                        // leituras passam livres via lógica no RateLimitInterceptor)
+                        "/api/transacoes/**",
+                        "/api/contas/**",
+                        "/api/cartoes/**",
+                        "/api/investimentos/**",
+                        "/api/faturas/**",
+                        "/api/categorias/**",
+                        "/api/transacoes-recorrentes/**"
                 );
 
         // CSRF: o access token agora trafega em cookie httpOnly (SameSite=None), enviado

@@ -65,6 +65,9 @@ class UsuarioServiceTest {
     @Mock
     private CategoriaRepository categoriaRepository;
 
+    @Mock
+    private EmailVerificacaoService emailVerificacaoService;
+
     @InjectMocks
     private UsuarioService usuarioService;
 
@@ -200,7 +203,7 @@ class UsuarioServiceTest {
         when(usuarioRepository.findInactiveByEmail("joao@email.com")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("senha123", "senha_hash")).thenReturn(true);
 
-        usuarioService.reativarConta("joao@email.com", "senha123");
+        usuarioService.reativarConta("joao@email.com", "senha123", "123456");
 
         assertThat(usuario.isAtivo()).isTrue();
         verify(usuarioRepository).save(usuario);
@@ -216,7 +219,7 @@ class UsuarioServiceTest {
         when(usuarioRepository.findInactiveByEmail("joao@email.com")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("senha_errada", "senha_hash")).thenReturn(false);
 
-        assertThatThrownBy(() -> usuarioService.reativarConta("joao@email.com", "senha_errada"))
+        assertThatThrownBy(() -> usuarioService.reativarConta("joao@email.com", "senha_errada", "123456"))
                 .isInstanceOf(CredenciaisInvalidasException.class);
 
         verify(usuarioRepository, never()).save(any());
@@ -226,7 +229,7 @@ class UsuarioServiceTest {
     void deveLancarExceptionAoReativarContaInexistente() {
         when(usuarioRepository.findInactiveByEmail("naoexiste@email.com")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> usuarioService.reativarConta("naoexiste@email.com", "senha123"))
+        assertThatThrownBy(() -> usuarioService.reativarConta("naoexiste@email.com", "senha123", "123456"))
                 .isInstanceOf(RecursoNaoEncontradoException.class);
     }
 

@@ -78,10 +78,7 @@ class SecurityIntegrationTest extends AbstractIntegrationTest {
 
     @AfterEach
     void cleanUp() {
-        cartaoRepository.deleteAllInBatch();
-        contaRepository.deleteAllInBatch();
-        codigoVerificacaoRepository.deleteAllInBatch();
-        usuarioRepository.deleteAllInBatch();
+        limparTodasAsTabelas();
     }
 
 

@@ -52,6 +52,9 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
     private InvestimentoRepository investimentoRepository;
 
     @Autowired
+    private org.app_financeiro.backend.repository.MovimentacaoInvestimentoRepository movimentacaoInvestimentoRepository;
+
+    @Autowired
     private ContaRepository contaRepository;
 
     @Autowired
@@ -64,11 +67,7 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
     void setUp() throws Exception {
         when(mailSender.createMimeMessage()).thenReturn(new JavaMailSenderImpl().createMimeMessage());
 
-        investimentoRepository.deleteAllInBatch();
-        contaRepository.deleteAllInBatch();
-        codigoVerificacaoRepository.deleteAllInBatch();
-        usuarioPendenteRepository.deleteAllInBatch();
-        usuarioRepository.deleteAllInBatch();
+        limparTodasAsTabelas();
 
         tokenA = "Bearer " + setupUsuarioVerificado("User A", "usera@email.com", "Senha@123");
         idUserA = usuarioRepository.findByEmail("usera@email.com").get().getId();

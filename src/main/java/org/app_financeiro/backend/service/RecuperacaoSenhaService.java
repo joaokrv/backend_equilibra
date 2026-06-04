@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.UUID;
+import org.app_financeiro.backend.util.EmailMasker;
 
 /** Fluxo de recuperação de senha via token UUID (30 min) enviado por e-mail. */
 @Service
@@ -52,7 +53,7 @@ public class RecuperacaoSenhaService {
         var usuarioOpt = usuarioRepository.findByEmail(dto.email());
 
         if (usuarioOpt.isEmpty()) {
-            log.warn("Tentativa de recuperação de senha para e-mail não cadastrado: {}", org.app_financeiro.backend.util.EmailMasker.mascarar(dto.email()));
+            log.warn("Tentativa de recuperação de senha para e-mail não cadastrado: {}", EmailMasker.mascarar(dto.email()));
             return;
         }
 
@@ -61,7 +62,7 @@ public class RecuperacaoSenhaService {
             var dataCriacao = ultimoTokenOpt.get().getDataCriacao();
             var agora = LocalDateTime.now();
             if (Duration.between(dataCriacao, agora).toMinutes() < 5) {
-                log.warn("Solicitação de recuperação ignorada por throttle (limite de 5 min) para e-mail: {}", org.app_financeiro.backend.util.EmailMasker.mascarar(dto.email()));
+                log.warn("Solicitação de recuperação ignorada por throttle (limite de 5 min) para e-mail: {}", EmailMasker.mascarar(dto.email()));
                 return;
             }
         }
@@ -76,7 +77,7 @@ public class RecuperacaoSenhaService {
         tokenEntity.setUtilizado(false);
 
         tokenRepository.save(tokenEntity);
-        log.info("Token de recuperação de senha gerado para e-mail: {}", org.app_financeiro.backend.util.EmailMasker.mascarar(dto.email()));
+        log.info("Token de recuperação de senha gerado para e-mail: {}", EmailMasker.mascarar(dto.email()));
 
         enviarEmailRecuperacao(dto.email(), token);
     }
@@ -86,7 +87,7 @@ public class RecuperacaoSenhaService {
                 .orElseThrow(() -> new RegraDeNegocioException("error.recuperacao.token_invalido", "Token de recuperação inválido ou já utilizado."));
 
         if (tokenEntity.getDataExpiracao().isBefore(LocalDateTime.now())) {
-            log.warn("Token de recuperação expirado para e-mail: {}", org.app_financeiro.backend.util.EmailMasker.mascarar(tokenEntity.getEmail()));
+            log.warn("Token de recuperação expirado para e-mail: {}", EmailMasker.mascarar(tokenEntity.getEmail()));
             throw new RegraDeNegocioException("error.recuperacao.token_expirado", "Token expirado. Solicite uma nova recuperação de senha.");
         }
 
@@ -113,7 +114,7 @@ public class RecuperacaoSenhaService {
         usuarioRepository.save(usuario);
         tokenRepository.save(tokenEntity);
 
-        log.info("Senha resetada com sucesso para e-mail: {}", org.app_financeiro.backend.util.EmailMasker.mascarar(tokenEntity.getEmail()));
+        log.info("Senha resetada com sucesso para e-mail: {}", EmailMasker.mascarar(tokenEntity.getEmail()));
     }
 
     private void enviarEmailRecuperacao(String destinatario, String token) {
@@ -141,7 +142,7 @@ public class RecuperacaoSenhaService {
             log.debug("E-mail de recuperação de senha enviado para: {}", destinatario);
 
         } catch (IOException e) {
-            log.warn("Falha ao enviar e-mail de recuperação para {} — {}", org.app_financeiro.backend.util.EmailMasker.mascarar(destinatario), e.getMessage());
+            log.warn("Falha ao enviar e-mail de recuperação para {} — {}", EmailMasker.mascarar(destinatario), e.getMessage());
         }
     }
 }
