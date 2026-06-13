@@ -10,6 +10,6 @@ import java.time.LocalDate;
 public record MovimentacaoAtualizacaoRequestDTO(
         @NotNull BigDecimal valor,
         @NotNull @PastOrPresent LocalDate data,
-        Long contaId,        // obrigatório para APORTE/RESGATE, ignorado para RENDIMENTO
+        Long contaId,
         @Size(max = 255) String observacao
 ) {}

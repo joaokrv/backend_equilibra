@@ -35,8 +35,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/market/**",
                         "/api/mercado/**",
                         "/actuator/health",
-                        // Endpoints CRUD — bucket de escrita (só POST/PUT/DELETE/PATCH são limitados;
-                        // leituras passam livres via lógica no RateLimitInterceptor)
                         "/api/transacoes/**",
                         "/api/contas/**",
                         "/api/cartoes/**",
@@ -46,9 +44,6 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/transacoes-recorrentes/**"
                 );
 
-        // CSRF: o access token agora trafega em cookie httpOnly (SameSite=None), enviado
-        // automaticamente pelo browser. Toda mutação precisa de validação de origem.
-        // Endpoints públicos (que não dependem de cookie de sessão) ficam de fora.
         registry.addInterceptor(csrfOriginInterceptor)
                 .addPathPatterns("/api/**")
                 .excludePathPatterns(

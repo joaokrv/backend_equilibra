@@ -143,7 +143,6 @@ public class ExternalEmailSenderService {
                 "htmlContent", htmlContent
         ));
 
-        // Tenta anexar a logo se estiver no HTML
         if (htmlContent.contains("cid:equilibra-logo.png")) {
             try {
                 ClassPathResource logoRes = new ClassPathResource("static/assets/logo-equilibra.png");

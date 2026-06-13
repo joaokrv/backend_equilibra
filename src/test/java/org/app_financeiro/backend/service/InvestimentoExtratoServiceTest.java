@@ -24,8 +24,6 @@ import java.time.LocalDate;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-// Sem @Transactional na classe: deleteAllInBatch() commita imediatamente,
-// tornando a limpeza visível para as chamadas MockMvc de setupUsuarioVerificado().
 class InvestimentoExtratoServiceTest extends AbstractIntegrationTest {
 
     @Autowired private InvestimentoService investimentoService;
@@ -63,8 +61,6 @@ class InvestimentoExtratoServiceTest extends AbstractIntegrationTest {
         investimentoId = investimentoRepository.saveAndFlush(inv).getId();
     }
 
-    // ── Rendimento ────────────────────────────────────────────────────────────
-
     @Test
     void deveRegistrarRendimentoPositivo() {
         var dto = new RendimentoRegistroRequestDTO(investimentoId, new BigDecimal("50.00"), LocalDate.now(), "Juros mês");
@@ -82,7 +78,6 @@ class InvestimentoExtratoServiceTest extends AbstractIntegrationTest {
 
     @Test
     void deveRegistrarRendimentoNegativo() {
-        // Primeiro aporte para ter saldo
         investimentoService.adicionarDeposito(investimentoId, new BigDecimal("200.00"), contaId, usuarioId);
 
         var dto = new RendimentoRegistroRequestDTO(investimentoId, new BigDecimal("-30.00"), LocalDate.now(), "Queda de valor");
@@ -118,8 +113,6 @@ class InvestimentoExtratoServiceTest extends AbstractIntegrationTest {
         assertThat(mov.isAtivo()).isFalse();
     }
 
-    // ── Aporte ────────────────────────────────────────────────────────────────
-
     @Test
     void deveGravarMovimentacaoAoAportar() {
         investimentoService.adicionarDeposito(investimentoId, new BigDecimal("300.00"), contaId, usuarioId);
@@ -146,12 +139,10 @@ class InvestimentoExtratoServiceTest extends AbstractIntegrationTest {
         assertThat(contaApos.getSaldo()).isGreaterThan(saldoAposAporte);
     }
 
-    // ── Resgate ───────────────────────────────────────────────────────────────
-
     @Test
     void deveGravarMovimentacaoAoResgatar() {
         investimentoService.adicionarDeposito(investimentoId, new BigDecimal("1000.00"), contaId, usuarioId);
-        movimentacaoRepository.deleteAll(); // limpa aporte para testar só o resgate
+        movimentacaoRepository.deleteAll();
 
         investimentoService.resgatarInvestimento(investimentoId, new BigDecimal("400.00"), contaId, usuarioId);
 
@@ -177,10 +168,8 @@ class InvestimentoExtratoServiceTest extends AbstractIntegrationTest {
         assertThat(inv.getValorAtual()).isEqualByComparingTo("1000.00");
 
         var saldoApos = contaRepository.findById(contaId).orElseThrow().getSaldo();
-        assertThat(saldoApos).isLessThan(saldoAntes); // dinheiro saiu de volta da conta
+        assertThat(saldoApos).isLessThan(saldoAntes);
     }
-
-    // ── Extrato paginado ──────────────────────────────────────────────────────
 
     @Test
     void deveListarExtratoPaginado() {
@@ -210,8 +199,6 @@ class InvestimentoExtratoServiceTest extends AbstractIntegrationTest {
         assertThat(page.getTotalElements()).isEqualTo(1);
         assertThat(page.getContent().get(0).tipo()).isEqualTo(TipoMovimentacaoInvestimento.RENDIMENTO);
     }
-
-    // ── IDOR ─────────────────────────────────────────────────────────────────
 
     @Test
     void naoDeveAcessarMovimentacaoDeOutroUsuario() throws Exception {

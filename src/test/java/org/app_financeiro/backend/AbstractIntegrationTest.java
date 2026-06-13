@@ -153,7 +153,6 @@ public abstract class AbstractIntegrationTest {
                 .andExpect(status().isOk())
                 .andReturn();
 
-        // Access token agora vem em httpOnly cookie (não em JSON)
         var accessTokenCookie = loginResult.getResponse().getCookie("accessToken");
         if (accessTokenCookie != null && accessTokenCookie.getValue() != null) {
             return accessTokenCookie.getValue();

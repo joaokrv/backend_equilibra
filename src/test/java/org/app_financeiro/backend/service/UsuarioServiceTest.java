@@ -137,7 +137,7 @@ class UsuarioServiceTest {
 
         when(usuarioRepository.findByEmail("joao@email.com")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("senha123", "senha_hash")).thenReturn(true);
-        UsuarioResponseDTO responseDTO = new UsuarioResponseDTO(1L, "Joao", "joao@email.com", true, null, null, MoedaEnum.BRL);
+        UsuarioResponseDTO responseDTO = new UsuarioResponseDTO(1L, "Joao", "joao@email.com", true, null, null, MoedaEnum.BRL, true);
         when(usuarioMapper.toResponse(usuario)).thenReturn(responseDTO);
 
         UsuarioResponseDTO result = usuarioService.loginUsuario("joao@email.com", "senha123");
@@ -155,7 +155,7 @@ class UsuarioServiceTest {
         when(usuarioRepository.findByEmail("joao@email.com")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("senha123", "senha_hash")).thenReturn(true);
         UsuarioResponseDTO responseDTO = new UsuarioResponseDTO(1L, "Joao",
-                "joao@email.com", false, null, null, MoedaEnum.BRL);
+                "joao@email.com", false, null, null, MoedaEnum.BRL, true);
         when(usuarioMapper.toResponse(usuario)).thenReturn(responseDTO);
 
         UsuarioResponseDTO result = usuarioService.loginUsuario("joao@email.com", "senha123");

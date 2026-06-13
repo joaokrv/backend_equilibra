@@ -41,16 +41,12 @@ class UsuarioControllerOtpTest {
     @InjectMocks
     private UsuarioController usuarioController;
 
-    // ── helpers ──────────────────────────────────────────────────────────────
-
     private OtpStatusResponseDTO otpStatus(String status, int tentativas, String registroId, OffsetDateTime bloqueadoAte) {
         return new OtpStatusResponseDTO(
                 status, tentativas,
                 LocalDateTime.now().plusMinutes(15).atZone(ZoneId.systemDefault()).toOffsetDateTime(),
                 bloqueadoAte, null, null, registroId);
     }
-
-    // ── Testes ────────────────────────────────────────────────────────────────
 
     @Test
     void deveRetornarStatusOtpQuandoCodigoForInvalidoNoPreRegistro() {

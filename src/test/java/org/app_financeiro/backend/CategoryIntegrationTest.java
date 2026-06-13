@@ -63,7 +63,6 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
         tokenA = "Bearer " + setupUsuarioVerificado("User A", "usera@email.com", "Senha@123");
         idUserA = usuarioRepository.findByEmail("usera@email.com").get().getId();
 
-        // Remove as categorias-padrão criadas no registro para que os testes partam de estado limpo.
         categoriaRepository.deleteAllInBatch();
     }
 
@@ -223,7 +222,6 @@ public class CategoryIntegrationTest extends AbstractIntegrationTest {
     void usuarioBNaoDeveVerCategoriasDoUsuarioA() throws Exception {
         String tokenB = "Bearer " + setupUsuarioVerificado("User B", "userb2@email.com", "Senha@123");
 
-        // Remove as categorias-padrão de ambos os usuários para isolar a verificação de visibilidade.
         categoriaRepository.deleteAllInBatch();
 
         salvarCategoria("Cat A 1", TipoTransacao.DESPESA, idUserA);

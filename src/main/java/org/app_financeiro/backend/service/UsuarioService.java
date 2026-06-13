@@ -197,7 +197,6 @@ public class UsuarioService {
 
     @Transactional
     public void reativarConta(String email, String senha, String codigo) {
-        // OTP validado ANTES de qualquer alteração de estado (não pode ser omitido por callers)
         emailVerificacaoService.validarCodigoSimples(email, codigo, TipoCodigoVerificacao.REATIVACAO_CONTA);
 
         UsuarioEntity usuario = usuarioRepository.findInactiveByEmail(email)
@@ -232,6 +231,15 @@ public class UsuarioService {
         UsuarioEntity salvo = usuarioRepository.save(usuario);
         log.info("Perfil atualizado com sucesso: usuarioId={}, moeda={}", usuarioId, dto.moeda());
 
+        return usuarioMapper.toResponse(salvo);
+    }
+
+    @Transactional
+    public UsuarioResponseDTO atualizarPreferenciaNotificacao(Long usuarioId, boolean notificacoesFaturaAtivo) {
+        UsuarioEntity usuario = buscarPorIdOuFalhar(usuarioId);
+        usuario.setNotificacoesFaturaAtivo(notificacoesFaturaAtivo);
+        UsuarioEntity salvo = usuarioRepository.save(usuario);
+        log.info("Preferência de notificação de fatura atualizada: usuarioId={}, ativo={}", usuarioId, notificacoesFaturaAtivo);
         return usuarioMapper.toResponse(salvo);
     }
 

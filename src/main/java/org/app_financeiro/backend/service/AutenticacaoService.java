@@ -73,8 +73,6 @@ public class AutenticacaoService {
         this.usuarioService = usuarioService;
     }
 
-    // ── Pré-registro ────────────────────────────────────────────────────────
-
     public record PreRegistroResultado(int httpStatus, OtpStatusResponseDTO otpStatus) {}
 
     @Transactional
@@ -86,7 +84,7 @@ public class AutenticacaoService {
             log.warn("[SECURITY] Tentativa de pré-registro com e-mail já existente: {}", emailNorm);
             usuarioRepository.findByEmailIncludingInactive(emailNorm)
                     .ifPresent(u -> emailVerificacaoService.enviarAvisoTentativaCadastro(u.getEmail(), u.getNome()));
-            try { Thread.sleep(1200); } catch (InterruptedException ignored) { Thread.currentThread().interrupt(); }
+            delayAntiEnumeracao();
             OffsetDateTime expiraEm = agora.plusMinutes(15).atZone(ZoneId.systemDefault()).toOffsetDateTime();
             return new PreRegistroResultado(200,
                     new OtpStatusResponseDTO("ATIVO", 5, expiraEm, null, null, null, UUID.randomUUID().toString()));
@@ -124,8 +122,6 @@ public class AutenticacaoService {
 
         return new PreRegistroResultado(200, usuarioPendenteService.mapearParaStatus(pendente));
     }
-
-    // ── Login ────────────────────────────────────────────────────────────────
 
     public sealed interface LoginResultado permits
             LoginResultado.Bloqueado,
@@ -208,12 +204,10 @@ public class AutenticacaoService {
                 }
                 usuarioRepository.save(usuarioFailed);
             }
-            try { Thread.sleep(1200); } catch (InterruptedException ignored) {}
+            delayAntiEnumeracao();
             return new LoginResultado.CredenciaisInvalidas();
         }
     }
-
-    // ── Refresh ──────────────────────────────────────────────────────────────
 
     public record RefreshResultado(boolean invalido, boolean reuso, UsuarioEntity usuario,
                                    String accessToken, String refreshToken) {
@@ -250,8 +244,6 @@ public class AutenticacaoService {
                 jwtService.generateRefreshToken(usuario));
     }
 
-    // ── Logout ───────────────────────────────────────────────────────────────
-
     @Transactional
     public void logout(String refreshToken) {
         if (refreshToken == null || refreshToken.isBlank()) return;
@@ -263,8 +255,6 @@ public class AutenticacaoService {
             });
         } catch (JwtException ignored) {}
     }
-
-    // ── Verificar e-mail ─────────────────────────────────────────────────────
 
     public sealed interface VerificarEmailResultado permits
             VerificarEmailResultado.Bloqueado,
@@ -303,8 +293,6 @@ public class AutenticacaoService {
         return new VerificarEmailResultado.SucessoLegado();
     }
 
-    // ── Reenviar código ──────────────────────────────────────────────────────
-
     public record ReenviarResultado(int httpStatus, OtpStatusResponseDTO otpStatus, boolean legado) {}
 
     @Transactional
@@ -325,8 +313,6 @@ public class AutenticacaoService {
         emailVerificacaoService.reenviarCodigo(dto);
         return new ReenviarResultado(200, null, true);
     }
-
-    // ── Solicitar ação de conta ───────────────────────────────────────────────
 
     public record CooldownInfo(long segundosRestantes) {}
 
@@ -365,5 +351,18 @@ public class AutenticacaoService {
         int at = email.indexOf('@');
         if (at <= 1) return "***";
         return email.charAt(0) + "***" + email.substring(at);
+    }
+
+    /**
+     * Delay com jitter para igualar caminhos "existe/não existe" e quebrar a assinatura
+     * temporal usada em enumeração de usuários (base ~1s + aleatório).
+     */
+    private static void delayAntiEnumeracao() {
+        long millis = 1000 + java.util.concurrent.ThreadLocalRandom.current().nextLong(0, 600);
+        try {
+            Thread.sleep(millis);
+        } catch (InterruptedException ignored) {
+            Thread.currentThread().interrupt();
+        }
     }
 }

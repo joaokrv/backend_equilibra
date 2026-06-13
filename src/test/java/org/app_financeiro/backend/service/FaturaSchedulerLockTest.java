@@ -62,7 +62,6 @@ class FaturaSchedulerLockTest extends org.app_financeiro.backend.AbstractIntegra
             FaturaEntity f = new FaturaEntity();
             f.setCartao(c);
             f.setUsuario(u);
-            // Meses distintos para não violar o índice único (cartao_id, mes, ano).
             LocalDate ref = LocalDate.now().minusMonths(i);
             f.setMes(ref.getMonthValue());
             f.setAno(ref.getYear());
@@ -97,15 +96,12 @@ class FaturaSchedulerLockTest extends org.app_financeiro.backend.AbstractIntegra
         t2.start();
         latch.await();
 
-        // ShedLock pula a execução concorrente silenciosamente (não lança); ambas as chamadas retornam.
         assertThat(completedCount.get()).isEqualTo(threads);
 
-        // O lock da tarefa foi registrado pelo ShedLock (mecanismo de exclusão ativo).
         Integer locks = jdbcTemplate.queryForObject(
                 "SELECT COUNT(*) FROM shedlock WHERE name = 'atualizarFaturasAtrasadas'", Integer.class);
         assertThat(locks).isEqualTo(1);
 
-        // Resultado de negócio correto e idempotente sob concorrência: faturas vencidas viram ATRASADA.
         assertThat(faturaRepository.findAll())
                 .isNotEmpty()
                 .allSatisfy(f -> assertThat(f.getStatus()).isEqualTo(StatusFatura.ATRASADA));

@@ -138,7 +138,6 @@ class CsrfOriginInterceptorTest {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setMethod("GET");
         request.setCookies(new Cookie("accessToken", "fake-jwt-token"));
-        // sem Origin/Referer — método seguro não exige validação
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         boolean result = interceptor.preHandle(request, response, null);
@@ -148,7 +147,6 @@ class CsrfOriginInterceptorTest {
 
     @Test
     void devePermitirMutacaoSemCookieDeSessao() throws Exception {
-        // Sem cookie de sessão (ex.: auth via header Bearer) não é CSRF-able, mesmo com origem maliciosa
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setMethod("POST");
         request.addHeader("Origin", "https://evil.com");

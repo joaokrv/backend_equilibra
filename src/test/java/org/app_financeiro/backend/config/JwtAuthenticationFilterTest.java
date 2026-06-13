@@ -51,7 +51,6 @@ class JwtAuthenticationFilterTest {
 
     @BeforeEach
     void habilitarHeaderAuth() {
-        // Em dev/test o fallback de header Authorization fica ativo (em prod é só cookie)
         ReflectionTestUtils.setField(filter, "allowHeaderAuth", true);
     }
 

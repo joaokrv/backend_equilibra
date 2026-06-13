@@ -71,8 +71,6 @@ public class InvestimentoService {
         this.movimentacaoFinanceiraService = movimentacaoFinanceiraService;
     }
 
-    // ── CRUD básico ───────────────────────────────────────────────────────────
-
     @Transactional
     public InvestimentoResponseDTO criarInvestimento(InvestimentoRegistroRequestDTO dto, Long usuarioId) {
         UsuarioEntity usuario = usuarioService.buscarPorIdOuFalhar(usuarioId);
@@ -99,7 +97,6 @@ public class InvestimentoService {
             investimento.setContaDestino(contaDestino);
         }
 
-        // Persiste primeiro para obter o ID antes de criar movimentação
         investimento = investimentoRepository.save(investimento);
 
         if (dto.valorInicial().compareTo(BigDecimal.ZERO) > 0) {
@@ -209,8 +206,6 @@ public class InvestimentoService {
         investimentoRepository.save(investimento);
     }
 
-    // ── Rendimento ────────────────────────────────────────────────────────────
-
     @Transactional
     public MovimentacaoInvestimentoResponseDTO registrarRendimento(RendimentoRegistroRequestDTO dto, Long usuarioId) {
         InvestimentoEntity investimento = buscarInvestimentoValidado(dto.investimentoId(), usuarioId);
@@ -227,8 +222,6 @@ public class InvestimentoService {
 
         return toResponseDTO(mov, investimento.getDescricao(), null);
     }
-
-    // ── Extrato ───────────────────────────────────────────────────────────────
 
     @Transactional(readOnly = true)
     public Page<MovimentacaoInvestimentoResponseDTO> listarMovimentacoes(
@@ -254,8 +247,6 @@ public class InvestimentoService {
     public List<MovimentacaoInvestimentoResponseDTO> buscarPreview(Long usuarioId) {
         return movimentacaoRepository.buscarPreview(usuarioId, PageRequest.of(0, 5));
     }
-
-    // ── Editar movimentação (delete+recreate para APORTE/RESGATE) ─────────────
 
     @Transactional
     public MovimentacaoInvestimentoResponseDTO editarMovimentacao(Long movId,
@@ -299,10 +290,8 @@ public class InvestimentoService {
                     "Conta bancária é obrigatória para editar aportes e resgates");
         }
 
-        // Delete+recreate: reverte o antigo e cria o novo
         excluirMovimentacaoInterno(mov, investimento, usuarioId);
 
-        // Recria com novos valores e retorna DTO com nomes resolvidos
         MovimentacaoInvestimentoEntity nova;
         if (mov.getTipo() == TipoMovimentacaoInvestimento.APORTE) {
             nova = adicionarDepositoRetornandoMovimentacao(investimento, dto.valor(), dto.contaId(), dto.data(), dto.observacao(), usuarioId);
@@ -313,8 +302,6 @@ public class InvestimentoService {
         String nomeConta = contaService.buscarContaValidada(dto.contaId(), usuarioId).getNome();
         return toResponseDTO(nova, investimento.getDescricao(), nomeConta);
     }
-
-    // ── Excluir movimentação ──────────────────────────────────────────────────
 
     @Transactional
     public void excluirMovimentacao(Long movId, Long usuarioId) {
@@ -331,11 +318,9 @@ public class InvestimentoService {
                                             Long usuarioId) {
         switch (mov.getTipo()) {
             case RENDIMENTO -> {
-                // Apenas reverte valorAtual — sem conta envolvida
                 investimento.setValorAtual(investimento.getValorAtual().subtract(mov.getValor()));
             }
             case APORTE -> {
-                // Reverte transação (estorna débito na conta) e reduz valorAtual
                 TransacaoEntity transacao = transacaoRepository.findById(mov.getTransacaoId())
                         .orElseThrow(() -> new RecursoNaoEncontradoException("Transação do aporte não encontrada"));
                 movimentacaoFinanceiraService.desfazerEfeitoFinanceiro(transacao, usuarioId);
@@ -343,7 +328,6 @@ public class InvestimentoService {
                 investimento.setValorAtual(investimento.getValorAtual().subtract(mov.getValor()));
             }
             case RESGATE -> {
-                // Reverte transação (estorna crédito na conta) e aumenta valorAtual
                 TransacaoEntity transacao = transacaoRepository.findById(mov.getTransacaoId())
                         .orElseThrow(() -> new RecursoNaoEncontradoException("Transação do resgate não encontrada"));
                 movimentacaoFinanceiraService.desfazerEfeitoFinanceiro(transacao, usuarioId);
@@ -358,8 +342,6 @@ public class InvestimentoService {
         patrimonioHistoricoService.atualizarSnapshotUsuarioHoje(usuarioId);
         log.info("Movimentação {} ({}) excluída do investimento {}", mov.getId(), mov.getTipo(), mov.getInvestimentoId());
     }
-
-    // ── Helpers internos ──────────────────────────────────────────────────────
 
     private MovimentacaoInvestimentoEntity adicionarDepositoRetornandoMovimentacao(
             InvestimentoEntity investimento, BigDecimal valor, Long contaId,

@@ -215,8 +215,6 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             bucket = resolveBucketAuth(ip);
             escopo = ESCOPO_AUTH;
         } else if (isCrudEscrita(uri)) {
-            // Endpoint CRUD: só escritas (POST/PUT/DELETE/PATCH) têm bucket dedicado.
-            // Leituras (GET) não são limitadas aqui — navegação legítima seria penalizada.
             if (!isMetodoEscrita(request.getMethod())) {
                 return true;
             }
@@ -258,7 +256,6 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         if (firstDot > 0 && lastDot > firstDot) {
             return ip.substring(0, firstDot) + ".***.***" + ip.substring(lastDot);
         }
-        // IPv6 ou formato inesperado: mantém primeiros 4 chars
         return ip.substring(0, 4) + "***";
     }
 

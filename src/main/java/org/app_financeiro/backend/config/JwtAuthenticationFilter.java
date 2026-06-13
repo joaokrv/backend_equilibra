@@ -50,7 +50,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
         String jwt = null;
 
-        // 1️⃣ Tentar ler token do cookie "accessToken" (prioridade)
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
             jwt = Arrays.stream(cookies)
@@ -60,8 +59,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                     .orElse(null);
         }
 
-        // 2️⃣ Fallback: header "Authorization: Bearer ..." — só em dev/test (allowHeaderAuth).
-        // Em prod, sessão é exclusivamente via cookie httpOnly.
         if ((jwt == null || jwt.isBlank()) && allowHeaderAuth) {
             final String authHeader = request.getHeader("Authorization");
             if (authHeader != null && authHeader.startsWith("Bearer ")) {
@@ -91,9 +88,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
                 if (jwtService.isTokenValid(jwt, userDetails)) {
                     String tokenChaveSessao = jwtService.extractChaveSessao(jwt);
                     if (userDetails instanceof UsuarioEntity usuario) {
-                        // Rejeita tokens sem chaveSessao (pré-sessão) OU com chaveSessao diferente da atual.
-                        // Condição anterior (tokenChaveSessao != null && ...) permitia bypass
-                        // com tokens antigos que não carregavam chaveSessao na claim.
                         if (tokenChaveSessao == null || !tokenChaveSessao.equals(usuario.getChaveSessao())) {
                             log.warn("[SECURITY] Sessão inválida ou revogada para {}.", userEmail);
                             filterChain.doFilter(request, response);

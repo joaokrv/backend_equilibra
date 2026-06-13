@@ -77,7 +77,6 @@ class InvestimentoServiceTest {
 
     @BeforeEach
     void setUp() {
-        // lenient: nem todo teste usa este stub (testes que lançam exceção antes do save)
         lenient().when(movimentacaoInvestimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
 
         usuarioPadrao = new UsuarioEntity();

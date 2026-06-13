@@ -43,11 +43,9 @@ public class CsrfOriginInterceptor implements HandlerInterceptor {
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) throws Exception {
         String method = request.getMethod();
         if ("GET".equals(method) || "HEAD".equals(method) || "OPTIONS".equals(method)) {
-            return true; // métodos seguros não alteram estado — não exigem validação de origem
+            return true;
         }
 
-        // CSRF só ocorre via replay automático de cookie pelo browser. Requisições sem cookie
-        // de sessão (ex.: autenticação por header Bearer) não são CSRF-able — não validar origem.
         if (!temCookieDeSessao(request)) {
             return true;
         }

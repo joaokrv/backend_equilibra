@@ -309,7 +309,6 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                 new org.app_financeiro.backend.dto.request.ContaRegistroRequestDTO(
                         "Conta CSRF", new java.math.BigDecimal("100.00")));
 
-        // Origem maliciosa → bloqueado mesmo com cookie de sessão válido
         mockMvc.perform(post("/api/contas")
                         .cookie(accessCookie)
                         .header("Origin", "https://evil.com")
@@ -317,7 +316,6 @@ class AuthIntegrationTest extends AbstractIntegrationTest {
                         .content(contaJson))
                 .andExpect(status().isForbidden());
 
-        // Origem confiável → passa pela proteção CSRF e cria a conta
         mockMvc.perform(post("/api/contas")
                         .cookie(accessCookie)
                         .header("Origin", "http://localhost:3000")

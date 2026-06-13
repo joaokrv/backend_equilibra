@@ -216,7 +216,7 @@ public class TransacaoService {
         if (grupoCompleto && transacao.getGrupoParcelamento() != null) {
             List<TransacaoEntity> parcelas = transacaoRepository
                     .findByGrupoParcelamentoAndUsuarioId(transacao.getGrupoParcelamento(), usuarioId);
-            parcelas.forEach(this::validarFaturaNaoPaga); // pré-checa todas antes de reverter qualquer uma
+            parcelas.forEach(this::validarFaturaNaoPaga);
             for (TransacaoEntity parcela : parcelas) {
                 movimentacaoFinanceiraService.desfazerEfeitoFinanceiro(parcela, usuarioId);
                 parcela.setAtivo(false);

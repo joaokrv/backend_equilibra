@@ -125,6 +125,12 @@ public class RelatorioService {
                     .withSeparator(';')
                     .build();
 
+            transacoes.forEach(linha -> {
+                linha.setDescricao(neutralizarFormulaCsv(linha.getDescricao()));
+                linha.setDescricaoCategoria(neutralizarFormulaCsv(linha.getDescricaoCategoria()));
+                linha.setContaOuCartao(neutralizarFormulaCsv(linha.getContaOuCartao()));
+            });
+
             motorCsv.write(transacoes);
             writer.flush();
             
@@ -133,6 +139,19 @@ public class RelatorioService {
             log.error("Falha ao renderizar relatório CSV", e);
             throw new RegraDeNegocioException("error.relatorio.render_falhou", "Não foi possível gerar o relatório. Tente novamente.");
         }
+    }
+
+    /**
+     * Prevenção de CSV/formula injection: prefixa com aspa simples qualquer célula
+     * iniciada por caractere interpretável como fórmula por Excel/LibreOffice.
+     */
+    private static String neutralizarFormulaCsv(String valor) {
+        if (valor == null || valor.isEmpty()) return valor;
+        char inicio = valor.charAt(0);
+        if (inicio == '=' || inicio == '+' || inicio == '-' || inicio == '@' || inicio == '\t' || inicio == '\r') {
+            return "'" + valor;
+        }
+        return valor;
     }
 
 }

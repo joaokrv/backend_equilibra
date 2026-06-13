@@ -44,8 +44,6 @@ public class InvestimentoController {
         this.investimentoService = investimentoService;
     }
 
-    // ── CRUD básico ───────────────────────────────────────────────────────────
-
     @PostMapping
     @Operation(summary = "Criar investimento")
     public ResponseEntity<InvestimentoResponseDTO> criarInvestimento(
@@ -109,8 +107,6 @@ public class InvestimentoController {
         return ResponseEntity.noContent().build();
     }
 
-    // ── Rendimento ────────────────────────────────────────────────────────────
-
     @PostMapping("/rendimento")
     @Operation(summary = "Registrar rendimento", description = "Registra um rendimento (positivo ou negativo) em um investimento. Não movimenta conta bancária.")
     public ResponseEntity<MovimentacaoInvestimentoResponseDTO> registrarRendimento(
@@ -119,8 +115,6 @@ public class InvestimentoController {
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(investimentoService.registrarRendimento(dto, usuario.getId()));
     }
-
-    // ── Extrato paginado ──────────────────────────────────────────────────────
 
     @GetMapping("/movimentacoes")
     @Operation(summary = "Extrato de movimentações",
@@ -148,8 +142,6 @@ public class InvestimentoController {
             @AuthenticationPrincipal UsuarioEntity usuario) {
         return ResponseEntity.ok(investimentoService.buscarPreview(usuario.getId()));
     }
-
-    // ── Editar / Excluir movimentação ─────────────────────────────────────────
 
     @PutMapping("/movimentacoes/{movId}")
     @Operation(summary = "Editar movimentação",

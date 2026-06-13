@@ -51,7 +51,6 @@ public class FaturaLembreteService {
         LocalDate hoje = LocalDate.now();
         int processed = 0, sent = 0, skipped = 0, errors = 0;
 
-        // D-3, D-1, D0
         TipoLembreteFatura[] tipos = {TipoLembreteFatura.D_3, TipoLembreteFatura.D_1, TipoLembreteFatura.D0};
         int[] offsets = {3, 1, 0};
 
@@ -73,7 +72,6 @@ public class FaturaLembreteService {
             }
         }
 
-        // ATRASADAS sem notificação prévia
         List<FaturaEntity> atrasadas = faturaRepository.findAtrasadasSemNotificacao(
                 StatusFatura.ATRASADA, TipoLembreteFatura.ATRASO, StatusNotificacaoFatura.ENVIADO);
 
@@ -166,7 +164,6 @@ public class FaturaLembreteService {
                    .replace("{{DATA_FECHAMENTO}}", fatura.getDataFechamento().format(DATA_BR))
                    .replace("{{DATA_VENCIMENTO}}", fatura.getDataVencimento().format(DATA_BR));
 
-        // Valor total (opcional)
         if (fatura.getValorTotal() != null && fatura.getValorTotal().compareTo(BigDecimal.ZERO) > 0) {
             String blocoValor = """
                 <tr>
@@ -189,7 +186,6 @@ public class FaturaLembreteService {
             html = html.replace("{{BLOCO_VALOR_TOTAL}}", "");
         }
 
-        // Número de compras (opcional)
         long numCompras = transacaoRepository.countByFaturaId(fatura.getId());
         if (numCompras > 0) {
             String blocoCompras = """

@@ -50,8 +50,6 @@ class FaturaLembreteServiceTest extends AbstractIntegrationTest {
         cartao.setUsuario(usuario);
         cartao = cartaoRepository.save(cartao);
 
-        // Limpa invocações registradas durante setupUsuarioVerificado (envio do OTP)
-        // para que assertions como verifyNoInteractions() não incluam chamadas do setUp
         clearInvocations(externalEmailSenderService);
     }
 
@@ -98,8 +96,6 @@ class FaturaLembreteServiceTest extends AbstractIntegrationTest {
         var resultado1 = faturaLembreteService.executarJob();
         assertThat(resultado1.sent()).isEqualTo(1);
 
-        // Segunda execução: fatura excluída pelo NOT EXISTS na query (notificação ENVIADO já existe)
-        // processed=0 porque a query já não retorna a fatura (diferente de D-3/D-1/D0 que usam existsByIdempotencyKey)
         var resultado2 = faturaLembreteService.executarJob();
         assertThat(resultado2.sent()).isZero();
         assertThat(resultado2.processed()).isZero();
@@ -116,7 +112,6 @@ class FaturaLembreteServiceTest extends AbstractIntegrationTest {
 
         assertThat(resultado2.sent()).isZero();
         assertThat(resultado2.skipped()).isEqualTo(1);
-        // Email enviado só uma vez no total
         verify(externalEmailSenderService, times(1)).sendHtml(anyString(), anyString(), anyString());
     }
 
@@ -157,8 +152,6 @@ class FaturaLembreteServiceTest extends AbstractIntegrationTest {
         assertThat(notificacao.getStatus()).isEqualTo(StatusNotificacaoFatura.ERRO);
         assertThat(notificacao.getErro()).contains("SMTP indisponível");
     }
-
-    // ── helpers ──────────────────────────────────────────────────────────────
 
     private FaturaEntity criarFatura(LocalDate dataVencimento, StatusFatura status) {
         FaturaEntity fatura = new FaturaEntity();

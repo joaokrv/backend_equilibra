@@ -256,11 +256,12 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ErroResponseDTO> handleIllegalArgument(IllegalArgumentException ex) {
+        log.warn("Parâmetro inválido: {}", ex.getMessage());
         ErroResponseDTO erro = new ErroResponseDTO(
                 HttpStatus.BAD_REQUEST.value(),
                 "INVALID_PARAMETER_VALUE",
                 "Valor Incorreto",
-                ex.getMessage()
+                "Requisição inválida. Verifique os dados enviados."
         );
         return new ResponseEntity<>(erro, HttpStatus.BAD_REQUEST);
     }

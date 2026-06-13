@@ -30,7 +30,6 @@ class AvisoTentativaCadastroIntegrationTest extends AbstractIntegrationTest {
         String email = "joao.aviso@example.com";
         setupUsuarioVerificado("João Aviso", email, "Senha@1234");
 
-        // Reset captura chamadas anteriores (envio de OTP durante o setup)
         reset(externalEmailSenderService);
 
         UsuarioRegistroRequestDTO tentativa = new UsuarioRegistroRequestDTO("Atacante", email, "OutraSenha@1");
@@ -41,7 +40,6 @@ class AvisoTentativaCadastroIntegrationTest extends AbstractIntegrationTest {
                         .content(body))
                 .andExpect(status().isOk());
 
-        // 1ª chamada → deve disparar o aviso
         ArgumentCaptor<String> assuntoCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<String> htmlCaptor = ArgumentCaptor.forClass(String.class);
         verify(externalEmailSenderService, times(1))
@@ -54,13 +52,11 @@ class AvisoTentativaCadastroIntegrationTest extends AbstractIntegrationTest {
                 htmlCaptor.getValue().contains("Tentativa de criação de conta"),
                 "Corpo HTML deve refletir o template de aviso");
 
-        // 2ª chamada na sequência → throttle 1h deve suprimir
         mockMvc.perform(post("/api/auth/pre-registrar")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isOk());
 
-        // Continua em 1 chamada — não enviou de novo
         verify(externalEmailSenderService, times(1))
                 .sendHtml(eq(email), anyString(), anyString());
     }

@@ -246,8 +246,6 @@ public class UsuarioController {
         return ResponseEntity.ok("Senha redefinida com sucesso! Faça login com sua nova senha.");
     }
 
-    // ── Cookies ──────────────────────────────────────────────────────────────
-
     private void setAccessTokenCookie(HttpServletResponse response, String token) {
         response.addHeader(HttpHeaders.SET_COOKIE, ResponseCookie.from("accessToken", token)
                 .httpOnly(true).secure(cookieSecure).path("/")

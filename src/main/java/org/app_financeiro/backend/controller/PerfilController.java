@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import org.app_financeiro.backend.dto.request.AlterarSenhaRequestDTO;
 import org.app_financeiro.backend.dto.request.ConfirmarAlteracaoEmailRequestDTO;
 import org.app_financeiro.backend.dto.request.SolicitarAlteracaoEmailRequestDTO;
+import org.app_financeiro.backend.dto.request.PreferenciaNotificacaoRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioAtualizacaoRequestDTO;
 import org.app_financeiro.backend.dto.response.UsuarioResponseDTO;
 import org.app_financeiro.backend.dto.response.PerfilResumoResponseDTO;
@@ -50,6 +51,17 @@ public class PerfilController {
             @Valid @RequestBody UsuarioAtualizacaoRequestDTO dto) {
         
         UsuarioResponseDTO atualizado = usuarioService.atualizarPerfil(usuario.getId(), dto);
+        return ResponseEntity.ok(atualizado);
+    }
+
+    @PatchMapping("/me/notificacoes")
+    @Operation(summary = "Atualizar preferências de notificação", description = "Liga (true) ou desliga (false) o envio de e-mails de lembrete de fatura para o usuário logado.")
+    public ResponseEntity<UsuarioResponseDTO> atualizarNotificacoes(
+            @AuthenticationPrincipal UsuarioEntity usuario,
+            @Valid @RequestBody PreferenciaNotificacaoRequestDTO dto) {
+
+        UsuarioResponseDTO atualizado = usuarioService.atualizarPreferenciaNotificacao(
+                usuario.getId(), dto.notificacoesFaturaAtivo());
         return ResponseEntity.ok(atualizado);
     }
 

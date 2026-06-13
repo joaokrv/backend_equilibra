@@ -26,7 +26,6 @@ class RateLimitIntegrationTest extends AbstractIntegrationTest {
         UsuarioLoginRequestDTO login = new UsuarioLoginRequestDTO("inexistente@example.com", "senha-qualquer");
         String body = objectMapper.writeValueAsString(login);
 
-        // 3 requisições consumindo o bucket (resposta esperada é 401 — usuário não existe — mas é o suficiente para gastar o bucket)
         for (int i = 0; i < 3; i++) {
             mockMvc.perform(post("/api/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
@@ -34,7 +33,6 @@ class RateLimitIntegrationTest extends AbstractIntegrationTest {
                     .andExpect(status().is4xxClientError());
         }
 
-        // 4ª requisição deve estourar o bucket e retornar 429
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
