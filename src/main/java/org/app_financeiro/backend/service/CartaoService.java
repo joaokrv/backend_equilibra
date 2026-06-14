@@ -90,6 +90,12 @@ public class CartaoService {
         return cartaoMapper.toResponse(cartao, limiteDisponivel);
     }
 
+    /**
+     * Limite = limiteTotal − Σ(valorTotal − valorPago) das faturas não pagas. Como o resultado
+     * depende das faturas (não de colunas do cartão), só é consistente sob concorrência se o
+     * chamador já tiver adquirido o lock do cartão (obterCartaoComBloqueioExclusivo) — caso de
+     * consumirLimite. Sem o lock do agregado, dois lançamentos simultâneos leem o mesmo estado.
+     */
     public BigDecimal calcularLimiteDisponivel(CartaoEntity cartao) {
         List<FaturaEntity> faturasPendentes = faturaRepository.findByCartaoIdAndStatusNot(cartao.getId(), StatusFatura.PAGA);
 

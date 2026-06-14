@@ -278,7 +278,7 @@ public class TransacaoService {
                 .map(transacaoMapper::toResponse);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public List<TransacaoResponseDTO> buscarPorFatura(Long faturaId, Long usuarioId) {
         faturaService.buscarFaturaComDetalhe(faturaId, usuarioId);
         List<TransacaoEntity> transacoes = transacaoRepository.findByFaturaId(faturaId);

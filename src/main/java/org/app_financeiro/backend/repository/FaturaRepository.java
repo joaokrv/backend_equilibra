@@ -36,14 +36,29 @@ public interface FaturaRepository extends JpaRepository<FaturaEntity, Long> {
            "FROM FaturaEntity f WHERE f.cartao.usuario.id = :usuarioId AND f.status != :status GROUP BY f.cartao.id")
     List<DividaCartaoProjection> somarDividasPorCartoes(@Param("usuarioId") Long usuarioId, @Param("status") StatusFatura status);
 
-    /** Acionado pelo scheduler diário (ShedLock) como rede de segurança para faturas vencidas. */
+    /**
+     * Etapa 1 do batch (ShedLock): fecha faturas cujo período de compras já encerrou.
+     * Espelha o ghost closing (ABERTA→FECHADA por dataFechamento) — nunca pula direto p/ ATRASADA.
+     */
     @Modifying(clearAutomatically = true)
     @Transactional
-    @Query("UPDATE FaturaEntity f SET f.status = :statusAtrasada WHERE f.status IN (:statusAberta, :statusFechada) AND f.dataVencimento < :hoje")
-    int marcarFaturasComoAtrasadas(
+    @Query("UPDATE FaturaEntity f SET f.status = :statusFechada WHERE f.status = :statusAberta AND f.dataFechamento < :hoje")
+    int fecharFaturasVencidas(
+            @Param("hoje") LocalDate hoje,
+            @Param("statusFechada") StatusFatura statusFechada,
+            @Param("statusAberta") StatusFatura statusAberta
+    );
+
+    /**
+     * Etapa 2 do batch (ShedLock): marca como ATRASADA apenas faturas já FECHADAS cujo
+     * vencimento passou. Rodar após fecharFaturasVencidas garante o ciclo ABERTA→FECHADA→ATRASADA.
+     */
+    @Modifying(clearAutomatically = true)
+    @Transactional
+    @Query("UPDATE FaturaEntity f SET f.status = :statusAtrasada WHERE f.status = :statusFechada AND f.dataVencimento < :hoje")
+    int atrasarFaturasFechadas(
             @Param("hoje") LocalDate hoje,
             @Param("statusAtrasada") StatusFatura statusAtrasada,
-            @Param("statusAberta") StatusFatura statusAberta,
             @Param("statusFechada") StatusFatura statusFechada
     );
 

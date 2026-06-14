@@ -128,12 +128,25 @@ class FaturaServiceTest {
     }
 
     @Test
-    void deveRemoverValorDaFaturaComLimiteZeroParaEvitarNegativoNumEstorno() {
+    void deveRejeitarRemocaoQueDeixariaTotalAbaixoDoValorPago() {
+        // faturaAberta: valorTotal=500, valorPago=100. Remover 4500 levaria o total a -4000,
+        // deixando valorPago > valorTotal (limite negativo). Deve bloquear, não mascarar com ZERO.
         BigDecimal ps5Cancelado = new BigDecimal("4500.00");
 
-        faturaService.removerTransacaoPorFatura(faturaAberta, ps5Cancelado);
+        assertThatThrownBy(() -> faturaService.removerTransacaoPorFatura(faturaAberta, ps5Cancelado))
+                .isInstanceOf(RegraDeNegocioException.class);
 
-        assertThat(faturaAberta.getValorTotal()).isEqualByComparingTo(BigDecimal.ZERO);
+        verify(faturaRepository, never()).save(any(FaturaEntity.class));
+    }
+
+    @Test
+    void deveRemoverValorQuandoTotalPermaneceAcimaDoValorPago() {
+        // Remoção legítima: 500 - 300 = 200, ainda >= valorPago (100).
+        BigDecimal valorRemovido = new BigDecimal("300.00");
+
+        faturaService.removerTransacaoPorFatura(faturaAberta, valorRemovido);
+
+        assertThat(faturaAberta.getValorTotal()).isEqualByComparingTo(new BigDecimal("200.00"));
         verify(faturaRepository).save(faturaAberta);
     }
 

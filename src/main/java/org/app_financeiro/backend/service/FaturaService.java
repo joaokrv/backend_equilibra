@@ -18,6 +18,7 @@ import org.app_financeiro.backend.util.FaturaDateUtil;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 
 /** Gerencia faturas: criação lazy, ciclo de vida, ghost closing e pagamentos. */
@@ -57,8 +58,11 @@ public class FaturaService {
     @Transactional
     public void removerTransacaoPorFatura(FaturaEntity fatura, BigDecimal valor) {
         BigDecimal novoValorTotal = fatura.getValorTotal().subtract(valor);
-        if (novoValorTotal.compareTo(BigDecimal.ZERO) < 0) {
-            novoValorTotal = BigDecimal.ZERO;
+
+        if (novoValorTotal.compareTo(fatura.getValorPago()) < 0) {
+            throw new RegraDeNegocioException(
+                "error.fatura.reducao_abaixo_do_pago",
+                "Não é possível remover esta transação: o valor da fatura ficaria menor que o total já pago.");
         }
 
         fatura.setValorTotal(novoValorTotal);
@@ -127,26 +131,30 @@ public class FaturaService {
     /** Ghost closing: atualiza status de faturas vencidas dentro da mesma transação do GET. */
     private void atualizarStatusVencidas(List<FaturaEntity> faturas) {
         LocalDate hoje = LocalDate.now();
-        boolean algumaFoiAtualizada = false;
+        List<FaturaEntity> alteradas = new ArrayList<>();
 
         for (FaturaEntity fatura : faturas) {
+            boolean mudou = false;
             if (fatura.getStatus() == StatusFatura.ABERTA && hoje.isAfter(fatura.getDataFechamento())) {
                 fatura.setStatus(StatusFatura.FECHADA);
-                algumaFoiAtualizada = true;
+                mudou = true;
             }
             if (fatura.getStatus() == StatusFatura.FECHADA && hoje.isAfter(fatura.getDataVencimento())) {
                 fatura.setStatus(StatusFatura.ATRASADA);
-                algumaFoiAtualizada = true;
+                mudou = true;
+            }
+            if (mudou) {
+                alteradas.add(fatura);
             }
         }
 
-        if (algumaFoiAtualizada) {
-            faturaRepository.saveAll(faturas);
-            log.debug("Ghost closing: {} fatura(s) com status atualizado.", faturas.size());
+        if (!alteradas.isEmpty()) {
+            faturaRepository.saveAll(alteradas);
+            log.debug("Ghost closing: {} fatura(s) com status atualizado.", alteradas.size());
         }
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public FaturaResponseDTO buscarFaturaComDetalhe(Long faturaId, Long usuarioId) {
         FaturaEntity fatura = buscarPorId(faturaId, usuarioId);
         atualizarStatusVencidas(List.of(fatura));

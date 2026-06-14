@@ -7,6 +7,8 @@ import org.app_financeiro.backend.entity.FaturaEntity;
 import org.app_financeiro.backend.entity.TransacaoEntity;
 import org.app_financeiro.backend.enums.StatusTransacao;
 import org.app_financeiro.backend.enums.TipoTransacao;
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.PersistenceContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -24,6 +26,9 @@ public class MovimentacaoFinanceiraService {
     private final ContaService contaService;
     private final CartaoService cartaoService;
     private final FaturaService faturaService;
+
+    @PersistenceContext
+    private EntityManager entityManager;
 
     public MovimentacaoFinanceiraService(ContaService contaService,
                                          CartaoService cartaoService,
@@ -74,10 +79,15 @@ public class MovimentacaoFinanceiraService {
                 contaService.debitarSaldo(transacao.getConta().getId(), transacao.getValor(), usuarioId);
             }
         } else if (transacao.getCartao() != null && transacao.getFatura() != null) {
+            cartaoService.obterCartaoComBloqueioExclusivo(transacao.getCartao().getId(), usuarioId);
+
+            FaturaEntity fatura = transacao.getFatura();
+            entityManager.refresh(fatura);
+
             if (transacao.getTipo() == TipoTransacao.DESPESA) {
-                faturaService.removerTransacaoPorFatura(transacao.getFatura(), transacao.getValor());
+                faturaService.removerTransacaoPorFatura(fatura, transacao.getValor());
             } else {
-                faturaService.adicionarTransacaoPorFatura(transacao.getFatura(), transacao.getValor());
+                faturaService.adicionarTransacaoPorFatura(fatura, transacao.getValor());
             }
         } else {
             log.warn("Nenhum efeito revertido para transação {} — conta e cartão/fatura ausentes", transacao.getId());

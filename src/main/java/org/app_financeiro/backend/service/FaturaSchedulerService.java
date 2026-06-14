@@ -23,8 +23,9 @@ public class FaturaSchedulerService {
         log.info("Iniciando rotina de verificação de faturas atrasadas...");
         
         LocalDate hoje = LocalDate.now();
-        int atualizadas = faturaRepository.marcarFaturasComoAtrasadas(hoje, StatusFatura.ATRASADA, StatusFatura.ABERTA, StatusFatura.FECHADA);
-        
-        log.info("Rotina de verificação concluída. {} faturas marcadas como ATRASADA.", atualizadas);
+        int fechadas = faturaRepository.fecharFaturasVencidas(hoje, StatusFatura.FECHADA, StatusFatura.ABERTA);
+        int atrasadas = faturaRepository.atrasarFaturasFechadas(hoje, StatusFatura.ATRASADA, StatusFatura.FECHADA);
+
+        log.info("Rotina de verificação concluída. {} fatura(s) fechada(s), {} marcada(s) como ATRASADA.", fechadas, atrasadas);
     }
 }
