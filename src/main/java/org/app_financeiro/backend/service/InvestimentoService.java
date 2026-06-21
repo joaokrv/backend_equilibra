@@ -1,7 +1,9 @@
 package org.app_financeiro.backend.service;
 
+import org.app_financeiro.backend.dto.request.ContaRegistroRequestDTO;
 import org.app_financeiro.backend.dto.request.InvestimentoAtualizacaoRequestDTO;
 import org.app_financeiro.backend.dto.request.InvestimentoRegistroRequestDTO;
+import org.app_financeiro.backend.dto.response.ContaResponseDTO;
 import org.app_financeiro.backend.dto.request.MovimentacaoAtualizacaoRequestDTO;
 import org.app_financeiro.backend.dto.request.RendimentoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.request.TransacaoRegistroRequestDTO;
@@ -112,8 +114,40 @@ public class InvestimentoService {
         return investimentoMapper.toResponse(investimento);
     }
 
+    /**
+     * Cria conta e aporte inicial na mesma transação (ambos ou nenhum) — elimina a
+     * compensação de saldo no cliente, sem saldo fantasma. A conta nasce com o saldo
+     * somado ao aporte porque o próprio aporte debita esse valor de volta.
+     */
+    @Transactional
+    public ContaResponseDTO criarContaComInvestimentoInicial(ContaRegistroRequestDTO dto, Long usuarioId) {
+        BigDecimal saldoBase = dto.saldo() != null ? dto.saldo() : BigDecimal.ZERO;
+        BigDecimal investimentoInicial = dto.investimentoInicial();
+
+        ContaResponseDTO conta = contaService.criarConta(
+                new ContaRegistroRequestDTO(dto.nome(), saldoBase.add(investimentoInicial), null, null),
+                usuarioId);
+
+        String descricao = (dto.investimentoInicialDescricao() != null && !dto.investimentoInicialDescricao().isBlank())
+                ? dto.investimentoInicialDescricao()
+                : "Investimento Inicial - " + dto.nome();
+
+        criarInvestimento(new InvestimentoRegistroRequestDTO(
+                descricao, investimentoInicial, null, conta.id(), null,
+                TipoInvestimento.OUTRO, "Investimento Inicial"), usuarioId);
+
+        return contaService.buscarPorId(conta.id(), usuarioId);
+    }
+
+    private void validarValorPositivo(BigDecimal valor) {
+        if (valor == null || valor.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new RegraDeNegocioException("error.investimento.valor_maior_zero", "O valor deve ser maior que zero");
+        }
+    }
+
     @Transactional
     public InvestimentoResponseDTO adicionarDeposito(Long investimentoId, BigDecimal valor, Long contaId, Long usuarioId) {
+        validarValorPositivo(valor);
         InvestimentoEntity investimento = buscarInvestimentoValidado(investimentoId, usuarioId);
 
         Long transacaoId = criarTransacaoInvestimento(
@@ -133,6 +167,7 @@ public class InvestimentoService {
 
     @Transactional
     public InvestimentoResponseDTO resgatarInvestimento(Long investimentoId, BigDecimal valor, Long contaId, Long usuarioId) {
+        validarValorPositivo(valor);
         InvestimentoEntity investimento = buscarInvestimentoValidado(investimentoId, usuarioId);
 
         if (investimento.getValorAtual().compareTo(valor) < 0) {
@@ -210,7 +245,12 @@ public class InvestimentoService {
     public MovimentacaoInvestimentoResponseDTO registrarRendimento(RendimentoRegistroRequestDTO dto, Long usuarioId) {
         InvestimentoEntity investimento = buscarInvestimentoValidado(dto.investimentoId(), usuarioId);
 
-        investimento.setValorAtual(investimento.getValorAtual().add(dto.valor()));
+        BigDecimal novoValor = investimento.getValorAtual().add(dto.valor());
+        if (novoValor.compareTo(BigDecimal.ZERO) < 0) {
+            throw new RegraDeNegocioException("error.investimento.rendimento_excede_saldo",
+                    "O rendimento negativo não pode exceder o valor atual do investimento");
+        }
+        investimento.setValorAtual(novoValor);
         investimentoRepository.save(investimento);
 
         MovimentacaoInvestimentoEntity mov = gravarMovimentacao(

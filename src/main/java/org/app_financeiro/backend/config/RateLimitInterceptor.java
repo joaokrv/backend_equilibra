@@ -39,7 +39,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private static final String[] PREFIXOS_CRUD = {
             "/api/transacoes", "/api/contas", "/api/cartoes",
             "/api/investimentos", "/api/faturas", "/api/categorias",
-            "/api/transacoes-recorrentes"
+            "/api/recorrentes"
     };
 
     private final Map<String, BucketEntry> cache = new ConcurrentHashMap<>();

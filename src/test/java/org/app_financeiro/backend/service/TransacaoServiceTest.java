@@ -304,7 +304,7 @@ class TransacaoServiceTest {
                 when(usuarioService.buscarPorIdOuFalhar(1L)).thenReturn(usuarioPadrao);
                 when(movimentacaoFinanceiraService.processarTransacaoConta(any(), any(), any(), any(), any()))
                         .thenReturn(contaPadrao);
-                when(transacaoRecorrenteRepository.findById(7L)).thenReturn(Optional.of(recorrencia));
+                when(transacaoRecorrenteRepository.findByIdAndUsuarioId(7L, 1L)).thenReturn(Optional.of(recorrencia));
 
                 when(transacaoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
                 when(transacaoMapper.toResponse(any())).thenReturn(new TransacaoResponseDTO(
@@ -314,7 +314,7 @@ class TransacaoServiceTest {
                 TransacaoResponseDTO result = transacaoService.criarTransacao(request, 1L);
 
                 assertThat(result.isRecorrente()).isTrue();
-                verify(transacaoRecorrenteRepository).findById(7L);
+                verify(transacaoRecorrenteRepository).findByIdAndUsuarioId(7L, 1L);
                 verify(transacaoRepository).save(argThat(t -> t.getRecorrente() != null && Long.valueOf(7L).equals(t.getRecorrente().getId())));
         }
 

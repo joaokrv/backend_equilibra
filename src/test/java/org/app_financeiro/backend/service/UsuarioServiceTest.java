@@ -137,7 +137,7 @@ class UsuarioServiceTest {
 
         when(usuarioRepository.findByEmail("joao@email.com")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("senha123", "senha_hash")).thenReturn(true);
-        UsuarioResponseDTO responseDTO = new UsuarioResponseDTO(1L, "Joao", "joao@email.com", true, null, null, MoedaEnum.BRL, true);
+        UsuarioResponseDTO responseDTO = new UsuarioResponseDTO(1L, "Joao", "joao@email.com", true, null, MoedaEnum.BRL, true);
         when(usuarioMapper.toResponse(usuario)).thenReturn(responseDTO);
 
         UsuarioResponseDTO result = usuarioService.loginUsuario("joao@email.com", "senha123");
@@ -155,7 +155,7 @@ class UsuarioServiceTest {
         when(usuarioRepository.findByEmail("joao@email.com")).thenReturn(Optional.of(usuario));
         when(passwordEncoder.matches("senha123", "senha_hash")).thenReturn(true);
         UsuarioResponseDTO responseDTO = new UsuarioResponseDTO(1L, "Joao",
-                "joao@email.com", false, null, null, MoedaEnum.BRL, true);
+                "joao@email.com", false, null, MoedaEnum.BRL, true);
         when(usuarioMapper.toResponse(usuario)).thenReturn(responseDTO);
 
         UsuarioResponseDTO result = usuarioService.loginUsuario("joao@email.com", "senha123");
@@ -231,38 +231,6 @@ class UsuarioServiceTest {
 
         assertThatThrownBy(() -> usuarioService.reativarConta("naoexiste@email.com", "senha123", "123456"))
                 .isInstanceOf(RecursoNaoEncontradoException.class);
-    }
-
-
-    @Test
-    void deveLancarExceptionAoFazerUploadDeArquivoComAssinaturaInvalida() {
-        byte[] scriptMalicioso = "<?php echo 'Hacked'; ?>".getBytes();
-        MockMultipartFile file = new MockMultipartFile("file", "foto.png", "image/png", scriptMalicioso);
-        
-        UsuarioEntity usuario = new UsuarioEntity();
-        usuario.setId(1L);
-        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
-
-        assertThatThrownBy(() -> usuarioService.atualizarFoto(1L, file))
-                .isInstanceOf(RegraDeNegocioException.class)
-                .hasMessageContaining("Formato de arquivo inválido");
-
-        verify(usuarioRepository, never()).save(any());
-    }
-
-    @Test
-    void deveFazerUploadDeFotoComAssinaturaValida() {
-        byte[] pngValido = new byte[] {(byte) 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A};
-        MockMultipartFile file = new MockMultipartFile("file", "foto.png", "image/png", pngValido);
-        
-        UsuarioEntity usuario = new UsuarioEntity();
-        usuario.setId(1L);
-        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
-
-        usuarioService.atualizarFoto(1L, file);
-
-        assertThat(usuario.getFoto()).isEqualTo(pngValido);
-        verify(usuarioRepository).save(usuario);
     }
 
 

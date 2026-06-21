@@ -85,8 +85,9 @@ public class FaturaService {
                 .orElseGet(() -> criarNovaFatura(cartao, mes, ano));
 
         BigDecimal novoValorTotal = fatura.getValorTotal().subtract(valor);
-        if (novoValorTotal.compareTo(BigDecimal.ZERO) < 0) {
-            novoValorTotal = BigDecimal.ZERO;
+        if (novoValorTotal.compareTo(fatura.getValorPago()) < 0) {
+            throw new RegraDeNegocioException("error.fatura.estorno_excede",
+                    "O valor do estorno excede o saldo devedor da fatura deste período.");
         }
         fatura.setValorTotal(novoValorTotal);
         return faturaRepository.save(fatura);
@@ -95,6 +96,7 @@ public class FaturaService {
     @Transactional
     public FaturaResponseDTO pagarFatura(Long faturaId, Long usuarioId, PagarFaturaRequestDTO dto) {
         FaturaEntity fatura = buscarPorId(faturaId, usuarioId);
+        atualizarStatusVencidas(List.of(fatura));
 
         if (fatura.getStatus() == StatusFatura.PAGA) {
             log.warn("Tentativa de pagar fatura {} que já está PAGA", faturaId);

@@ -31,9 +31,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
 import java.math.BigDecimal;
 
 /** Gerencia usuários: registro, autenticação, perfil e ciclo de vida da conta. */
@@ -241,51 +239,6 @@ public class UsuarioService {
         UsuarioEntity salvo = usuarioRepository.save(usuario);
         log.info("Preferência de notificação de fatura atualizada: usuarioId={}, ativo={}", usuarioId, notificacoesFaturaAtivo);
         return usuarioMapper.toResponse(salvo);
-    }
-
-    @Transactional
-    public void atualizarFoto(Long usuarioId, MultipartFile file) {
-        UsuarioEntity usuario = buscarPorIdOuFalhar(usuarioId);
-
-        if (file.getSize() > 2 * 1024 * 1024) {
-            throw new RegraDeNegocioException("error.imagem.muito_grande", "A imagem é muito grande. Máximo de 2MB permitido.");
-        }
-
-        validarAssinaturaImagem(file);
-
-        try {
-            usuario.setFoto(file.getBytes());
-            usuarioRepository.save(usuario);
-            log.info("Foto de perfil atualizada: usuarioId={}, size={} bytes", usuarioId, file.getSize());
-        } catch (IOException e) {
-            log.error("Erro ao processar upload de foto para usuário {}: {}", usuarioId, e.getMessage());
-            throw new RegraDeNegocioException("error.imagem.processamento", "Erro ao processar o arquivo de imagem");
-        }
-    }
-
-    /**
-     * Valida a assinatura binária (Magic Bytes) do arquivo para garantir que seja JPEG ou PNG.
-     * Protege contra ataques de spoofing de extensão.
-     */
-    private void validarAssinaturaImagem(MultipartFile file) {
-        try (java.io.InputStream is = file.getInputStream()) {
-            byte[] header = new byte[4];
-            int bytesRead = is.read(header);
-
-            if (bytesRead < 3) {
-                throw new RegraDeNegocioException("error.imagem.corrompida", "Arquivo de imagem corrompido ou muito curto.");
-            }
-
-            boolean isJpeg = (header[0] & 0xFF) == 0xFF && (header[1] & 0xFF) == 0xD8 && (header[2] & 0xFF) == 0xFF;
-            boolean isPng = (header[0] & 0xFF) == 0x89 && (header[1] & 0xFF) == 0x50 && (header[2] & 0xFF) == 0x4E && (header[3] & 0xFF) == 0x47;
-
-            if (!isJpeg && !isPng) {
-                log.warn("Tentativa de upload de arquivo com formato inválido interceptada (Magic Bytes não conferem).");
-                throw new RegraDeNegocioException("error.imagem.formato_invalido", "Formato de arquivo inválido. Apenas JPEG e PNG são permitidos.");
-            }
-        } catch (IOException e) {
-            throw new RegraDeNegocioException("error.imagem.assinatura", "Erro ao ler assinatura do arquivo.");
-        }
     }
 
     /** Invalida todas as sessões ativas ao limpar a chaveSessao após troca de senha. */

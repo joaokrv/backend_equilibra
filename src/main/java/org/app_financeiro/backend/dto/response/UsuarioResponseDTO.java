@@ -11,7 +11,6 @@ public record UsuarioResponseDTO(
     String email,
     boolean isEmailVerificado,
     String celular,
-    String fotoBase64,
     MoedaEnum moeda,
     boolean notificacoesFaturaAtivo
 ) {}

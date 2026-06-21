@@ -3,6 +3,7 @@ package org.app_financeiro.backend.controller;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Positive;
 import org.app_financeiro.backend.dto.request.InvestimentoAtualizacaoRequestDTO;
 import org.app_financeiro.backend.dto.request.InvestimentoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.request.MovimentacaoAtualizacaoRequestDTO;
@@ -19,6 +20,7 @@ import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,6 +37,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/investimentos")
+@Validated
 @Tag(name = "Investimentos", description = "Gestão de investimentos, metas e extrato de movimentações")
 public class InvestimentoController {
 
@@ -64,7 +67,7 @@ public class InvestimentoController {
     @Operation(summary = "Adicionar aporte")
     public ResponseEntity<InvestimentoResponseDTO> depositar(
             @PathVariable Long id,
-            @RequestParam BigDecimal valor,
+            @RequestParam @Positive BigDecimal valor,
             @RequestParam Long contaId,
             @AuthenticationPrincipal UsuarioEntity usuario) {
         return ResponseEntity.ok(investimentoService.adicionarDeposito(id, valor, contaId, usuario.getId()));
@@ -74,7 +77,7 @@ public class InvestimentoController {
     @Operation(summary = "Resgatar valor")
     public ResponseEntity<InvestimentoResponseDTO> resgatarInvestimento(
             @PathVariable Long id,
-            @RequestParam BigDecimal valor,
+            @RequestParam @Positive BigDecimal valor,
             @RequestParam Long contaId,
             @AuthenticationPrincipal UsuarioEntity usuario) {
         return ResponseEntity.ok(investimentoService.resgatarInvestimento(id, valor, contaId, usuario.getId()));

@@ -36,10 +36,10 @@ public class PatrimonioHistoricoEntity {
     @Column(name = "data_referencia", nullable = false)
     private LocalDate dataReferencia;
 
-    @Column(name = "saldo_contas", nullable = false, precision = 15, scale = 2)
+    @Column(name = "saldo_contas", nullable = false, precision = 19, scale = 2)
     private BigDecimal saldoContas = BigDecimal.ZERO;
 
-    @Column(name = "total_investido", nullable = false, precision = 15, scale = 2)
+    @Column(name = "total_investido", nullable = false, precision = 19, scale = 2)
     private BigDecimal totalInvestido = BigDecimal.ZERO;
 
     @CreationTimestamp

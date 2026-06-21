@@ -10,15 +10,20 @@ import org.app_financeiro.backend.dto.request.PreferenciaNotificacaoRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioAtualizacaoRequestDTO;
 import org.app_financeiro.backend.dto.response.UsuarioResponseDTO;
 import org.app_financeiro.backend.dto.response.PerfilResumoResponseDTO;
+import org.app_financeiro.backend.dto.response.FotoResponseDTO;
 import org.app_financeiro.backend.entity.UsuarioEntity;
+import org.app_financeiro.backend.entity.UsuarioFotoEntity;
 import org.app_financeiro.backend.mapper.UsuarioMapper;
 import org.app_financeiro.backend.service.AlteracaoEmailService;
 import org.app_financeiro.backend.service.UsuarioService;
+import org.app_financeiro.backend.service.UsuarioFotoService;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
+
+import java.util.Base64;
 
 /** Gestão de perfil do usuário autenticado. */
 @RestController
@@ -27,13 +32,16 @@ import org.springframework.web.multipart.MultipartFile;
 public class PerfilController {
 
     private final UsuarioService usuarioService;
+    private final UsuarioFotoService usuarioFotoService;
     private final AlteracaoEmailService alteracaoEmailService;
     private final UsuarioMapper usuarioMapper;
 
     public PerfilController(UsuarioService usuarioService,
+                            UsuarioFotoService usuarioFotoService,
                             AlteracaoEmailService alteracaoEmailService,
                             UsuarioMapper usuarioMapper) {
         this.usuarioService = usuarioService;
+        this.usuarioFotoService = usuarioFotoService;
         this.alteracaoEmailService = alteracaoEmailService;
         this.usuarioMapper = usuarioMapper;
     }
@@ -66,12 +74,30 @@ public class PerfilController {
     }
 
     @PatchMapping(value = "/me/foto", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    @Operation(summary = "Upload de foto", description = "Realiza o upload real da foto de perfil para armazenamento local.")
+    @Operation(summary = "Upload de foto", description = "Valida (magic bytes, máx 2MB) e grava a foto de perfil na tabela usuario_foto.")
     public ResponseEntity<Void> atualizarFoto(
             @AuthenticationPrincipal UsuarioEntity usuario,
             @RequestParam("file") MultipartFile file) {
-        
-        usuarioService.atualizarFoto(usuario.getId(), file);
+
+        usuarioFotoService.atualizar(usuario.getId(), file);
+        return ResponseEntity.noContent().build();
+    }
+
+    @GetMapping("/me/foto")
+    @Operation(summary = "Obter foto", description = "Retorna a foto de perfil (base64 + content-type), ou 204 se não houver.")
+    public ResponseEntity<FotoResponseDTO> obterFoto(@AuthenticationPrincipal UsuarioEntity usuario) {
+        UsuarioFotoEntity foto = usuarioFotoService.obter(usuario.getId());
+        if (foto == null) {
+            return ResponseEntity.noContent().build();
+        }
+        String base64 = Base64.getEncoder().encodeToString(foto.getFoto());
+        return ResponseEntity.ok(new FotoResponseDTO(base64, foto.getContentType()));
+    }
+
+    @DeleteMapping("/me/foto")
+    @Operation(summary = "Remover foto", description = "Remove a foto de perfil do usuário logado.")
+    public ResponseEntity<Void> removerFoto(@AuthenticationPrincipal UsuarioEntity usuario) {
+        usuarioFotoService.remover(usuario.getId());
         return ResponseEntity.noContent().build();
     }
 

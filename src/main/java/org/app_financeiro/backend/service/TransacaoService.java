@@ -120,7 +120,7 @@ public class TransacaoService {
         if (dto.recorrenteId() != null) {
             Long recorrenteId = Objects.requireNonNull(dto.recorrenteId());
             transacao.setRecorrente(
-                transacaoRecorrenteRepository.findById(recorrenteId)
+                transacaoRecorrenteRepository.findByIdAndUsuarioId(recorrenteId, usuarioId)
                     .orElseThrow(() -> new RecursoNaoEncontradoException("Recorrência não encontrada"))
             );
         }
@@ -141,6 +141,12 @@ public class TransacaoService {
 
         if (!transacao.getUsuario().getId().equals(usuarioId)) {
             throw new RecursoNaoEncontradoException("Transação não pertence ao usuário");
+        }
+
+        if (transacao.getGrupoParcelamento() != null
+                && (transacao.getValor().compareTo(dto.valor()) != 0 || !transacao.getData().equals(dto.data()))) {
+            throw new RegraDeNegocioException("error.transacao.parcela_imutavel",
+                    "Não é possível alterar valor ou data de uma parcela isolada. Exclua a compra parcelada e recrie.");
         }
 
         movimentacaoFinanceiraService.desfazerEfeitoFinanceiro(transacao, usuarioId);

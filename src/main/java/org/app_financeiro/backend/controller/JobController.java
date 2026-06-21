@@ -12,7 +12,9 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Map;
 
 @RestController
@@ -55,9 +57,15 @@ public class JobController {
     private boolean tokenValido(String tokenRecebido) {
         if (jobToken == null || jobToken.isBlank()) return false;
         if (tokenRecebido == null || tokenRecebido.isBlank()) return false;
-        return MessageDigest.isEqual(
-                tokenRecebido.getBytes(),
-                jobToken.getBytes()
-        );
+        // Compara hashes de tamanho fixo: não vaza o comprimento do token via timing.
+        return MessageDigest.isEqual(sha256(tokenRecebido), sha256(jobToken));
+    }
+
+    private static byte[] sha256(String valor) {
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(valor.getBytes(StandardCharsets.UTF_8));
+        } catch (NoSuchAlgorithmException e) {
+            throw new IllegalStateException("Algoritmo SHA-256 indisponível", e);
+        }
     }
 }

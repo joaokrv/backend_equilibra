@@ -5,6 +5,7 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import org.app_financeiro.backend.dto.request.ContaRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.ContaResponseDTO;
 import org.app_financeiro.backend.service.ContaService;
+import org.app_financeiro.backend.service.InvestimentoService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -30,18 +31,26 @@ import java.util.List;
 public class ContaController {
 
     private final ContaService contaService;
+    private final InvestimentoService investimentoService;
 
-    public ContaController(ContaService contaService) {
+    public ContaController(ContaService contaService, InvestimentoService investimentoService) {
         this.contaService = contaService;
+        this.investimentoService = investimentoService;
     }
 
-    /** Saldo inicial padrão: R$ 0,00 se não informado. */
+    /**
+     * Saldo inicial padrão: R$ 0,00 se não informado. Quando {@code investimentoInicial > 0},
+     * a conta e o investimento inicial são criados atomicamente (ou ambos, ou nenhum).
+     */
     @PostMapping
     public ResponseEntity<ContaResponseDTO> criarConta(
             @Valid @RequestBody ContaRegistroRequestDTO dto,
             @AuthenticationPrincipal UsuarioEntity usuario) {
 
-        ContaResponseDTO conta = contaService.criarConta(dto, usuario.getId());
+        ContaResponseDTO conta = (dto.investimentoInicial() != null
+                && dto.investimentoInicial().compareTo(BigDecimal.ZERO) > 0)
+                ? investimentoService.criarContaComInvestimentoInicial(dto, usuario.getId())
+                : contaService.criarConta(dto, usuario.getId());
         return ResponseEntity.status(HttpStatus.CREATED).body(conta);
     }
 

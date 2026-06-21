@@ -32,6 +32,11 @@ public class TransacaoEntity {
     @EqualsAndHashCode.Include
     private Long id;
 
+    /** Lock otimista: aborta exclusão/edição concorrente da mesma transação (evita dupla reversão de saldo/limite). */
+    @Version
+    @Column(nullable = false)
+    private Long version;
+
     @Column(nullable = false)
     private String descricao;
 

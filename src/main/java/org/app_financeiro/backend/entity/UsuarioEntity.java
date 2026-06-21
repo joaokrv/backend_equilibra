@@ -57,9 +57,6 @@ public class UsuarioEntity implements UserDetails {
     @Column(name = "celular", unique = true, length = 20)
     private String celular;
 
-    @Column(name = "foto")
-    private byte[] foto;
-
     /**
      * Preferência de moeda do usuário (Real, Dólar, etc).
      * Valor padrão definido como BRL (Real).
