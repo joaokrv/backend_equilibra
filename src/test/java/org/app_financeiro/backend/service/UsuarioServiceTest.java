@@ -10,10 +10,15 @@ import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.exception.CredenciaisInvalidasException;
 import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.mapper.UsuarioMapper;
+import org.app_financeiro.backend.dto.request.ConfirmarAcaoContaRequestDTO;
+import org.app_financeiro.backend.enums.TipoCodigoVerificacao;
 import org.app_financeiro.backend.repository.CategoriaRepository;
+import org.app_financeiro.backend.repository.CodigoVerificacaoRepository;
 import org.app_financeiro.backend.repository.ContaRepository;
 import org.app_financeiro.backend.repository.InvestimentoRepository;
+import org.app_financeiro.backend.repository.TokenRecuperacaoSenhaRepository;
 import org.app_financeiro.backend.repository.TransacaoRepository;
+import org.app_financeiro.backend.repository.UsuarioPendenteRepository;
 import org.app_financeiro.backend.repository.UsuarioRepository;
 import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.junit.jupiter.api.Test;
@@ -64,6 +69,15 @@ class UsuarioServiceTest {
 
     @Mock
     private CategoriaRepository categoriaRepository;
+
+    @Mock
+    private TokenRecuperacaoSenhaRepository tokenRecuperacaoSenhaRepository;
+
+    @Mock
+    private CodigoVerificacaoRepository codigoVerificacaoRepository;
+
+    @Mock
+    private UsuarioPendenteRepository usuarioPendenteRepository;
 
     @Mock
     private EmailVerificacaoService emailVerificacaoService;
@@ -267,6 +281,63 @@ class UsuarioServiceTest {
                 .isInstanceOf(CredenciaisInvalidasException.class);
 
         verify(usuarioRepository, never()).save(any());
+    }
+
+    @Test
+    void deveExcluirContaComSucesso() {
+        UsuarioEntity usuario = new UsuarioEntity();
+        usuario.setId(1L);
+        usuario.setEmail("joao@email.com");
+        usuario.setSenha("senha_hash");
+
+        ConfirmarAcaoContaRequestDTO dto = new ConfirmarAcaoContaRequestDTO("senha123", "123456");
+
+        when(passwordEncoder.matches("senha123", "senha_hash")).thenReturn(true);
+        when(usuarioRepository.findById(1L)).thenReturn(Optional.of(usuario));
+
+        usuarioService.excluirConta(dto, usuario);
+
+        verify(emailVerificacaoService).validarCodigoSimples("joao@email.com", "123456", TipoCodigoVerificacao.EXCLUSAO_CONTA);
+        verify(tokenRecuperacaoSenhaRepository).deleteByEmail("joao@email.com");
+        verify(codigoVerificacaoRepository).deleteByEmail("joao@email.com");
+        verify(usuarioPendenteRepository).deleteByEmail("joao@email.com");
+        verify(usuarioRepository).deleteById(1L);
+    }
+
+    @Test
+    void deveLancarExceptionAoExcluirContaComSenhaInvalida() {
+        UsuarioEntity usuario = new UsuarioEntity();
+        usuario.setId(1L);
+        usuario.setSenha("senha_hash");
+
+        ConfirmarAcaoContaRequestDTO dto = new ConfirmarAcaoContaRequestDTO("senha_errada", "123456");
+
+        when(passwordEncoder.matches("senha_errada", "senha_hash")).thenReturn(false);
+
+        assertThatThrownBy(() -> usuarioService.excluirConta(dto, usuario))
+                .isInstanceOf(CredenciaisInvalidasException.class);
+
+        verify(usuarioRepository, never()).deleteById(any());
+    }
+
+    @Test
+    void deveLancarExceptionAoExcluirContaComOtpInvalido() {
+        UsuarioEntity usuario = new UsuarioEntity();
+        usuario.setId(1L);
+        usuario.setEmail("joao@email.com");
+        usuario.setSenha("senha_hash");
+
+        ConfirmarAcaoContaRequestDTO dto = new ConfirmarAcaoContaRequestDTO("senha123", "999999");
+
+        when(passwordEncoder.matches("senha123", "senha_hash")).thenReturn(true);
+        doThrow(new org.app_financeiro.backend.exception.CodigoVerificacaoInvalidoException("Código inválido."))
+                .when(emailVerificacaoService)
+                .validarCodigoSimples("joao@email.com", "999999", TipoCodigoVerificacao.EXCLUSAO_CONTA);
+
+        assertThatThrownBy(() -> usuarioService.excluirConta(dto, usuario))
+                .isInstanceOf(org.app_financeiro.backend.exception.CodigoVerificacaoInvalidoException.class);
+
+        verify(usuarioRepository, never()).deleteById(any());
     }
 
     @Test
