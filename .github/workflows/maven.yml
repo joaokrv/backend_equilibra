@@ -1,11 +1,16 @@
 name: Java CI with Maven (Equilibra Backend)
 
-# Triggers (Gatilhos)
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
+
+# Permissões mínimas: leitura do código + escrita para comentários em PRs e checks
+permissions:
+  contents: read
+  pull-requests: write
+  checks: write
 
 jobs:
   build:
@@ -21,22 +26,43 @@ jobs:
         distribution: 'temurin'
         cache: maven
 
-    # Roda APENAS testes unitários (sem @SpringBootTest).
-    # Testes listados explicitamente para evitar que classes de integração
-    # (que precisam de Docker + variáveis de ambiente) sejam executadas.
-    - name: Build and Run Unit Tests
-      run: |
-        mvn test -f pom.xml \
-          -Dtest="org.app_financeiro.backend.service.UsuarioServiceTest,\
-        org.app_financeiro.backend.service.ContaServiceTest,\
-        org.app_financeiro.backend.service.CartaoServiceTest,\
-        org.app_financeiro.backend.service.FaturaServiceTest,\
-        org.app_financeiro.backend.service.TransacaoServiceTest,\
-        org.app_financeiro.backend.service.CategoriaServiceTest,\
-        org.app_financeiro.backend.service.InvestimentoServiceTest,\
-        org.app_financeiro.backend.service.EmailVerificacaoServiceTest,\
-        org.app_financeiro.backend.service.MovimentacaoFinanceiraServiceTest,\
-        org.app_financeiro.backend.service.JwtServiceTest,\
-        org.app_financeiro.backend.config.PepperedPasswordEncoderTest,\
-        org.app_financeiro.backend.config.JwtAuthenticationFilterTest,\
-        org.app_financeiro.backend.exception.GlobalExceptionHandlerTest"
+    # Roda a suíte completa (unitários + integração com Testcontainers).
+    # O runner Ubuntu já dispõe de Docker; o PostgreSQL sobe via Testcontainers
+    # e todos os segredos de teste vêm de application-test.properties (valores fake).
+    - name: Build and Run All Tests
+      run: mvn clean test -f pom.xml
+
+    # Publica tabela passou/falhou por teste no summary e anota falhas no PR
+    - name: Publicar relatório JUnit
+      if: always()
+      uses: mikepenz/action-junit-report@v5
+      with:
+        report_paths: 'target/surefire-reports/*.xml'
+        check_name: 'Resultado dos Testes (Backend)'
+        fail_on_failure: true
+        require_tests: true
+        detailed_summary: true
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    # Publica % de cobertura por pacote no summary e como comentário no PR
+    - name: Publicar cobertura JaCoCo
+      if: always()
+      uses: madrapps/jacoco-report@v1.7.1
+      with:
+        paths: target/site/jacoco/jacoco.xml
+        token: ${{ secrets.GITHUB_TOKEN }}
+        title: 'Cobertura de Código (Backend)'
+        update-comment: true
+        min-coverage-overall: 0
+        min-coverage-changed-files: 0
+
+    # Sobe HTML do JaCoCo e XMLs do Surefire para download/navegação offline
+    - name: Upload artefatos (cobertura + testes)
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: relatorios-backend-${{ github.run_number }}
+        path: |
+          target/site/jacoco/
+          target/surefire-reports/
+        retention-days: 30

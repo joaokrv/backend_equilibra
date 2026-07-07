@@ -248,6 +248,35 @@
 					</excludes>
 				</configuration>
 			</plugin>
+			<plugin>
+				<groupId>org.jacoco</groupId>
+				<artifactId>jacoco-maven-plugin</artifactId>
+				<version>0.8.13</version>
+				<executions>
+					<!-- Instrumenta a JVM antes dos testes -->
+					<execution>
+						<id>prepare-agent</id>
+						<goals>
+							<goal>prepare-agent</goal>
+						</goals>
+					</execution>
+					<!-- Gera relatório XML + HTML após os testes -->
+					<execution>
+						<id>report</id>
+						<phase>test</phase>
+						<goals>
+							<goal>report</goal>
+						</goals>
+					</execution>
+				</executions>
+				<configuration>
+					<!-- Exclui classes geradas (MapStruct, Lombok, entidades puras) -->
+					<excludes>
+						<exclude>**/mapper/**/*MapperImpl.class</exclude>
+						<exclude>**/*Application.class</exclude>
+					</excludes>
+				</configuration>
+			</plugin>
 		</plugins>
 	</build>
 
