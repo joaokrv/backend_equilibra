@@ -16,7 +16,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * REGRESSÃO (auditoria de segurança 2026-07-12): POST /api/importacao chama a API paga do
- * Gemini para PDF/CSV não reconhecido, mas o bucket dedicado (ESCOPO_UPLOAD, 5/hora) nunca
+ * Gemini para PDF/CSV não reconhecido, mas o bucket dedicado (ESCOPO_UPLOAD, 8/hora) nunca
  * era consultado — o path "/api/importacao/**" estava ausente de WebMvcConfig.addInterceptors,
  * então o RateLimitInterceptor nunca era invocado para esse endpoint. Rate limit desabilitado
  * globalmente em application-test.properties; habilitado aqui via @TestPropertySource — mas isso
@@ -47,9 +47,9 @@ class ImportacaoRateLimitIntegrationTest extends AbstractIntegrationTest {
     }
 
     @Test
-    @DisplayName("6ª requisição de upload dentro da mesma hora é bloqueada com 429 (bucket de 5/hora)")
-    void sextaRequisicaoDeUploadEhBloqueadaPeloRateLimit() throws Exception {
-        for (int i = 0; i < 5; i++) {
+    @DisplayName("9ª requisição de upload dentro da mesma hora é bloqueada com 429 (bucket de 8/hora)")
+    void nonaRequisicaoDeUploadEhBloqueadaPeloRateLimit() throws Exception {
+        for (int i = 0; i < 8; i++) {
             mockMvc.perform(multipart("/api/importacao")
                             .file(csvReconhecido(i))
                             .header("Authorization", "Bearer " + token))
@@ -57,7 +57,7 @@ class ImportacaoRateLimitIntegrationTest extends AbstractIntegrationTest {
         }
 
         mockMvc.perform(multipart("/api/importacao")
-                        .file(csvReconhecido(5))
+                        .file(csvReconhecido(8))
                         .header("Authorization", "Bearer " + token))
                 .andExpect(status().isTooManyRequests());
     }

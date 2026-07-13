@@ -123,8 +123,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private Bucket newBucketRelatorio(String clientIp) {
         Bandwidth limit = Bandwidth.builder()
-                .capacity(2)
-                .refillIntervally(2, Duration.ofMinutes(1))
+                .capacity(5)
+                .refillIntervally(5, Duration.ofMinutes(1))
                 .build();
         return Bucket.builder().addLimit(limit).build();
     }
@@ -142,8 +142,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private Bucket newBucketAuth(String clientIp) {
         Bandwidth limit = Bandwidth.builder()
-                .capacity(5)
-                .refillIntervally(5, Duration.ofMinutes(1))
+                .capacity(8)
+                .refillIntervally(8, Duration.ofMinutes(1))
                 .build();
         return Bucket.builder().addLimit(limit).build();
     }
@@ -189,11 +189,11 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         return entry.bucket();
     }
 
-    /** Upload de documentos: 5/hora — protege custo de chamada Gemini. */
+    /** Upload de documentos: 8/hora — protege custo de chamada Gemini (cota diária por usuário é o teto real). */
     private Bucket newBucketUpload(String clientIp) {
         Bandwidth limit = Bandwidth.builder()
-                .capacity(5)
-                .refillIntervally(5, Duration.ofHours(1))
+                .capacity(8)
+                .refillIntervally(8, Duration.ofHours(1))
                 .build();
         return Bucket.builder().addLimit(limit).build();
     }

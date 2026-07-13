@@ -15,7 +15,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Valida o fluxo end-to-end do rate limit no escopo /api/auth/* (limite 5/min por IP).
+ * Valida o fluxo end-to-end do rate limit no escopo /api/auth/* (limite 8/min por IP).
  * Profile test desabilita rate-limit por padrão (application-test.properties:34);
  * este teste habilita explicitamente via @TestPropertySource.
  * @DirtiesContext: o teste exaure de propósito o bucket do IP de teste — sem isso, outras
@@ -27,11 +27,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class RateLimitIntegrationTest extends AbstractIntegrationTest {
 
     @Test
-    void sextaTentativaDeLoginRetorna429ComPayloadPadronizado() throws Exception {
+    void nonaTentativaDeLoginRetorna429ComPayloadPadronizado() throws Exception {
         UsuarioLoginRequestDTO login = new UsuarioLoginRequestDTO("inexistente@example.com", "senha-qualquer");
         String body = objectMapper.writeValueAsString(login);
 
-        for (int i = 0; i < 5; i++) {
+        for (int i = 0; i < 8; i++) {
             mockMvc.perform(post("/api/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))
