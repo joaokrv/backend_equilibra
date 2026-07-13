@@ -7,6 +7,7 @@ import org.app_financeiro.backend.dto.response.ContaResponseDTO;
 import org.app_financeiro.backend.dto.request.MovimentacaoAtualizacaoRequestDTO;
 import org.app_financeiro.backend.dto.request.RendimentoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.request.TransacaoRegistroRequestDTO;
+import org.app_financeiro.backend.dto.response.ExclusaoEmMassaResponseDTO;
 import org.app_financeiro.backend.dto.response.InvestimentoResponseDTO;
 import org.app_financeiro.backend.dto.response.MovimentacaoInvestimentoResponseDTO;
 import org.app_financeiro.backend.entity.ContaEntity;
@@ -26,6 +27,7 @@ import org.app_financeiro.backend.repository.MovimentacaoInvestimentoRepository;
 import org.app_financeiro.backend.repository.TransacaoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -35,6 +37,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -52,6 +55,9 @@ public class InvestimentoService {
     private final TransacaoService transacaoService;
     private final PatrimonioHistoricoService patrimonioHistoricoService;
     private final MovimentacaoFinanceiraService movimentacaoFinanceiraService;
+    /** Self-referência via proxy (@Lazy quebra o ciclo) — excluirMovimentacoesEmMassa chama
+     * excluirMovimentacao através dela para que o @Transactional do método valha por item. */
+    private final InvestimentoService self;
 
     public InvestimentoService(InvestimentoRepository investimentoRepository,
                                MovimentacaoInvestimentoRepository movimentacaoRepository,
@@ -61,7 +67,8 @@ public class InvestimentoService {
                                InvestimentoMapper investimentoMapper,
                                TransacaoService transacaoService,
                                PatrimonioHistoricoService patrimonioHistoricoService,
-                               MovimentacaoFinanceiraService movimentacaoFinanceiraService) {
+                               MovimentacaoFinanceiraService movimentacaoFinanceiraService,
+                               @Lazy InvestimentoService self) {
         this.investimentoRepository = investimentoRepository;
         this.movimentacaoRepository = movimentacaoRepository;
         this.transacaoRepository = transacaoRepository;
@@ -71,6 +78,7 @@ public class InvestimentoService {
         this.transacaoService = transacaoService;
         this.patrimonioHistoricoService = patrimonioHistoricoService;
         this.movimentacaoFinanceiraService = movimentacaoFinanceiraService;
+        this.self = self;
     }
 
     @Transactional
@@ -188,6 +196,85 @@ public class InvestimentoService {
         patrimonioHistoricoService.atualizarSnapshotUsuarioHoje(usuarioId);
         log.info("Resgate de R$ {} do investimento {}. Novo valor: R$ {}", valor, investimentoId, investimento.getValorAtual());
         return investimentoMapper.toResponse(investimento);
+    }
+
+    /**
+     * Aporte histórico vindo da importação de documentos. Diferenças do {@link #adicionarDeposito}:
+     * data do documento (não {@code LocalDate.now()}), idempotencyKey determinística fornecida pelo
+     * chamador (retry seguro — a aleatória do fluxo manual quebraria o claim atômico da importação)
+     * e {@code atualizarValor} opcional — quando falso, só registra o histórico (o saldo cadastrado
+     * do investimento já reflete este aporte). O saldo da CONTA é sempre movimentado, em ambos os casos.
+     * Sem snapshot de patrimônio aqui: {@code ImportacaoService} dispara um único snapshot ao final do lote.
+     *
+     * @return id da transação criada — o chamador (ImportacaoItemProcessor) marca origem/importacaoId
+     *         nela, do contrário o desfazer da importação não a encontraria para reverter.
+     */
+    @Transactional
+    public Long aportarImportado(Long investimentoId, BigDecimal valor, Long contaId, LocalDate data,
+                                 String idempotencyKey, boolean atualizarValor, Long usuarioId) {
+        return movimentarImportado(TipoMovimentacaoInvestimento.APORTE,
+                investimentoId, valor, contaId, data, idempotencyKey, atualizarValor, usuarioId);
+    }
+
+    /**
+     * Resgate histórico vindo da importação de documentos — ver {@link #aportarImportado}.
+     * A validação resgate_excede só se aplica quando {@code atualizarValor=true}: um registro
+     * apenas histórico (saldo já refletido) não deve ser bloqueado por essa checagem.
+     *
+     * @return id da transação criada — ver {@link #aportarImportado}.
+     */
+    @Transactional
+    public Long resgatarImportado(Long investimentoId, BigDecimal valor, Long contaId, LocalDate data,
+                                  String idempotencyKey, boolean atualizarValor, Long usuarioId) {
+        return movimentarImportado(TipoMovimentacaoInvestimento.RESGATE,
+                investimentoId, valor, contaId, data, idempotencyKey, atualizarValor, usuarioId);
+    }
+
+    private Long movimentarImportado(TipoMovimentacaoInvestimento tipoMovimentacao,
+                                     Long investimentoId, BigDecimal valor, Long contaId, LocalDate data,
+                                     String idempotencyKey, boolean atualizarValor, Long usuarioId) {
+        validarValorPositivo(valor);
+        if (contaId == null) {
+            throw new RegraDeNegocioException("error.investimento.conta_obrigatoria",
+                    "Conta bancária é obrigatória para editar aportes e resgates");
+        }
+        InvestimentoEntity investimento = buscarInvestimentoValidado(investimentoId, usuarioId);
+
+        boolean resgate = tipoMovimentacao == TipoMovimentacaoInvestimento.RESGATE;
+        if (resgate && atualizarValor && investimento.getValorAtual().compareTo(valor) < 0) {
+            throw new RegraDeNegocioException("error.investimento.resgate_excede",
+                    "Valor de resgate excede o saldo do investimento");
+        }
+
+        Long transacaoId = criarTransacaoInvestimento(
+                investimentoId, investimento.getDescricao(), valor, contaId, usuarioId,
+                resgate ? TipoTransacao.RECEITA : TipoTransacao.DESPESA,
+                resgate ? "Resgate de investimento" : "Aporte em investimento",
+                data, idempotencyKey);
+
+        if (atualizarValor) {
+            investimento.setValorAtual(resgate
+                    ? investimento.getValorAtual().subtract(valor)
+                    : investimento.getValorAtual().add(valor));
+            investimentoRepository.save(investimento);
+        }
+
+        gravarMovimentacao(investimentoId, usuarioId, tipoMovimentacao,
+                valor, data, contaId, transacaoId, null, atualizarValor);
+        log.info("{} importado de R$ {} no investimento {} (atualizarValor={})",
+                tipoMovimentacao, valor, investimentoId, atualizarValor);
+        return transacaoId;
+    }
+
+    /**
+     * Desfazer de importação: reverte uma movimentação (aporte/resgate) identificada pela transação
+     * de origem, sem exigir o id da movimentação diretamente do chamador. Reaproveita o mesmo caminho
+     * canônico de reversão ({@link #excluirMovimentacaoInterno}) usado na exclusão manual.
+     */
+    @Transactional
+    public void excluirMovimentacaoPorTransacao(MovimentacaoInvestimentoEntity mov, Long usuarioId) {
+        InvestimentoEntity investimento = buscarInvestimentoValidado(mov.getInvestimentoId(), usuarioId);
+        excluirMovimentacaoInterno(mov, investimento, usuarioId);
     }
 
     @Transactional
@@ -353,9 +440,33 @@ public class InvestimentoService {
         excluirMovimentacaoInterno(mov, investimento, usuarioId);
     }
 
+    /**
+     * Exclusão em massa (seleção múltipla no Histórico de Investimentos): cada item roda isolado
+     * — um item bloqueado (ex.: transação do aporte já ausente) não impede os demais. Chama
+     * excluirMovimentacao através do proxy (self) para que o @Transactional valha por item.
+     * Catch genérico de propósito (mesmo padrão de TransacaoService.excluirEmMassa): qualquer
+     * falha de item vira erro do item, nunca aborta o restante do lote.
+     */
+    public ExclusaoEmMassaResponseDTO excluirMovimentacoesEmMassa(List<Long> movimentacaoIds, Long usuarioId) {
+        int excluidas = 0;
+        List<ExclusaoEmMassaResponseDTO.ItemErroDTO> erros = new ArrayList<>();
+        for (Long movId : movimentacaoIds) {
+            try {
+                self.excluirMovimentacao(movId, usuarioId);
+                excluidas++;
+            } catch (Exception e) {
+                log.warn("Movimentação {} não excluída durante exclusão em massa: {}", movId, e.getMessage());
+                erros.add(new ExclusaoEmMassaResponseDTO.ItemErroDTO(movId, e.getMessage()));
+            }
+        }
+        return new ExclusaoEmMassaResponseDTO(excluidas, erros);
+    }
+
     private void excluirMovimentacaoInterno(MovimentacaoInvestimentoEntity mov,
                                             InvestimentoEntity investimento,
                                             Long usuarioId) {
+        // Só reverte o valorAtual se a criação o ajustou — movimento importado com
+        // atualizarValor=false nunca somou/subtraiu, e reverter corromperia o saldo.
         switch (mov.getTipo()) {
             case RENDIMENTO -> {
                 investimento.setValorAtual(investimento.getValorAtual().subtract(mov.getValor()));
@@ -365,14 +476,18 @@ public class InvestimentoService {
                         .orElseThrow(() -> new RecursoNaoEncontradoException("Transação do aporte não encontrada"));
                 movimentacaoFinanceiraService.desfazerEfeitoFinanceiro(transacao, usuarioId);
                 transacao.setAtivo(false);
-                investimento.setValorAtual(investimento.getValorAtual().subtract(mov.getValor()));
+                if (mov.isAjustouValor()) {
+                    investimento.setValorAtual(investimento.getValorAtual().subtract(mov.getValor()));
+                }
             }
             case RESGATE -> {
                 TransacaoEntity transacao = transacaoRepository.findById(mov.getTransacaoId())
                         .orElseThrow(() -> new RecursoNaoEncontradoException("Transação do resgate não encontrada"));
                 movimentacaoFinanceiraService.desfazerEfeitoFinanceiro(transacao, usuarioId);
                 transacao.setAtivo(false);
-                investimento.setValorAtual(investimento.getValorAtual().add(mov.getValor()));
+                if (mov.isAjustouValor()) {
+                    investimento.setValorAtual(investimento.getValorAtual().add(mov.getValor()));
+                }
             }
         }
 
@@ -426,25 +541,50 @@ public class InvestimentoService {
         return mov;
     }
 
-    /** Cria transação interna de investimento e retorna o id da transação criada. */
+    /** Fluxo manual: transação com a data corrente e idempotencyKey aleatória. */
     private Long criarTransacaoInvestimento(Long investimentoId, String descricaoInvestimento,
                                              BigDecimal valor, Long contaId, Long usuarioId,
                                              TipoTransacao tipo, String prefixo) {
-        String idempotencyKey = "inv-" + investimentoId + "-" + UUID.randomUUID();
+        return criarTransacaoInvestimento(investimentoId, descricaoInvestimento, valor, contaId,
+                usuarioId, tipo, prefixo, LocalDate.now(), null);
+    }
+
+    /**
+     * Cria transação interna de investimento e retorna o id da transação criada.
+     * idempotencyKey nula gera uma aleatória (fluxo manual); a importação fornece a
+     * determinística dela (retry seguro do claim atômico).
+     */
+    private Long criarTransacaoInvestimento(Long investimentoId, String descricaoInvestimento,
+                                             BigDecimal valor, Long contaId, Long usuarioId,
+                                             TipoTransacao tipo, String prefixo,
+                                             LocalDate data, String idempotencyKey) {
+        String key = idempotencyKey != null
+                ? idempotencyKey
+                : "inv-" + investimentoId + "-" + UUID.randomUUID();
         TransacaoRegistroRequestDTO dto = new TransacaoRegistroRequestDTO(
                 prefixo + ": " + descricaoInvestimento,
-                valor, LocalDate.now(), tipo, null,
+                valor, data, tipo, null,
                 MetodoPagamento.TRANSFERENCIA, contaId,
-                null, null, null, null, null, idempotencyKey);
+                null, null, null, null, null, key);
 
         return transacaoService.criarTransacaoInterna(dto, usuarioId, true).id();
+    }
+
+    /** Fluxos manuais: sempre ajustam o valorAtual do investimento. */
+    private MovimentacaoInvestimentoEntity gravarMovimentacao(Long investimentoId, Long usuarioId,
+                                                               TipoMovimentacaoInvestimento tipo,
+                                                               BigDecimal valor, LocalDate data,
+                                                               Long contaId, Long transacaoId,
+                                                               String observacao) {
+        return gravarMovimentacao(investimentoId, usuarioId, tipo, valor, data, contaId,
+                transacaoId, observacao, true);
     }
 
     private MovimentacaoInvestimentoEntity gravarMovimentacao(Long investimentoId, Long usuarioId,
                                                                TipoMovimentacaoInvestimento tipo,
                                                                BigDecimal valor, LocalDate data,
                                                                Long contaId, Long transacaoId,
-                                                               String observacao) {
+                                                               String observacao, boolean ajustouValor) {
         MovimentacaoInvestimentoEntity mov = new MovimentacaoInvestimentoEntity();
         mov.setInvestimentoId(investimentoId);
         mov.setUsuarioId(usuarioId);
@@ -454,6 +594,7 @@ public class InvestimentoService {
         mov.setContaId(contaId);
         mov.setTransacaoId(transacaoId);
         mov.setObservacao(observacao);
+        mov.setAjustouValor(ajustouValor);
         return movimentacaoRepository.save(mov);
     }
 

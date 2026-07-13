@@ -4,10 +4,12 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Positive;
+import org.app_financeiro.backend.dto.request.ExclusaoMovimentacaoEmMassaRequestDTO;
 import org.app_financeiro.backend.dto.request.InvestimentoAtualizacaoRequestDTO;
 import org.app_financeiro.backend.dto.request.InvestimentoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.request.MovimentacaoAtualizacaoRequestDTO;
 import org.app_financeiro.backend.dto.request.RendimentoRegistroRequestDTO;
+import org.app_financeiro.backend.dto.response.ExclusaoEmMassaResponseDTO;
 import org.app_financeiro.backend.dto.response.InvestimentoResponseDTO;
 import org.app_financeiro.backend.dto.response.MovimentacaoInvestimentoResponseDTO;
 import org.app_financeiro.backend.entity.UsuarioEntity;
@@ -164,5 +166,17 @@ public class InvestimentoController {
             @AuthenticationPrincipal UsuarioEntity usuario) {
         investimentoService.excluirMovimentacao(movId, usuario.getId());
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/movimentacoes/excluir-em-massa")
+    @Operation(summary = "Excluir movimentações em massa",
+            description = "Exclui até 100 movimentações de investimento de uma vez (seleção múltipla). Cada item é "
+                    + "processado isoladamente — um item bloqueado não impede os demais; a resposta relata quantas "
+                    + "foram excluídas e o motivo de cada bloqueio.")
+    public ResponseEntity<ExclusaoEmMassaResponseDTO> excluirMovimentacoesEmMassa(
+            @Valid @RequestBody ExclusaoMovimentacaoEmMassaRequestDTO dto,
+            @AuthenticationPrincipal UsuarioEntity usuario) {
+        ExclusaoEmMassaResponseDTO resultado = investimentoService.excluirMovimentacoesEmMassa(dto.movimentacaoIds(), usuario.getId());
+        return ResponseEntity.ok(resultado);
     }
 }

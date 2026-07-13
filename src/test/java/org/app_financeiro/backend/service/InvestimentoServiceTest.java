@@ -4,9 +4,12 @@ import org.app_financeiro.backend.dto.request.InvestimentoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.request.TransacaoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.response.InvestimentoResponseDTO;
 import org.app_financeiro.backend.dto.response.TransacaoResponseDTO;
+import org.app_financeiro.backend.entity.MovimentacaoInvestimentoEntity;
+import org.app_financeiro.backend.entity.TransacaoEntity;
 import org.app_financeiro.backend.enums.MetodoPagamento;
 import org.app_financeiro.backend.enums.StatusTransacao;
 import org.app_financeiro.backend.enums.TipoInvestimento;
+import org.app_financeiro.backend.enums.TipoMovimentacaoInvestimento;
 import org.app_financeiro.backend.enums.TipoTransacao;
 import org.app_financeiro.backend.entity.ContaEntity;
 import org.app_financeiro.backend.entity.InvestimentoEntity;
@@ -17,14 +20,18 @@ import org.app_financeiro.backend.exception.SaldoInsuficienteException;
 import org.app_financeiro.backend.mapper.InvestimentoMapper;
 import org.app_financeiro.backend.repository.InvestimentoRepository;
 import org.app_financeiro.backend.repository.MovimentacaoInvestimentoRepository;
+import org.app_financeiro.backend.repository.TransacaoRepository;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Optional;
 
@@ -59,16 +66,20 @@ class InvestimentoServiceTest {
     private MovimentacaoInvestimentoRepository movimentacaoInvestimentoRepository;
 
     @Mock
-    private org.app_financeiro.backend.repository.TransacaoRepository transacaoRepository;
+    private TransacaoRepository transacaoRepository;
 
     @Mock
     private MovimentacaoFinanceiraService movimentacaoFinanceiraService;
+
+    /** Self-referência via proxy — necessária para excluirMovimentacoesEmMassa chamar excluirMovimentacao respeitando @Transactional. */
+    @Mock
+    private InvestimentoService self;
 
     @InjectMocks
     private InvestimentoService investimentoService;
 
     private static final TransacaoResponseDTO TRANSACAO_MOCK = new TransacaoResponseDTO(
-        99L, "Aporte", java.math.BigDecimal.TEN, java.time.LocalDate.now(),
+        99L, "Aporte", BigDecimal.TEN, LocalDate.now(),
         TipoTransacao.DESPESA, StatusTransacao.PAGO, MetodoPagamento.TRANSFERENCIA,
         null, null, null, null, null, null, false, null, null, true);
 
@@ -252,4 +263,277 @@ class InvestimentoServiceTest {
         assertThat(result).hasSize(1);
     }
 
+    // ─── aportarImportado / resgatarImportado (Fase 2) ────────────────────────
+
+    @Test
+    @DisplayName("aportarImportado usa a data do documento e a idempotencyKey fornecida — não LocalDate.now() nem UUID aleatório")
+    void aportarImportadoUsaDataEChaveFornecidas() {
+        LocalDate dataHistorica = LocalDate.of(2025, 3, 15);
+        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
+        when(transacaoService.criarTransacaoInterna(any(TransacaoRegistroRequestDTO.class), eq(1L), eq(true)))
+                .thenReturn(TRANSACAO_MOCK);
+        when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        Long transacaoId = investimentoService.aportarImportado(10L, new BigDecimal("200.00"), 5L, dataHistorica,
+                "chave-deterministica-abc", true, 1L);
+
+        ArgumentCaptor<TransacaoRegistroRequestDTO> captor = ArgumentCaptor.forClass(TransacaoRegistroRequestDTO.class);
+        verify(transacaoService).criarTransacaoInterna(captor.capture(), eq(1L), eq(true));
+        assertThat(captor.getValue().data()).isEqualTo(dataHistorica);
+        assertThat(captor.getValue().idempotencyKey()).isEqualTo("chave-deterministica-abc");
+        assertThat(captor.getValue().tipo()).isEqualTo(TipoTransacao.DESPESA);
+        // Regressão: o processor depende deste retorno para marcar origem/importacaoId na transação.
+        assertThat(transacaoId).isEqualTo(TRANSACAO_MOCK.id());
+    }
+
+    @Test
+    @DisplayName("aportarImportado com atualizarValor=true soma ao valorAtual do investimento")
+    void aportarImportadoComAtualizarValorVerdadeiroSomaValorAtual() {
+        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
+        when(transacaoService.criarTransacaoInterna(any(), eq(1L), eq(true))).thenReturn(TRANSACAO_MOCK);
+        when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        investimentoService.aportarImportado(10L, new BigDecimal("200.00"), 5L, LocalDate.now(),
+                "key-1", true, 1L);
+
+        assertThat(investimentoPadrao.getValorAtual()).isEqualByComparingTo(new BigDecimal("1700.00"));
+        verify(investimentoRepository).save(investimentoPadrao);
+    }
+
+    @Test
+    @DisplayName("aportarImportado com atualizarValor=false NÃO altera o valorAtual, mas cria a transação e a movimentação")
+    void aportarImportadoComAtualizarValorFalsoNaoAlteraValorAtual() {
+        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
+        when(transacaoService.criarTransacaoInterna(any(), eq(1L), eq(true))).thenReturn(TRANSACAO_MOCK);
+
+        investimentoService.aportarImportado(10L, new BigDecimal("200.00"), 5L, LocalDate.now(),
+                "key-2", false, 1L);
+
+        assertThat(investimentoPadrao.getValorAtual()).isEqualByComparingTo(new BigDecimal("1500.00"));
+        verify(investimentoRepository, never()).save(any());
+        verify(movimentacaoInvestimentoRepository).save(any());
+    }
+
+    @Test
+    @DisplayName("aportarImportado NÃO dispara snapshot de patrimônio — o lote da importação dispara uma única vez, ao final")
+    void aportarImportadoNaoDisparaSnapshotPorItem() {
+        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
+        when(transacaoService.criarTransacaoInterna(any(), eq(1L), eq(true))).thenReturn(TRANSACAO_MOCK);
+        when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        investimentoService.aportarImportado(10L, new BigDecimal("200.00"), 5L, LocalDate.now(), "key-3", true, 1L);
+
+        verifyNoInteractions(patrimonioHistoricoService);
+    }
+
+    @Test
+    @DisplayName("aportarImportado sem contaId é rejeitado — aporte sempre precisa de uma conta de origem")
+    void aportarImportadoSemContaIdEhRejeitado() {
+        assertThatThrownBy(() -> investimentoService.aportarImportado(
+                10L, new BigDecimal("200.00"), null, LocalDate.now(), "key-4", true, 1L))
+                .isInstanceOf(RegraDeNegocioException.class)
+                .hasMessageContaining("Conta bancária");
+
+        verifyNoInteractions(transacaoService);
+    }
+
+    @Test
+    @DisplayName("SEGURANÇA (IDOR): aportarImportado em investimento de outro usuário é barrado")
+    void aportarImportadoEmInvestimentoDeOutroUsuarioEhBarrado() {
+        UsuarioEntity outroUsuario = new UsuarioEntity();
+        outroUsuario.setId(2L);
+        investimentoPadrao.setUsuario(outroUsuario);
+        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
+
+        assertThatThrownBy(() -> investimentoService.aportarImportado(
+                10L, new BigDecimal("200.00"), 5L, LocalDate.now(), "key-5", true, 1L))
+                .isInstanceOf(RecursoNaoEncontradoException.class);
+
+        verifyNoInteractions(transacaoService);
+    }
+
+    @Test
+    @DisplayName("resgatarImportado com atualizarValor=true subtrai do valorAtual")
+    void resgatarImportadoComAtualizarValorVerdadeiroSubtraiValorAtual() {
+        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
+        when(transacaoService.criarTransacaoInterna(any(), eq(1L), eq(true))).thenReturn(TRANSACAO_MOCK);
+        when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        investimentoService.resgatarImportado(10L, new BigDecimal("500.00"), 5L, LocalDate.now(),
+                "key-6", true, 1L);
+
+        assertThat(investimentoPadrao.getValorAtual()).isEqualByComparingTo(new BigDecimal("1000.00"));
+    }
+
+    @Test
+    @DisplayName("resgatarImportado com atualizarValor=true e valor acima do saldo lança resgate_excede")
+    void resgatarImportadoComAtualizarValorEValorExcedenteLancaErro() {
+        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
+
+        assertThatThrownBy(() -> investimentoService.resgatarImportado(
+                10L, new BigDecimal("999999.00"), 5L, LocalDate.now(), "key-7", true, 1L))
+                .isInstanceOf(RegraDeNegocioException.class)
+                .hasMessageContaining("excede o saldo");
+
+        verifyNoInteractions(transacaoService);
+    }
+
+    @Test
+    @DisplayName("resgatarImportado com atualizarValor=false NÃO valida resgate_excede — registro histórico não deve ser bloqueado")
+    void resgatarImportadoComAtualizarValorFalsoNaoValidaExcedente() {
+        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
+        when(transacaoService.criarTransacaoInterna(any(), eq(1L), eq(true))).thenReturn(TRANSACAO_MOCK);
+
+        investimentoService.resgatarImportado(10L, new BigDecimal("999999.00"), 5L, LocalDate.now(),
+                "key-8", false, 1L);
+
+        assertThat(investimentoPadrao.getValorAtual()).isEqualByComparingTo(new BigDecimal("1500.00"));
+        verify(investimentoRepository, never()).save(any());
+    }
+
+    // ─── excluirMovimentacaoPorTransacao (desfazer de importação) ─────────────
+
+    @Test
+    @DisplayName("excluirMovimentacaoPorTransacao reverte um APORTE: desfaz efeito financeiro e subtrai do valorAtual")
+    void excluirMovimentacaoPorTransacaoReverteAporte() {
+        MovimentacaoInvestimentoEntity mov = new MovimentacaoInvestimentoEntity();
+        mov.setInvestimentoId(10L);
+        mov.setTipo(TipoMovimentacaoInvestimento.APORTE);
+        mov.setValor(new BigDecimal("300.00"));
+        mov.setTransacaoId(555L);
+
+        TransacaoEntity transacao = new TransacaoEntity();
+        transacao.setId(555L);
+        transacao.setAtivo(true);
+
+        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
+        when(transacaoRepository.findById(555L)).thenReturn(Optional.of(transacao));
+        when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        investimentoService.excluirMovimentacaoPorTransacao(mov, 1L);
+
+        assertThat(investimentoPadrao.getValorAtual()).isEqualByComparingTo(new BigDecimal("1200.00"));
+        assertThat(transacao.isAtivo()).isFalse();
+        assertThat(mov.isAtivo()).isFalse();
+        verify(movimentacaoFinanceiraService).desfazerEfeitoFinanceiro(transacao, 1L);
+        verify(patrimonioHistoricoService).atualizarSnapshotUsuarioHoje(1L);
+    }
+
+    @Test
+    @DisplayName("excluirMovimentacaoPorTransacao reverte um RESGATE: soma de volta ao valorAtual")
+    void excluirMovimentacaoPorTransacaoReverteResgate() {
+        MovimentacaoInvestimentoEntity mov = new MovimentacaoInvestimentoEntity();
+        mov.setInvestimentoId(10L);
+        mov.setTipo(TipoMovimentacaoInvestimento.RESGATE);
+        mov.setValor(new BigDecimal("300.00"));
+        mov.setTransacaoId(556L);
+
+        TransacaoEntity transacao = new TransacaoEntity();
+        transacao.setId(556L);
+        transacao.setAtivo(true);
+
+        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
+        when(transacaoRepository.findById(556L)).thenReturn(Optional.of(transacao));
+        when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        investimentoService.excluirMovimentacaoPorTransacao(mov, 1L);
+
+        assertThat(investimentoPadrao.getValorAtual()).isEqualByComparingTo(new BigDecimal("1800.00"));
+        verify(movimentacaoFinanceiraService).desfazerEfeitoFinanceiro(transacao, 1L);
+    }
+
+    @Test
+    @DisplayName("REGRESSÃO: excluir movimentação com ajustouValor=false NÃO altera o valorAtual — reverter um valor nunca somado corromperia o saldo")
+    void excluirMovimentacaoSemAjusteNaoAlteraValorAtual() {
+        MovimentacaoInvestimentoEntity mov = new MovimentacaoInvestimentoEntity();
+        mov.setInvestimentoId(10L);
+        mov.setTipo(TipoMovimentacaoInvestimento.APORTE);
+        mov.setValor(new BigDecimal("300.00"));
+        mov.setTransacaoId(558L);
+        mov.setAjustouValor(false);
+
+        TransacaoEntity transacao = new TransacaoEntity();
+        transacao.setId(558L);
+        transacao.setAtivo(true);
+
+        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
+        when(transacaoRepository.findById(558L)).thenReturn(Optional.of(transacao));
+        when(investimentoRepository.save(any())).thenAnswer(i -> i.getArgument(0));
+
+        investimentoService.excluirMovimentacaoPorTransacao(mov, 1L);
+
+        assertThat(investimentoPadrao.getValorAtual()).isEqualByComparingTo(new BigDecimal("1500.00"));
+        assertThat(transacao.isAtivo()).isFalse();
+        assertThat(mov.isAtivo()).isFalse();
+        verify(movimentacaoFinanceiraService).desfazerEfeitoFinanceiro(transacao, 1L);
+    }
+
+    @Test
+    @DisplayName("aportarImportado com atualizarValor=false grava a movimentação com ajustouValor=false")
+    void aportarImportadoPersisteFlagAjustouValor() {
+        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
+        when(transacaoService.criarTransacaoInterna(any(), eq(1L), eq(true))).thenReturn(TRANSACAO_MOCK);
+
+        investimentoService.aportarImportado(10L, new BigDecimal("200.00"), 5L, LocalDate.now(),
+                "key-flag", false, 1L);
+
+        ArgumentCaptor<MovimentacaoInvestimentoEntity> captor =
+                ArgumentCaptor.forClass(MovimentacaoInvestimentoEntity.class);
+        verify(movimentacaoInvestimentoRepository).save(captor.capture());
+        assertThat(captor.getValue().isAjustouValor()).isFalse();
+    }
+
+    @Test
+    @DisplayName("SEGURANÇA (IDOR): excluirMovimentacaoPorTransacao barra investimento de outro usuário")
+    void excluirMovimentacaoPorTransacaoBarraOutroUsuario() {
+        UsuarioEntity outroUsuario = new UsuarioEntity();
+        outroUsuario.setId(2L);
+        investimentoPadrao.setUsuario(outroUsuario);
+        when(investimentoRepository.findById(10L)).thenReturn(Optional.of(investimentoPadrao));
+
+        MovimentacaoInvestimentoEntity mov = new MovimentacaoInvestimentoEntity();
+        mov.setInvestimentoId(10L);
+        mov.setTipo(TipoMovimentacaoInvestimento.APORTE);
+        mov.setValor(new BigDecimal("300.00"));
+        mov.setTransacaoId(557L);
+
+        assertThatThrownBy(() -> investimentoService.excluirMovimentacaoPorTransacao(mov, 1L))
+                .isInstanceOf(RecursoNaoEncontradoException.class);
+
+        verifyNoInteractions(movimentacaoFinanceiraService);
+    }
+
+    @Test
+    void excluirMovimentacoesEmMassaContaTodasComoExcluidasQuandoNenhumItemFalha() {
+        var resultado = investimentoService.excluirMovimentacoesEmMassa(List.of(1L, 2L, 3L), 1L);
+
+        assertThat(resultado.excluidas()).isEqualTo(3);
+        assertThat(resultado.erros()).isEmpty();
+        verify(self).excluirMovimentacao(1L, 1L);
+        verify(self).excluirMovimentacao(2L, 1L);
+        verify(self).excluirMovimentacao(3L, 1L);
+    }
+
+    @Test
+    void excluirMovimentacoesEmMassaProcessaOQuePodeQuandoUmItemFalha() {
+        lenient().doThrow(new RecursoNaoEncontradoException("Movimentação não encontrada"))
+                .when(self).excluirMovimentacao(2L, 1L);
+
+        var resultado = investimentoService.excluirMovimentacoesEmMassa(List.of(1L, 2L, 3L), 1L);
+
+        assertThat(resultado.excluidas()).isEqualTo(2);
+        assertThat(resultado.erros()).hasSize(1);
+        assertThat(resultado.erros().get(0).itemId()).isEqualTo(2L);
+        verify(self).excluirMovimentacao(1L, 1L);
+        verify(self).excluirMovimentacao(3L, 1L);
+    }
+
+    @Test
+    void excluirMovimentacoesEmMassaComListaVaziaNaoFazNada() {
+        var resultado = investimentoService.excluirMovimentacoesEmMassa(List.of(), 1L);
+
+        assertThat(resultado.excluidas()).isZero();
+        assertThat(resultado.erros()).isEmpty();
+        verifyNoInteractions(self);
+    }
 }

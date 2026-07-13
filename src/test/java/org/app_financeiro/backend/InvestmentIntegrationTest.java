@@ -2,6 +2,7 @@ package org.app_financeiro.backend;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.persistence.EntityManager;
+import org.app_financeiro.backend.dto.request.ExclusaoMovimentacaoEmMassaRequestDTO;
 import org.app_financeiro.backend.dto.request.InvestimentoRegistroRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioLoginRequestDTO;
 import org.app_financeiro.backend.dto.request.UsuarioRegistroRequestDTO;
@@ -11,6 +12,7 @@ import org.app_financeiro.backend.entity.InvestimentoEntity;
 import org.app_financeiro.backend.entity.UsuarioEntity;
 import org.app_financeiro.backend.repository.ContaRepository;
 import org.app_financeiro.backend.repository.InvestimentoRepository;
+import org.app_financeiro.backend.repository.MovimentacaoInvestimentoRepository;
 import org.app_financeiro.backend.repository.UsuarioRepository;
 import org.app_financeiro.backend.repository.CodigoVerificacaoRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,9 +28,12 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -52,7 +57,7 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
     private InvestimentoRepository investimentoRepository;
 
     @Autowired
-    private org.app_financeiro.backend.repository.MovimentacaoInvestimentoRepository movimentacaoInvestimentoRepository;
+    private MovimentacaoInvestimentoRepository movimentacaoInvestimentoRepository;
 
     @Autowired
     private ContaRepository contaRepository;
@@ -257,5 +262,89 @@ public class InvestmentIntegrationTest extends AbstractIntegrationTest {
                 .param("valor", "100.00")
                 .param("contaId", idContaB.toString()))
                 .andExpect(status().isNotFound());
+    }
+
+    // ─── Exclusão em massa de movimentações ─────────────────────────────────────
+
+    private Long idDaUltimaMovimentacao(Long idInvestimento) {
+        return movimentacaoInvestimentoRepository.findAll().stream()
+                .filter(m -> m.getInvestimentoId().equals(idInvestimento))
+                .max((a, b) -> a.getId().compareTo(b.getId()))
+                .orElseThrow()
+                .getId();
+    }
+
+    @Test
+    void excluirMovimentacoesEmMassaExcluiTodasQuandoTodasSaoValidas() throws Exception {
+        Long idConta = criarConta("Nubank", new BigDecimal("1000.00"), idUserA);
+        Long idInv = salvarInvestimento("Reserva", new BigDecimal("0.00"), new BigDecimal("5000.00"), idUserA);
+
+        mockMvc.perform(post("/api/investimentos/" + idInv + "/depositar")
+                        .header("Authorization", tokenA).param("valor", "100.00").param("contaId", idConta.toString()))
+                .andExpect(status().isOk());
+        Long mov1 = idDaUltimaMovimentacao(idInv);
+
+        mockMvc.perform(post("/api/investimentos/" + idInv + "/depositar")
+                        .header("Authorization", tokenA).param("valor", "50.00").param("contaId", idConta.toString()))
+                .andExpect(status().isOk());
+        Long mov2 = idDaUltimaMovimentacao(idInv);
+
+        ExclusaoMovimentacaoEmMassaRequestDTO dto = new ExclusaoMovimentacaoEmMassaRequestDTO(List.of(mov1, mov2));
+
+        mockMvc.perform(post("/api/investimentos/movimentacoes/excluir-em-massa")
+                        .header("Authorization", tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.excluidas").value(2))
+                .andExpect(jsonPath("$.erros").isEmpty());
+
+        InvestimentoEntity investimento = investimentoRepository.findById(idInv).orElseThrow();
+        assertThat(investimento.getValorAtual()).isEqualByComparingTo("0.00");
+        ContaEntity conta = contaRepository.findById(idConta).orElseThrow();
+        assertThat(conta.getSaldo()).isEqualByComparingTo("1000.00");
+    }
+
+    @Test
+    void excluirMovimentacoesEmMassaReportaErroDeItemDeOutroUsuarioSemInterromperOsDemais() throws Exception {
+        Long idConta = criarConta("Nubank", new BigDecimal("1000.00"), idUserA);
+        Long idInv = salvarInvestimento("Reserva", new BigDecimal("0.00"), new BigDecimal("5000.00"), idUserA);
+        mockMvc.perform(post("/api/investimentos/" + idInv + "/depositar")
+                        .header("Authorization", tokenA).param("valor", "100.00").param("contaId", idConta.toString()))
+                .andExpect(status().isOk());
+        Long movA = idDaUltimaMovimentacao(idInv);
+
+        String tokenB = "Bearer " + setupUsuarioVerificado("User Bee Tres", "userb3@email.com", "Senha@123");
+        Long idUserB = usuarioRepository.findByEmail("userb3@email.com").get().getId();
+        Long idContaB = criarConta("Conta B", new BigDecimal("1000.00"), idUserB);
+        Long idInvB = salvarInvestimento("Investimento B", new BigDecimal("0.00"), new BigDecimal("5000.00"), idUserB);
+        mockMvc.perform(post("/api/investimentos/" + idInvB + "/depositar")
+                        .header("Authorization", tokenB).param("valor", "50.00").param("contaId", idContaB.toString()))
+                .andExpect(status().isOk());
+        Long movB = idDaUltimaMovimentacao(idInvB);
+
+        ExclusaoMovimentacaoEmMassaRequestDTO dto = new ExclusaoMovimentacaoEmMassaRequestDTO(List.of(movA, movB));
+
+        mockMvc.perform(post("/api/investimentos/movimentacoes/excluir-em-massa")
+                        .header("Authorization", tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.excluidas").value(1))
+                .andExpect(jsonPath("$.erros", hasSize(1)))
+                .andExpect(jsonPath("$.erros[0].itemId").value(movB));
+    }
+
+    @Test
+    void excluirMovimentacoesEmMassaRejeitaListaAcimaDoTeto() throws Exception {
+        List<Long> idsExcedentes = new ArrayList<>();
+        for (long i = 1; i <= 101; i++) idsExcedentes.add(i);
+        ExclusaoMovimentacaoEmMassaRequestDTO dto = new ExclusaoMovimentacaoEmMassaRequestDTO(idsExcedentes);
+
+        mockMvc.perform(post("/api/investimentos/movimentacoes/excluir-em-massa")
+                        .header("Authorization", tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isUnprocessableEntity());
     }
 }
