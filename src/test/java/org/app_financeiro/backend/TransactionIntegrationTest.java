@@ -23,11 +23,13 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -363,5 +365,91 @@ class TransactionIntegrationTest extends AbstractIntegrationTest {
 
         mockMvc.perform(delete("/api/transacoes/" + idA).header("Authorization", "Bearer " + tokenB))
                 .andExpect(status().isNotFound());
+    }
+
+    // ─── Exclusão em massa ───────────────────────────────────────────────────
+
+    private Long criarDespesaEmConta(String descricao, String valor, String idempotencyKey) throws Exception {
+        TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
+                descricao, new BigDecimal(valor), LocalDate.now(), TipoTransacao.DESPESA, null,
+                MetodoPagamento.PIX, contaAId, null, catDespesaAId, null, null, null, idempotencyKey);
+        MvcResult res = mockMvc.perform(post("/api/transacoes")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return ((Number) objectMapper.readValue(res.getResponse().getContentAsString(), Map.class).get("id")).longValue();
+    }
+
+    @Test
+    void excluirEmMassaExcluiTodasQuandoTodasSaoValidas() throws Exception {
+        Long id1 = criarDespesaEmConta("Item 1", "10.00", "key-massa-1");
+        Long id2 = criarDespesaEmConta("Item 2", "20.00", "key-massa-2");
+        Long id3 = criarDespesaEmConta("Item 3", "30.00", "key-massa-3");
+
+        ExclusaoEmMassaRequestDTO dto = new ExclusaoEmMassaRequestDTO(List.of(id1, id2, id3), false);
+
+        mockMvc.perform(post("/api/transacoes/excluir-em-massa")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.excluidas").value(3))
+                .andExpect(jsonPath("$.erros").isEmpty());
+
+        ContaEntity conta = contaRepository.findById(contaAId).get();
+        assertThat(conta.getSaldo()).isEqualByComparingTo("1000.00");
+    }
+
+    @Test
+    void excluirEmMassaReportaErroDeItemDeOutroUsuarioSemInterromperOsDemais() throws Exception {
+        Long idA1 = criarDespesaEmConta("Item A1", "10.00", "key-massa-4");
+        Long idA2 = criarDespesaEmConta("Item A2", "15.00", "key-massa-5");
+
+        TransacaoRegistroRequestDTO reqB = new TransacaoRegistroRequestDTO(
+                "Segredo B", new BigDecimal("5.00"), LocalDate.now(), TipoTransacao.DESPESA, null,
+                MetodoPagamento.PIX, null, null, null, null, null, null, "key-massa-b");
+        Long idB = criarContaBECriarDespesa(reqB);
+
+        ExclusaoEmMassaRequestDTO dto = new ExclusaoEmMassaRequestDTO(List.of(idA1, idB, idA2), false);
+
+        mockMvc.perform(post("/api/transacoes/excluir-em-massa")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.excluidas").value(2))
+                .andExpect(jsonPath("$.erros", hasSize(1)))
+                .andExpect(jsonPath("$.erros[0].itemId").value(idB));
+
+        assertThat(transacaoRepository.findById(idB)).isPresent();
+    }
+
+    private Long criarContaBECriarDespesa(TransacaoRegistroRequestDTO reqSemConta) throws Exception {
+        Long contaBId = criarConta(tokenB, "Conta B", new BigDecimal("100.00"));
+        TransacaoRegistroRequestDTO req = new TransacaoRegistroRequestDTO(
+                reqSemConta.descricao(), reqSemConta.valor(), reqSemConta.data(), reqSemConta.tipo(), reqSemConta.status(),
+                reqSemConta.metodoPagamento(), contaBId, null, null, null, null, null, reqSemConta.idempotencyKey());
+        MvcResult res = mockMvc.perform(post("/api/transacoes")
+                        .header("Authorization", "Bearer " + tokenB)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(req)))
+                .andExpect(status().isCreated())
+                .andReturn();
+        return ((Number) objectMapper.readValue(res.getResponse().getContentAsString(), Map.class).get("id")).longValue();
+    }
+
+    @Test
+    void excluirEmMassaRejeitaListaAcimaDoTeto() throws Exception {
+        List<Long> idsExcedentes = new ArrayList<>();
+        for (long i = 1; i <= 101; i++) idsExcedentes.add(i);
+        ExclusaoEmMassaRequestDTO dto = new ExclusaoEmMassaRequestDTO(idsExcedentes, false);
+
+        mockMvc.perform(post("/api/transacoes/excluir-em-massa")
+                        .header("Authorization", "Bearer " + tokenA)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(dto)))
+                .andExpect(status().isUnprocessableEntity());
     }
 }

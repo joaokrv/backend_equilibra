@@ -14,12 +14,18 @@ import org.app_financeiro.backend.exception.RegraDeNegocioException;
 import org.app_financeiro.backend.mapper.TransacaoMapper;
 import org.app_financeiro.backend.repository.TransacaoRepository;
 import org.app_financeiro.backend.repository.TransacaoRecorrenteRepository;
+import org.app_financeiro.backend.repository.MovimentacaoInvestimentoRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageImpl;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -57,6 +63,13 @@ class TransacaoServiceTest {
 
     @Mock
     private TransacaoRecorrenteRepository transacaoRecorrenteRepository;
+
+    @Mock
+    private MovimentacaoInvestimentoRepository movimentacaoInvestimentoRepository;
+
+    /** Self-referência via proxy — necessária para excluirEmMassa chamar deletarTransacao respeitando @Transactional. */
+    @Mock
+    private TransacaoService self;
 
     @InjectMocks
     private TransacaoService transacaoService;
@@ -179,12 +192,96 @@ class TransacaoServiceTest {
     }
 
     @Test
+    void deveRejeitarExclusaoDeTransacaoVinculadaAAporteOuResgate() {
+        TransacaoEntity transacao = new TransacaoEntity();
+        transacao.setId(100L);
+        transacao.setUsuario(usuarioPadrao);
+        transacao.setAtivo(true);
+
+        when(transacaoRepository.findById(100L)).thenReturn(Optional.of(transacao));
+        when(movimentacaoInvestimentoRepository.findByTransacaoIdInAndUsuarioIdAndAtivoTrue(List.of(100L), 1L))
+                .thenReturn(List.of(new MovimentacaoInvestimentoEntity()));
+
+        assertThatThrownBy(() -> transacaoService.deletarTransacao(100L, 1L))
+                .isInstanceOf(RegraDeNegocioException.class)
+                .hasMessageContaining("tela de Investimentos");
+
+        assertThat(transacao.isAtivo()).isTrue();
+        verifyNoInteractions(movimentacaoFinanceiraService);
+        verify(transacaoRepository, never()).save(any());
+    }
+
+    @Test
+    void excluirEmMassaContaTodasComoExcluidasQuandoNenhumItemFalha() {
+        var resultado = transacaoService.excluirEmMassa(List.of(1L, 2L, 3L), false, 1L);
+
+        assertThat(resultado.excluidas()).isEqualTo(3);
+        assertThat(resultado.erros()).isEmpty();
+        verify(self).deletarTransacao(1L, 1L, false);
+        verify(self).deletarTransacao(2L, 1L, false);
+        verify(self).deletarTransacao(3L, 1L, false);
+    }
+
+    @Test
+    void excluirEmMassaProcessaOQuePodeQuandoUmItemEBloqueadoPorFaturaPaga() {
+        lenient().doThrow(new RegraDeNegocioException("error.transacao.fatura_paga",
+                "Não é possível excluir uma transação cuja fatura já foi paga."))
+                .when(self).deletarTransacao(2L, 1L, false);
+
+        var resultado = transacaoService.excluirEmMassa(List.of(1L, 2L, 3L), false, 1L);
+
+        assertThat(resultado.excluidas()).isEqualTo(2);
+        assertThat(resultado.erros()).hasSize(1);
+        assertThat(resultado.erros().get(0).itemId()).isEqualTo(2L);
+        assertThat(resultado.erros().get(0).motivo()).contains("fatura já foi paga");
+        verify(self).deletarTransacao(1L, 1L, false);
+        verify(self).deletarTransacao(3L, 1L, false);
+    }
+
+    @Test
+    void excluirEmMassaCapturaIdorSemInterromperOsDemais() {
+        lenient().doThrow(new RecursoNaoEncontradoException("Transação não pertence ao usuário"))
+                .when(self).deletarTransacao(99L, 1L, false);
+
+        var resultado = transacaoService.excluirEmMassa(List.of(1L, 99L), false, 1L);
+
+        assertThat(resultado.excluidas()).isEqualTo(1);
+        assertThat(resultado.erros()).hasSize(1);
+        assertThat(resultado.erros().get(0).itemId()).isEqualTo(99L);
+    }
+
+    @Test
+    void excluirEmMassaComListaVaziaNaoFazNada() {
+        var resultado = transacaoService.excluirEmMassa(List.of(), false, 1L);
+
+        assertThat(resultado.excluidas()).isZero();
+        assertThat(resultado.erros()).isEmpty();
+        verifyNoInteractions(self);
+    }
+
+    @Test
+    void excluirEmMassaContinuaOLoteMesmoComExcecaoNaoPrevistaEmUmItem() {
+        // Cenário real deste codebase: edição concorrente na conta/cartão (@Version) durante
+        // o item 2 não pode abortar os itens 3+ — o catch precisa ser genérico, não só
+        // RecursoNaoEncontradoException/RegraDeNegocioException.
+        lenient().doThrow(new ObjectOptimisticLockingFailureException(TransacaoEntity.class, 2L))
+                .when(self).deletarTransacao(2L, 1L, false);
+
+        var resultado = transacaoService.excluirEmMassa(List.of(1L, 2L, 3L), false, 1L);
+
+        assertThat(resultado.excluidas()).isEqualTo(2);
+        assertThat(resultado.erros()).hasSize(1);
+        assertThat(resultado.erros().get(0).itemId()).isEqualTo(2L);
+        verify(self).deletarTransacao(1L, 1L, false);
+        verify(self).deletarTransacao(3L, 1L, false);
+    }
+
+    @Test
     void deveListarPaginado() {
-        org.springframework.data.domain.Pageable pageable = org.springframework.data.domain.PageRequest.of(0, 2);
+        Pageable pageable = PageRequest.of(0, 2);
         TransacaoEntity t1 = new TransacaoEntity(); t1.setId(1L);
         TransacaoEntity t2 = new TransacaoEntity(); t2.setId(2L);
-        org.springframework.data.domain.Page<TransacaoEntity> pageEnt =
-                new org.springframework.data.domain.PageImpl<>(List.of(t1, t2), pageable, 2);
+        Page<TransacaoEntity> pageEnt = new PageImpl<>(List.of(t1, t2), pageable, 2);
         when(transacaoRepository.findByUsuarioId(1L, pageable)).thenReturn(pageEnt);
         when(transacaoMapper.toResponse(t1)).thenReturn(new TransacaoResponseDTO(1L, "Desc1", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null, null, null, null, false, null, null, false));
         when(transacaoMapper.toResponse(t2)).thenReturn(new TransacaoResponseDTO(2L, "Desc2", BigDecimal.ZERO, LocalDate.now(), TipoTransacao.DESPESA, StatusTransacao.PENDENTE, MetodoPagamento.PIX, null, null, null, null, null, null, false, null, null, false));

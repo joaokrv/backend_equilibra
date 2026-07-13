@@ -5,6 +5,7 @@ import org.app_financeiro.backend.dto.request.UsuarioLoginRequestDTO;
 import org.app_financeiro.backend.enums.ErrorCode;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
+import org.springframework.test.annotation.DirtiesContext;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.web.servlet.MvcResult;
 
@@ -14,19 +15,23 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
- * Valida o fluxo end-to-end do rate limit no escopo /api/auth/* (limite 3/min por IP).
+ * Valida o fluxo end-to-end do rate limit no escopo /api/auth/* (limite 5/min por IP).
  * Profile test desabilita rate-limit por padrão (application-test.properties:34);
  * este teste habilita explicitamente via @TestPropertySource.
+ * @DirtiesContext: o teste exaure de propósito o bucket do IP de teste — sem isso, outras
+ * classes com o mesmo @TestPropertySource reaproveitariam o contexto (e o RateLimitInterceptor
+ * singleton, com buckets já consumidos), falhando o login do próprio setUp() delas.
  */
 @TestPropertySource(properties = "security.rate-limit.enabled=true")
+@DirtiesContext(classMode = DirtiesContext.ClassMode.AFTER_CLASS)
 class RateLimitIntegrationTest extends AbstractIntegrationTest {
 
     @Test
-    void quartaTentativaDeLoginRetorna429ComPayloadPadronizado() throws Exception {
+    void sextaTentativaDeLoginRetorna429ComPayloadPadronizado() throws Exception {
         UsuarioLoginRequestDTO login = new UsuarioLoginRequestDTO("inexistente@example.com", "senha-qualquer");
         String body = objectMapper.writeValueAsString(login);
 
-        for (int i = 0; i < 3; i++) {
+        for (int i = 0; i < 5; i++) {
             mockMvc.perform(post("/api/auth/login")
                             .contentType(MediaType.APPLICATION_JSON)
                             .content(body))

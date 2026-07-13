@@ -2,6 +2,8 @@ package org.app_financeiro.backend.service;
 
 import org.app_financeiro.backend.dto.model.ResultadoMovimentacaoCartao;
 import org.app_financeiro.backend.dto.request.TransacaoRegistroRequestDTO;
+import org.app_financeiro.backend.dto.response.ExclusaoEmMassaResponseDTO;
+import org.app_financeiro.backend.dto.response.ExclusaoEmMassaResponseDTO.ItemErroDTO;
 import org.app_financeiro.backend.dto.response.TransacaoResponseDTO;
 import org.app_financeiro.backend.mapper.TransacaoMapper;
 import org.app_financeiro.backend.entity.CartaoEntity;
@@ -20,8 +22,10 @@ import org.app_financeiro.backend.exception.RecursoNaoEncontradoException;
 import org.app_financeiro.backend.exception.OperacaoNaoPermitidaException;
 import org.app_financeiro.backend.repository.TransacaoRepository;
 import org.app_financeiro.backend.repository.TransacaoRecorrenteRepository;
+import org.app_financeiro.backend.repository.MovimentacaoInvestimentoRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
@@ -30,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -47,6 +52,13 @@ public class TransacaoService {
     private final UsuarioService usuarioService;
     private final TransacaoMapper transacaoMapper;
     private final FaturaService faturaService;
+    private final MovimentacaoInvestimentoRepository movimentacaoInvestimentoRepository;
+    /**
+     * Self-referência via proxy (@Lazy quebra o ciclo de inicialização). Necessária para que
+     * excluirEmMassa chame deletarTransacao PASSANDO PELO PROXY do Spring — uma chamada direta
+     * (this.deletarTransacao(...)) ignoraria o @Transactional do método (self-invocation).
+     */
+    private final TransacaoService self;
 
     public TransacaoService(TransacaoRepository transacaoRepository,
                             TransacaoRecorrenteRepository transacaoRecorrenteRepository,
@@ -54,7 +66,9 @@ public class TransacaoService {
                             CategoriaService categoriaService,
                             UsuarioService usuarioService,
                             TransacaoMapper transacaoMapper,
-                            FaturaService faturaService) {
+                            FaturaService faturaService,
+                            MovimentacaoInvestimentoRepository movimentacaoInvestimentoRepository,
+                            @Lazy TransacaoService self) {
         this.transacaoRepository = transacaoRepository;
         this.transacaoRecorrenteRepository = transacaoRecorrenteRepository;
         this.movimentacaoFinanceiraService = movimentacaoFinanceiraService;
@@ -62,6 +76,8 @@ public class TransacaoService {
         this.usuarioService = usuarioService;
         this.transacaoMapper = transacaoMapper;
         this.faturaService = faturaService;
+        this.movimentacaoInvestimentoRepository = movimentacaoInvestimentoRepository;
+        this.self = self;
     }
 
     @Transactional
@@ -219,6 +235,8 @@ public class TransacaoService {
             throw new RecursoNaoEncontradoException("Transação não pertence ao usuário");
         }
 
+        validarNaoVinculadaAInvestimento(transacao, usuarioId);
+
         if (grupoCompleto && transacao.getGrupoParcelamento() != null) {
             List<TransacaoEntity> parcelas = transacaoRepository
                     .findByGrupoParcelamentoAndUsuarioId(transacao.getGrupoParcelamento(), usuarioId);
@@ -239,6 +257,44 @@ public class TransacaoService {
         transacao.setAtivo(false);
         transacaoRepository.save(transacao);
         log.info("Transação {} desativada (soft delete) para usuário {}", transacaoId, usuarioId);
+    }
+
+    /**
+     * Exclusão em massa (seleção múltipla no Extrato): cada item roda isolado — um item bloqueado
+     * (fatura paga, vínculo a investimento, IDOR) não impede os demais. Chama deletarTransacao
+     * através do proxy (self) para que o @Transactional do método valha por item.
+     * Catch genérico de propósito (mesmo padrão de ImportacaoService.confirmarImportacao):
+     * qualquer falha de item — incluindo ObjectOptimisticLockingFailureException por edição
+     * concorrente na conta/cartão — vira erro do item, nunca aborta o restante do lote.
+     */
+    public ExclusaoEmMassaResponseDTO excluirEmMassa(List<Long> transacaoIds, boolean grupo, Long usuarioId) {
+        int excluidas = 0;
+        List<ItemErroDTO> erros = new ArrayList<>();
+        for (Long transacaoId : transacaoIds) {
+            try {
+                self.deletarTransacao(transacaoId, usuarioId, grupo);
+                excluidas++;
+            } catch (Exception e) {
+                log.warn("Transação {} não excluída durante exclusão em massa: {}", transacaoId, e.getMessage());
+                erros.add(new ItemErroDTO(transacaoId, e.getMessage()));
+            }
+        }
+        return new ExclusaoEmMassaResponseDTO(excluidas, erros);
+    }
+
+    /**
+     * Transação vinculada a aporte/resgate (MovimentacaoInvestimentoEntity) só pode ser excluída pela
+     * tela de Investimentos — só esse caminho sabe reverter valorAtual do investimento (guardado por
+     * ajustouValor) além do saldo da conta. Excluir por aqui deixaria a movimentação órfã.
+     */
+    private void validarNaoVinculadaAInvestimento(TransacaoEntity transacao, Long usuarioId) {
+        boolean vinculada = !movimentacaoInvestimentoRepository
+                .findByTransacaoIdInAndUsuarioIdAndAtivoTrue(List.of(transacao.getId()), usuarioId)
+                .isEmpty();
+        if (vinculada) {
+            throw new RegraDeNegocioException("error.transacao.vinculada_investimento",
+                    "Esta transação é um aporte/resgate de investimento — exclua-a pela tela de Investimentos.");
+        }
     }
 
     /** Impede reverter o impacto de uma transação cuja fatura já foi quitada (evita valorPago > valorTotal). */

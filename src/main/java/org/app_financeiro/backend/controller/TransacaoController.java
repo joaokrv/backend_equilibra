@@ -3,10 +3,14 @@ package org.app_financeiro.backend.controller;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
+import org.app_financeiro.backend.dto.request.ExclusaoEmMassaRequestDTO;
 import org.app_financeiro.backend.dto.request.TransacaoRegistroRequestDTO;
 import org.springframework.validation.annotation.Validated;
+import org.app_financeiro.backend.dto.response.ExclusaoEmMassaResponseDTO;
 import org.app_financeiro.backend.dto.response.TransacaoResponseDTO;
 import org.app_financeiro.backend.service.TransacaoService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -99,9 +103,9 @@ public class TransacaoController {
 
     @GetMapping
     @Operation(summary = "Listar transações paginadas", operationId = "listarPaginado", description = "Retorna transações do usuário em páginas (sem filtro mensal). Use parâmetros page, size, sort.")
-    public ResponseEntity<org.springframework.data.domain.Page<TransacaoResponseDTO>> listarPaginado(
+    public ResponseEntity<Page<TransacaoResponseDTO>> listarPaginado(
             @AuthenticationPrincipal UsuarioEntity usuario,
-            org.springframework.data.domain.Pageable pageable) {
+            Pageable pageable) {
 
         var page = transacaoService.listarPorUsuario(usuario.getId(), pageable);
         return ResponseEntity.ok(page);
@@ -116,5 +120,18 @@ public class TransacaoController {
 
         transacaoService.deletarTransacao(id, usuario.getId(), grupo);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/excluir-em-massa")
+    @Operation(summary = "Excluir transações em massa",
+               description = "Exclui até 100 transações de uma vez (seleção múltipla). Cada item é processado "
+                       + "isoladamente — um item bloqueado (fatura paga, vínculo a investimento) não impede os demais; "
+                       + "a resposta relata quantas foram excluídas e o motivo de cada bloqueio.")
+    public ResponseEntity<ExclusaoEmMassaResponseDTO> excluirEmMassa(
+            @Valid @RequestBody ExclusaoEmMassaRequestDTO dto,
+            @AuthenticationPrincipal UsuarioEntity usuario) {
+
+        ExclusaoEmMassaResponseDTO resultado = transacaoService.excluirEmMassa(dto.transacaoIds(), dto.grupo(), usuario.getId());
+        return ResponseEntity.ok(resultado);
     }
 }

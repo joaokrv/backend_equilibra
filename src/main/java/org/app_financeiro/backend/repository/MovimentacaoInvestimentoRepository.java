@@ -11,6 +11,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import java.time.LocalDate;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
@@ -63,4 +64,8 @@ public interface MovimentacaoInvestimentoRepository extends JpaRepository<Movime
 
     /** Busca por id + usuarioId para validação de ownership (IDOR). */
     Optional<MovimentacaoInvestimentoEntity> findByIdAndUsuarioId(Long id, Long usuarioId);
+
+    /** Localiza em lote as movimentações originadas por transações — 1 query para o desfazer inteiro. */
+    List<MovimentacaoInvestimentoEntity> findByTransacaoIdInAndUsuarioIdAndAtivoTrue(
+            Collection<Long> transacaoIds, Long usuarioId);
 }
