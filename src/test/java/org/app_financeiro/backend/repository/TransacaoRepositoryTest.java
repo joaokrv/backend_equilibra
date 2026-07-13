@@ -14,6 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -58,6 +59,7 @@ class TransacaoRepositoryTest extends BaseRepositoryTest {
         transacao.setMetodoPagamento(MetodoPagamento.PIX);
         transacao.setConta(contaSalva);
         transacao.setUsuario(usuarioSalvo);
+        transacao.setIdempotencyKey(UUID.randomUUID().toString());
 
         TransacaoEntity transacaoSalva = transacaoRepository.save(transacao);
 

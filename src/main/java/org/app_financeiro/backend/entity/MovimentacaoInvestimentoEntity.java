@@ -47,6 +47,13 @@ public class MovimentacaoInvestimentoEntity {
     @Column(length = 255)
     private String observacao;
 
+    /**
+     * false quando o movimento importado só registrou histórico (valorAtual do investimento
+     * já refletia o valor). A exclusão/desfazer só reverte o valorAtual quando true.
+     */
+    @Column(name = "ajustou_valor", nullable = false)
+    private boolean ajustouValor = true;
+
     @Column(nullable = false)
     private boolean ativo = true;
 
@@ -75,6 +82,8 @@ public class MovimentacaoInvestimentoEntity {
     public void setTransacaoId(Long transacaoId) { this.transacaoId = transacaoId; }
     public String getObservacao() { return observacao; }
     public void setObservacao(String observacao) { this.observacao = observacao; }
+    public boolean isAjustouValor() { return ajustouValor; }
+    public void setAjustouValor(boolean ajustouValor) { this.ajustouValor = ajustouValor; }
     public boolean isAtivo() { return ativo; }
     public void setAtivo(boolean ativo) { this.ativo = ativo; }
     public LocalDateTime getDataCriacao() { return dataCriacao; }

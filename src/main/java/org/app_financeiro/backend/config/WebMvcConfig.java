@@ -42,7 +42,8 @@ public class WebMvcConfig implements WebMvcConfigurer {
                         "/api/faturas/**",
                         "/api/categorias/**",
                         "/api/recorrentes/**",
-                        "/api/v1/relatorios/**"
+                        "/api/v1/relatorios/**",
+                        "/api/importacao/**"
                 );
 
         registry.addInterceptor(csrfOriginInterceptor)

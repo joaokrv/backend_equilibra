@@ -14,6 +14,7 @@ import org.hibernate.annotations.UpdateTimestamp;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.math.BigDecimal;
+import java.util.UUID;
 
 /** conta XOR (cartao+fatura) — mutuamente exclusivos; categoria opcional. */
 @Getter
@@ -93,7 +94,7 @@ public class TransacaoEntity {
 
     /** Agrupa as parcelas de uma mesma compra parcelada. Nulo se for compra à vista ou em conta. */
     @Column(name = "grupo_parcelamento")
-    private java.util.UUID grupoParcelamento;
+    private UUID grupoParcelamento;
 
     @CreationTimestamp
     @Column(updatable = false)
@@ -114,4 +115,12 @@ public class TransacaoEntity {
 
     @Column(name = "ativo", nullable = false)
     private boolean isAtivo = true;
+
+    /** Origem da transação — MANUAL (padrão) ou via importação de documento. */
+    @Column(nullable = false, length = 20)
+    private String origem = "MANUAL";
+
+    /** Importação que criou esta transação. Nulo para transações manuais. */
+    @Column(name = "importacao_id")
+    private UUID importacaoId;
 }

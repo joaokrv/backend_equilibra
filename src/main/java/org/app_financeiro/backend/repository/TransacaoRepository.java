@@ -122,4 +122,34 @@ public interface TransacaoRepository extends JpaRepository<TransacaoEntity, Long
             @Param("status") StatusTransacao status);
 
     long countByFaturaId(Long faturaId);
+
+    /**
+     * Detecção de duplicata em lote via pg_trgm: mesma data, valor e descrição similar (>70%).
+     * Recebe as candidatas como JSON (array de {indice, data, valor, descricao}) e devolve os
+     * índices que colidem com transações existentes — 1 round-trip para o lote inteiro, em vez
+     * de 1 query por candidata (N+1 de até 500 queries por upload).
+     */
+    @Query(value = """
+            SELECT c.indice
+            FROM jsonb_to_recordset(cast(:candidatasJson as jsonb))
+                 AS c(indice int, data date, valor numeric, descricao text)
+            WHERE EXISTS (
+                SELECT 1 FROM transacoes t
+                WHERE t.usuario_id = :usuarioId
+                  AND t.ativo = true
+                  AND t.data = c.data
+                  AND ABS(t.valor - c.valor) < 0.01
+                  AND similarity(t.descricao, c.descricao) > 0.7
+            )
+            """, nativeQuery = true)
+    List<Integer> buscarIndicesDuplicados(
+            @Param("usuarioId") Long usuarioId,
+            @Param("candidatasJson") String candidatasJson);
+
+    /** Exclui fisicamente (soft delete via ativo=false) todas as transações de uma importação.
+     *  Retorna os IDs para que o caller desfaça os impactos financeiros individualmente. */
+    @Query("SELECT t FROM TransacaoEntity t WHERE t.importacaoId = :importacaoId AND t.usuario.id = :usuarioId")
+    List<TransacaoEntity> findByImportacaoIdAndUsuarioId(
+            @Param("importacaoId") java.util.UUID importacaoId,
+            @Param("usuarioId") Long usuarioId);
 }

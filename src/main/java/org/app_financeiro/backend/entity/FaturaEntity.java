@@ -77,4 +77,8 @@ public class FaturaEntity {
 
     @Column(nullable = false)
     private boolean ativo = true;
+
+    /** Fatura criada pela importação para período já vencido. Nasce PAGA sem débito de conta. */
+    @Column(nullable = false)
+    private boolean quitacaoHistorica = false;
 }

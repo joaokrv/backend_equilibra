@@ -34,6 +34,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     static final String ESCOPO_AUTH = "auth";
     static final String ESCOPO_HEALTH = "health";
     static final String ESCOPO_ESCRITA = "escrita";
+    static final String ESCOPO_UPLOAD = "upload";
 
     /** Prefixos de endpoints CRUD autenticados — escritas (POST/PUT/DELETE) têm bucket dedicado. */
     private static final String[] PREFIXOS_CRUD = {
@@ -47,6 +48,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private final Map<String, BucketEntry> cacheAuth = new ConcurrentHashMap<>();
     private final Map<String, BucketEntry> cacheHealth = new ConcurrentHashMap<>();
     private final Map<String, BucketEntry> cacheEscrita = new ConcurrentHashMap<>();
+    private final Map<String, BucketEntry> cacheUpload = new ConcurrentHashMap<>();
     private final AtomicLong requestCounter = new AtomicLong(0);
     private final RateLimitProperties properties;
     private final boolean trustForwardedFor;
@@ -140,8 +142,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private Bucket newBucketAuth(String clientIp) {
         Bandwidth limit = Bandwidth.builder()
-                .capacity(3)
-                .refillIntervally(3, Duration.ofMinutes(1))
+                .capacity(5)
+                .refillIntervally(5, Duration.ofMinutes(1))
                 .build();
         return Bucket.builder().addLimit(limit).build();
     }
@@ -176,6 +178,26 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         return entry.bucket();
     }
 
+    private Bucket resolveBucketUpload(String clientIp) {
+        long now = System.currentTimeMillis();
+        BucketEntry entry = cacheUpload.compute(clientIp, (ip, existing) -> {
+            if (existing == null) {
+                return new BucketEntry(newBucketUpload(ip), now);
+            }
+            return existing.touch(now);
+        });
+        return entry.bucket();
+    }
+
+    /** Upload de documentos: 5/hora — protege custo de chamada Gemini. */
+    private Bucket newBucketUpload(String clientIp) {
+        Bandwidth limit = Bandwidth.builder()
+                .capacity(5)
+                .refillIntervally(5, Duration.ofHours(1))
+                .build();
+        return Bucket.builder().addLimit(limit).build();
+    }
+
     /** Escritas CRUD: 40/min — suficiente para uso legítimo, bloqueia flood. */
     private Bucket newBucketEscrita(String clientIp) {
         Bandwidth limit = Bandwidth.builder()
@@ -205,7 +227,12 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
         String escopo;
         Bucket bucket;
-        if (uri.contains("/relatorios/exportar")) {
+        // Path exato: só o upload (processamento IA/parse) usa o bucket restritivo.
+        // /api/importacao/confirmar cai nos buckets de escrita/geral como CRUD comum.
+        if ("/api/importacao".equals(uri) && "POST".equals(request.getMethod())) {
+            bucket = resolveBucketUpload(ip);
+            escopo = ESCOPO_UPLOAD;
+        } else if (uri.contains("/relatorios/exportar")) {
             bucket = resolveBucketRelatorio(ip);
             escopo = ESCOPO_RELATORIO;
         } else if (uri.equals("/actuator/health")) {
@@ -326,6 +353,7 @@ public class RateLimitInterceptor implements HandlerInterceptor {
         cacheAuth.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
         cacheHealth.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
         cacheEscrita.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
+        cacheUpload.entrySet().removeIf(entry -> entry.getValue().lastAccessAt() < minAccess);
 
         int maxBuckets = properties.maxBuckets();
         if (cache.size() <= maxBuckets) {

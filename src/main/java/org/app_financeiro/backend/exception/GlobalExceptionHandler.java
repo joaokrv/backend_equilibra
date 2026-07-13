@@ -20,6 +20,7 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import jakarta.validation.ConstraintViolationException;
 
 import java.util.List;
@@ -360,6 +361,18 @@ public class GlobalExceptionHandler {
                 "O método " + ex.getMethod() + " não é suportado para este endpoint."
         );
         return new ResponseEntity<>(erro, HttpStatus.METHOD_NOT_ALLOWED);
+    }
+
+    /** Arquivo maior que spring.servlet.multipart.max-file-size → 413. */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ErroResponseDTO> handleMaxUploadSize(MaxUploadSizeExceededException ex) {
+        ErroResponseDTO erro = new ErroResponseDTO(
+                HttpStatus.PAYLOAD_TOO_LARGE.value(),
+                "ARQUIVO_MUITO_GRANDE",
+                "Arquivo muito grande",
+                "O arquivo enviado excede o tamanho máximo permitido (10MB)."
+        );
+        return new ResponseEntity<>(erro, HttpStatus.PAYLOAD_TOO_LARGE);
     }
 
     /**

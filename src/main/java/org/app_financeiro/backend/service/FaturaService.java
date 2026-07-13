@@ -18,6 +18,7 @@ import org.app_financeiro.backend.util.FaturaDateUtil;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.YearMonth;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -43,14 +44,15 @@ public class FaturaService {
 
     @Transactional
     public FaturaEntity adicionarTransacao(CartaoEntity cartao, LocalDate dataTransacao, BigDecimal valor) {
-        LocalDate dataReferencia = calcularDataReferenciaFatura(dataTransacao, cartao.getDiaFechamento());
-        int mes = dataReferencia.getMonthValue();
-        int ano = dataReferencia.getYear();
+        YearMonth referencia = FaturaDateUtil.mesReferencia(dataTransacao, cartao.getDiaFechamento());
+        int mes = referencia.getMonthValue();
+        int ano = referencia.getYear();
         
         FaturaEntity fatura = faturaRepository.findByCartaoIdAndMesAndAno(cartao.getId(), mes, ano)
                 .orElseGet(() -> criarNovaFatura(cartao, mes, ano));
-                
+
         fatura.setValorTotal(fatura.getValorTotal().add(valor));
+        sincronizarQuitacaoHistorica(fatura);
         log.info("Transação adicionada à fatura {}/{} do cartão {}. Valor: R$ {}", mes, ano, cartao.getId(), valor);
         return faturaRepository.save(fatura);
     }
@@ -58,6 +60,13 @@ public class FaturaService {
     @Transactional
     public void removerTransacaoPorFatura(FaturaEntity fatura, BigDecimal valor) {
         BigDecimal novoValorTotal = fatura.getValorTotal().subtract(valor);
+
+        if (fatura.isQuitacaoHistorica() && novoValorTotal.compareTo(BigDecimal.ZERO) >= 0) {
+            fatura.setValorTotal(novoValorTotal);
+            fatura.setValorPago(novoValorTotal);
+            faturaRepository.save(fatura);
+            return;
+        }
 
         if (novoValorTotal.compareTo(fatura.getValorPago()) < 0) {
             throw new RegraDeNegocioException(
@@ -72,22 +81,43 @@ public class FaturaService {
     @Transactional
     public void adicionarTransacaoPorFatura(FaturaEntity fatura, BigDecimal valor) {
         fatura.setValorTotal(fatura.getValorTotal().add(valor));
+        sincronizarQuitacaoHistorica(fatura);
         faturaRepository.save(fatura);
+    }
+
+    /**
+     * Invariante da fatura de quitação histórica (importação de períodos já quitados):
+     * valorPago acompanha o valorTotal. Mantido AQUI, nos mutadores, para que os chamadores
+     * (MovimentacaoFinanceiraService e afins) não precisem conhecer o conceito.
+     */
+    private void sincronizarQuitacaoHistorica(FaturaEntity fatura) {
+        if (fatura.isQuitacaoHistorica()) {
+            fatura.setValorPago(fatura.getValorTotal());
+        }
     }
 
     @Transactional
     public FaturaEntity registrarCredito(CartaoEntity cartao, LocalDate dataTransacao, BigDecimal valor) {
-        LocalDate dataReferencia = calcularDataReferenciaFatura(dataTransacao, cartao.getDiaFechamento());
-        int mes = dataReferencia.getMonthValue();
-        int ano = dataReferencia.getYear();
+        YearMonth referencia = FaturaDateUtil.mesReferencia(dataTransacao, cartao.getDiaFechamento());
+        int mes = referencia.getMonthValue();
+        int ano = referencia.getYear();
 
         FaturaEntity fatura = faturaRepository.findByCartaoIdAndMesAndAno(cartao.getId(), mes, ano)
                 .orElseGet(() -> criarNovaFatura(cartao, mes, ano));
 
         BigDecimal novoValorTotal = fatura.getValorTotal().subtract(valor);
-        if (novoValorTotal.compareTo(fatura.getValorPago()) < 0) {
+        if (novoValorTotal.compareTo(BigDecimal.ZERO) < 0) {
             throw new RegraDeNegocioException("error.fatura.estorno_excede",
                     "O valor do estorno excede o saldo devedor da fatura deste período.");
+        }
+        if (novoValorTotal.compareTo(fatura.getValorPago()) < 0) {
+            if (fatura.isQuitacaoHistorica()) {
+                // Fatura importada nasce quitada: o estorno reduz o total e o pago acompanha.
+                fatura.setValorPago(novoValorTotal);
+            } else {
+                throw new RegraDeNegocioException("error.fatura.estorno_excede",
+                        "O valor do estorno excede o saldo devedor da fatura deste período.");
+            }
         }
         fatura.setValorTotal(novoValorTotal);
         return faturaRepository.save(fatura);
@@ -174,11 +204,22 @@ public class FaturaService {
         return fatura;
     }
 
-    private LocalDate calcularDataReferenciaFatura(LocalDate dataTransacao, int diaFechamento) {
-        if (dataTransacao.getDayOfMonth() >= diaFechamento) {
-            return dataTransacao.plusMonths(1);
-        }
-        return dataTransacao;
+
+    /**
+     * Pré-cria fatura para período já vencido durante importação histórica.
+     * Nasce com status PAGA e quitacaoHistorica=true; valorPago é sincronizado
+     * incrementalmente pelo ImportacaoService conforme transações são adicionadas.
+     * Se já existir, retorna sem alterar o estado existente.
+     */
+    @Transactional
+    public FaturaEntity criarFaturaHistorica(CartaoEntity cartao, int mes, int ano) {
+        return faturaRepository.findByCartaoIdAndMesAndAno(cartao.getId(), mes, ano)
+                .orElseGet(() -> {
+                    FaturaEntity nova = criarNovaFatura(cartao, mes, ano);
+                    nova.setStatus(StatusFatura.PAGA);
+                    nova.setQuitacaoHistorica(true);
+                    return faturaRepository.save(nova);
+                });
     }
 
     private FaturaEntity criarNovaFatura(CartaoEntity cartao, int mes, int ano) {

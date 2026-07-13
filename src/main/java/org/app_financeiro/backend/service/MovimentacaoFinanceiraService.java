@@ -62,6 +62,20 @@ public class MovimentacaoFinanceiraService {
         return new ResultadoMovimentacaoCartao(cartao, fatura);
     }
 
+    /**
+     * Variante para importação histórica: pula consumo de limite (dívida já foi quitada na
+     * vida real). O invariante valorPago==valorTotal da fatura de quitação histórica é
+     * mantido pelos mutadores do FaturaService. Uso exclusivo de ImportacaoService.
+     */
+    @Transactional
+    ResultadoMovimentacaoCartao processarDespesaCartaoHistorico(Long cartaoId, LocalDate data,
+                                                                BigDecimal valor, Long usuarioId) {
+        CartaoEntity cartao = cartaoService.obterCartaoComBloqueioExclusivo(cartaoId, usuarioId);
+        FaturaEntity fatura = faturaService.adicionarTransacao(cartao, data, valor);
+        log.info("Despesa histórica de R$ {} processada no cartão {} sem consumo de limite", valor, cartaoId);
+        return new ResultadoMovimentacaoCartao(cartao, fatura);
+    }
+
     @Transactional
     public ResultadoMovimentacaoCartao processarEstornoCartao(Long cartaoId, LocalDate data, BigDecimal valor, Long usuarioId) {
         CartaoEntity cartao = cartaoService.obterCartaoComBloqueioExclusivo(cartaoId, usuarioId);
